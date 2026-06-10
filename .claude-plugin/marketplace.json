@@ -1,0 +1,11 @@
+{
+  "name": "ooooxoskill",
+  "owner": { "name": "Rainy" },
+  "plugins": [
+    {
+      "name": "morii-card",
+      "source": "./plugins/morii-card",
+      "description": "MoriiCard — 把数据/信息渲染成单文件交互 HTML 卡片的 skill"
+    }
+  ]
+}
