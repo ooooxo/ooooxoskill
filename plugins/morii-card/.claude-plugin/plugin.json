@@ -1,4 +1,6 @@
 {
   "name": "morii-card",
-  "description": "MoriiCard — 把数据/信息渲染成单文件交互 HTML 卡片的 skill"
+  "version": "1.1.0",
+  "description": "MoriiCard — 把数据/信息渲染成单文件交互 HTML 卡片的 skill",
+  "author": { "name": "Rainy" }
 }

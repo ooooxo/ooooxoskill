@@ -1,5 +1,6 @@
 {
   "name": "ooooxoskill",
+  "description": "Rainy 的个人 Claude Code 插件市场",
   "owner": { "name": "Rainy" },
   "plugins": [
     {

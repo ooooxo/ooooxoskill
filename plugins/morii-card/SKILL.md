@@ -1,39 +1,37 @@
 ---
 name: morii-card
 description: >
-  Render data/information as one self-contained interactive HTML widget card
-  instead of plain text. MUST USE whenever the reply presents collected or
-  structured data — search results, stats, comparisons, rankings, dashboards,
-  news/status digests, schedules, weather, prices, JSON/tables, any 3+ related
-  numbers/facts — and after any data-gathering step (收集/整理/汇总 → derive
-  chartable metrics and render). Every reply that follows a web search presents
-  its findings as a card, never plain text. Triggers: card, widget, 卡片,
-  dashboard, visualize, 可视化. ALSO, propose-first (never auto-build): algorithm/effect/
-  parameter questions whose honest answer is "depends on the scenario" → offer
-  one line proposing an interactive LAB experiment card, build on consent.
-  ALSO: a mid-task decision point (mode/plan/option pick among 2+ enumerable
-  choices) → tiny LIVE choice card whose click wakes the agent directly.
-  EXCEPTION: stay plain text during coding/debugging/git work. Four modes
-  (FAST/RICH/MICRO/LAB) + LIVE return channel, mobile-first responsive, zero
-  dependencies.
+  Render data/information as one self-contained interactive HTML widget card.
+  MUST USE whenever the reply presents collected or structured data — search
+  results, stats, comparisons, rankings, dashboards, news/status digests,
+  schedules, weather, prices, JSON/tables, any 3+ related numbers/facts — and
+  after every data-gathering or web-search step (收集/整理/汇总 → derive
+  chartable metrics and render; findings never ship as plain text). Triggers:
+  card, widget, 卡片, dashboard, visualize, 可视化. ALSO:
+  algorithm/effect/parameter questions whose honest answer is "depends on the
+  scenario" → propose one-line LAB experiment card, build only on consent. ALSO: mid-task
+  decision points (2+ enumerable choices) → LIVE choice card, click wakes the
+  agent. EXCEPTION: stay plain text during coding/debugging/git work. Modes
+  FAST/RICH/MICRO/LAB + LIVE return channel, zero dependencies.
 allowed-tools:
   - Read(~/.claude/skills/morii-card/**)
+  - Read(~/.claude/plugins/cache/*/morii-card/**)
 ---
 
 # MoriiCard
 
 One self-contained `.html`, zero dependencies. Model: professional dashboard widgets — graphics carry meaning, text exists as atoms.
 
-**Mode** — FAST (default, interactive chat): shell ≤12KB, ≤2 chart types, one pass. RICH (background/scheduled/subagent task, user asks polish, or clearly report-grade 8+ metric ask): ≤25KB, full anatomy, multi-chart. MICRO (confirmation/single-fact reply): shell ≤3KB, see MICRO section. LAB (hands-on experiment): propose-first, see LAB section. **Ambiguous?** (interactive ask that smells report-grade — "全面/整理/汇总" phrasing, multi-theme, likely 8+ metrics): probe BEFORE collecting data — 快速版（秒出核心）/ 精致版（完整层级，多等一会）— as a LIVE probe card that self-replaces into the final card (see LIVE CHANNEL); plain-text question only when the channel can't open. Signals clear → never ask. Shell budget counts structure only — never cut data to fit. Never write a post-render summary.
+**Mode** — FAST (default, interactive chat): shell ≤12KB, ≤2 chart types, one pass. RICH (background/scheduled/subagent task, user asks polish, or clearly report-grade 8+ metric ask): ≤25KB, full anatomy, multi-chart. MICRO (confirmation/single-fact reply): shell ≤3KB, see MICRO section. LAB (hands-on experiment): propose-first, see LAB section. **Ambiguous?** → probe first, workflow step 0. Shell budget counts structure only — never cut data to fit. Never write a post-render summary.
 **Decide fast, don't deliberate**: the tables below are lookups — first reasonable match wins (domain pair, layout, chart). No weighing alternatives, no draft-revise loop, no mental re-verification of snippet code: SNIPPETS patterns are pre-verified, copying them IS the correctness guarantee.
 
 ## Workflow — strict order
 
-0. Resolve mode (above). The ambiguity test is mechanical: interactive ask + (全面/整理/汇总-style phrasing OR 2+ themes OR likely 8+ metrics) + user named no mode → MUST probe 快速版/精致版 BEFORE any search/fetch (LIVE probe card, see LIVE CHANNEL). Skipping this probe is a workflow violation, not a judgment call.
+0. Resolve mode (above). The ambiguity test is mechanical: interactive ask + (全面/整理/汇总-style phrasing OR 2+ themes OR likely 8+ metrics) + user named no mode → MUST probe 快速版（秒出核心）/ 精致版（完整层级，多等一会）BEFORE any search/fetch — a LIVE probe card that self-replaces into the final card (see LIVE CHANNEL); plain-text question only when the channel can't open. Signals clear → never ask; skipping a due probe is a workflow violation, not a judgment call.
 1. **Data first.** Run every search/fetch/computation and finalize all numbers. Do NOT touch SNIPPETS.md or any HTML before data is complete — the card embeds data (invariant 5), so there is nothing to write yet. LAB cards: this step becomes defining the experiment variables + their controls; steps 2–5 apply unchanged — a lab IS a card.
 2. Map data shapes → layout & charts via the tables below (lookup, first match).
-3. Tell the user in ONE line what's coming + a SOFT ETA — always a range, rounded up, never a hard number (FAST 1–2分钟 · DASH 2组件 2–4分钟 · RICH/完整DASH 4–6分钟); finishing early beats overrunning. Then **Read `SNIPPETS.md` — the LAST step before writing.** Never earlier. Card draws charts from the CHARTS list or uses DASH → Read `CHARTS.md` in the SAME message (parallel Read calls, one round-trip).
-4. **The very next tool call after the Read result MUST be the Write.** No analysis pass, no plan, no re-reads, no text in between — snippets are copied, not studied; compose the card AS you write it. Minutes of post-Read thinking is the known failure mode: it doubles latency and token burn for zero quality gain. Dense CSS (one line per rule, shorthands, no speculative rules); FAST shell typically 8–10KB.
+3. Tell the user in ONE line what's coming + a SOFT ETA — always a range, rounded up, never a hard number (FAST 1–2分钟 · DASH 2组件 2–4分钟 · RICH/完整DASH 4–6分钟); finishing early beats overrunning. Then **Read `SNIPPETS.md`** (the LAST step before writing — invariant 7). Card draws charts from the CHARTS list or uses DASH → Read `CHARTS.md` in the SAME message (parallel Read calls, one round-trip).
+4. **The very next tool call after the Read result MUST be the Write.** No analysis pass, no plan, no re-reads, no text in between — compose the card AS you write it; minutes of post-Read thinking is the known failure mode (doubles latency and token burn, zero quality gain). Dense CSS (one line per rule, shorthands, no speculative rules); FAST shell typically 8–10KB.
 5. Open it (interactive) or report the path (background).
 
 **Language**: explicit request > conversation-dominant > 中文. **Theme**: `color-scheme:light dark` + `light-dark()` vars (one declaration covers both modes); `[data-theme]` override = two one-liners. Never duplicate variable blocks.
@@ -42,11 +40,11 @@ One self-contained `.html`, zero dependencies. Model: professional dashboard wid
 
 1. No emoji anywhere — icons are inline SVG, flat filled, `currentColor`.
 2. Card geometry never changes on interaction. Allowed: `box-shadow`, `opacity` (absolutely positioned), button `scale(.96)`, `stroke-dashoffset`.
-3. Nothing fake-clickable; every handler works — wire interactions by copying SNIPPETS patterns (pre-verified; do not re-derive or simulate them).
+3. Nothing fake-clickable; every handler works — wire interactions by copying SNIPPETS patterns.
 4. Overlay: max one, exits via backdrop + `Esc` + ×, toggled by CSS class — never the `hidden` attribute on an element carrying any author `display` (it overrides `[hidden]` and locks the overlay open).
 5. Data embedded inline. `fetch()` only when user asked for live refresh (file://+CORS kills most APIs); snapshot first paint, `--` fallback, refresh button.
 6. Contrast ≥4.5:1 body, ≥3:1 hero — verified in both themes.
-7. **Read `SNIPPETS.md` (this folder) as the last step before EVERY Write call — all modes, LAB included** — never before data collection (LAB: experiment-variable definition) is done; an early read derails into premature code-writing. Start from its skeleton, copy its canonical patterns (tabs, overlay, timeline, stepper, point row + echo, count-up, tag pill); do not improvise them. Chart geometry (highlight bars + avg line, trend line + area, donut, spike + anchor, strip, radar, DASH grid) comes from `CHARTS.md` the same way. **Snippets lock geometry math, not composition** — varying data mapping, combinations, and styling on top is expected.
+7. **Read `SNIPPETS.md` (this folder) as the last step before EVERY Write call — all modes, LAB included**, never before data collection (LAB: experiment-variable definition) is done — an early read derails into premature code-writing. Start from its skeleton; copy its canonical patterns (tabs, overlay, timeline, stepper, point row + echo, count-up, tag pill) and chart geometry from `CHARTS.md` the same way — never improvise either. **Snippets lock geometry math, not composition** — varying data mapping, combinations, and styling on top is expected.
 
 ## Color
 
