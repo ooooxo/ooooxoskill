@@ -18,6 +18,77 @@ try{/* every mk()-based builder */}catch(e){document.querySelectorAll('svg.chart
   if(!s.childElementCount)s.outerHTML='<div class="cap" style="padding:18px;text-align:center">图表渲染失败</div>'})}
 ```
 
+## Micro-interactions — tap-first (mobile primary; hover is desktop bonus)
+
+Channels opacity/fill/brightness + SVG-internal text, transitions ≤.18s `var(--ez)`, geometry frozen. Pointer events serve mouse AND touch; the hit zone is the full column/row — never the thin glyph. `touch-action:pan-y` keeps page scroll alive. Spike/strip/radar exempt (too dense / band art).
+
+**Bar scrub-focus** (THE bar standard, all modes, ≥4 bars): every bar carries its value permanently (8.5px above bar, `--fnt`); focused bar = accent fill + ink/700 value + axis-label chip; press/drag anywhere scrubs focus; a readout row above the chart (value + context line + delta chip) tracks focus — it may BE the card hero. Default focus = the insight bar (peak/latest). Keep ≥24px headroom above the tallest bar for value labels.
+
+```js
+// D=[…] numbers · VS=[…] short on-bar strings (4.2k) · V=[…] full readout strings · LB=[…] labels
+// sv = chart svg (height H) · ax = [...axis spans] · rv/rl/rc = readout value/label/chip els
+const lo=Math.min(...D),hi=Math.max(...D),N=D.length,slot=100/N,base=H-20,
+bars=[],vts=[],avg=D.reduce((s,v)=>s+v,0)/N;
+D.forEach((v,i)=>{const h=40+(base-66)*(v-lo)/(hi-lo||1),top=base-h,g=mk(sv,'g',{});
+  mk(g,'rect',{x:(i*slot)+'%',y:0,width:slot+'%',height:H,style:'fill:transparent;cursor:pointer'});
+  bars.push(mk(g,'rect',{class:'bar',x:(i*slot+slot*.22)+'%',y:top,width:(slot*.56)+'%',height:h,rx:7,style:'fill:var(--inset)'}));
+  const t=mk(g,'text',{class:'bv',x:((i+.5)*slot)+'%',y:top-7,'text-anchor':'middle',style:'fill:var(--fnt)'});
+  t.textContent=VS[i];vts.push(t)});
+const set=i=>{bars.forEach((b,j)=>b.style.fill=j===i?'var(--a)':'var(--inset)');
+  vts.forEach((t,j)=>{t.style.fill=j===i?'var(--ink)':'var(--fnt)';t.style.fontWeight=j===i?700:550});
+  ax.forEach((a,j)=>a.classList.toggle('on',j===i));
+  rv.textContent=V[i];rl.textContent=CTX+' · '+LB[i];
+  const d=Math.round((D[i]-avg)/avg*100);
+  rc.textContent=(d>=0?'+':'')+d+'% vs 均值';rc.className='chip '+(d>=0?'cup':'cdn')};
+sv.style.touchAction='pan-y';
+const scrub=e=>{const r=sv.getBoundingClientRect();
+  set(Math.max(0,Math.min(N-1,Math.floor((e.clientX-r.left)/r.width*N))))};
+sv.onpointerdown=e=>{sv.setPointerCapture(e.pointerId);scrub(e);sv.onpointermove=scrub};
+sv.onpointerup=sv.onpointercancel=()=>sv.onpointermove=null;
+set(PEAK_I);
+```
+```css
+.bar{transition:fill .18s var(--ez)}
+.bv{font-size:8.5px;font-weight:550;transition:fill .15s var(--ez)}
+.ax span{padding:2px 0;border-radius:6px;transition:color .15s var(--ez),background .15s var(--ez)}
+.ax span.on{font-weight:650;color:var(--at);background:color-mix(in srgb,var(--a) 12%,transparent)}
+.ro{display:flex;align-items:center;justify-content:space-between}
+.ro b{font-size:1.5rem;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.chip{font-size:.68rem;font-weight:650;padding:3px 9px;border-radius:7px;font-variant-numeric:tabular-nums}
+.cup{background:color-mix(in srgb,var(--up) 12%,transparent);color:var(--up)}
+.cdn{background:color-mix(in srgb,var(--dn) 12%,transparent);color:var(--dn)}
+```
+
+`--up:light-dark(#15803d,#4ade80);--dn:light-dark(#b91c1c,#f87171)` join `:root`. The avg dashed line + ONE-accent-default rules still apply (default focus = the bar you'd have highlighted statically). ≤3 bars: static highlight-bar form is enough, skip scrub.
+
+**Trend crosshair scrub** (RICH/DASH — append to the trend builder; shares `X/Y/TV/W/L/Rt/B`, needs `LB` time-label array; hover moves it, touch press-drags it, last reading persists):
+
+```js
+const hl=mk(sv,'line',{y1:16,y2:B,style:'stroke:var(--fnt);stroke-dasharray:3 3;opacity:0;transition:opacity .15s'}),
+hd=mk(sv,'circle',{r:3.5,style:'fill:var(--ink);opacity:0;transition:opacity .15s'}),
+ht=mk(sv,'g',{style:'font-size:9px;font-weight:600;opacity:0;transition:opacity .15s'}),
+hr=mk(ht,'rect',{y:0,height:16,rx:8,style:'fill:var(--ink)'}),
+hx=mk(ht,'text',{y:11.5,'text-anchor':'middle',style:'fill:var(--card)'});
+sv.style.touchAction='pan-y';
+const move=e=>{const i=Math.max(0,Math.min(TV.length-1,
+  Math.round((e.clientX-sv.getBoundingClientRect().left-L)/((W-L-Rt)/(TV.length-1))))),x=X(i);
+  hl.setAttribute('x1',x);hl.setAttribute('x2',x);hd.setAttribute('cx',x);hd.setAttribute('cy',Y(TV[i]));
+  hx.textContent=LB[i]+' · '+TV[i];const w=hx.getComputedTextLength()+16,tx=Math.max(w/2,Math.min(W-w/2,x));
+  hr.setAttribute('x',tx-w/2);hr.setAttribute('width',w);hx.setAttribute('x',tx);
+  [hl,hd,ht].forEach(n=>n.style.opacity=1)};
+sv.onpointermove=move;
+sv.onpointerdown=e=>{sv.setPointerCapture(e.pointerId);move(e)};
+```
+
+**Donut tap swap** (RICH/DASH — keep slice els `cs[]` + center text els `cv/cl` while building; tap/hover a slice swaps the center readout, siblings dim; stash default center strings for the reset):
+
+```js
+cs.forEach((c,i)=>{c.style.cursor='pointer';c.style.transition='opacity .15s';
+  c.onpointerenter=()=>{cv.textContent=SEG[i][1]+'%';cl.textContent=SEG[i][0];
+    cs.forEach((o,j)=>o.style.opacity=j===i?1:.35)}});
+dn.onpointerleave=()=>{cv.textContent='46%';cl.textContent='直营占比';cs.forEach(o=>o.style.opacity=1)};
+```
+
 ## Highlight bars + avg line + value pill (percentage coords, NO viewBox)
 
 N bars: center_i=(i+.5)/N·100%, width ~9% (N=7), x=center−width/2, bottom edges share one baseline y. Gray `var(--inset)`, exactly ONE accent bar. A rect cannot center on a % anchor — pill uses the **nested-svg trick**:
@@ -42,7 +113,7 @@ N bars: center_i=(i+.5)/N·100%, width ~9% (N=7), x=center−width/2, bottom edg
 .ax b{justify-self:center;font-weight:650;color:var(--at);background:color-mix(in srgb,var(--a) 12%,transparent);border-radius:6px;padding:1px 9px}
 ```
 
-Axis labels = HTML fractional grid matching bar count; highlighted period = `<b>` chip. Ink pill auto-inverts in dark (`--ink`/`--card`).
+Axis labels = HTML fractional grid matching bar count; highlighted period = `<b>` chip. Ink pill auto-inverts in dark (`--ink`/`--card`). ≥4 bars → upgrade to §Micro bar scrub-focus (this static geometry stays the layout base; the statically-highlighted bar becomes the default focus).
 
 ## Trend line + area fade + end dot + tag (JS-built from clientWidth)
 
@@ -69,7 +140,7 @@ mk(g,'rect',{x:ex+8,y:ey-8,width:Rt-16,height:16,rx:8,style:'fill:var(--ink)'});
 mk(g,'text',{x:ex+8+(Rt-16)/2,y:ey+4,'text-anchor':'middle',style:'fill:var(--card)'}).textContent='68';
 ```
 
-`.dr` draw-in works as-is for card-width paths (<600px length). HTML `.ax` grid below for time labels.
+`.dr` draw-in works as-is for card-width paths (<600px length). HTML `.ax` grid below for time labels. RICH/DASH: append the §Micro crosshair.
 
 ## Donut (fixed-px svg — circles never stretch)
 
@@ -90,7 +161,7 @@ mk(dn,'text',{x:60,y:57,'text-anchor':'middle',style:'font-size:20px;font-weight
 mk(dn,'text',{x:60,y:73,'text-anchor':'middle',style:'font-size:8.5px;fill:var(--mut)'}).textContent='直营占比';
 ```
 
-≤5 slices; lead slice accent, runners tint/gray.
+≤5 slices; lead slice accent, runners tint/gray. RICH/DASH: §Micro donut tap swap.
 
 ## Spike/vital stream + anchored annotation
 

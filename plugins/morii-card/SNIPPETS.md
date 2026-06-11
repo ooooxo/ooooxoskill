@@ -2,7 +2,7 @@
 
 **STOP — is your data collected and final?** If any search/fetch/computation remains, close this file and finish data work first (Workflow step 1); come back as the last step before writing. If data is ready: copy these patterns and write the HTML now, in one pass. Pre-verified — do not re-check, simulate, or improvise them. **Your next tool call after this Read is the Write — do not think the card through first; compose it as you write.**
 
-Card draws charts (trend line/highlight bars/donut/spike/strip/radar) or uses DASH layout → also read `CHARTS.md` now; chart geometry lives there.
+Card draws charts (trend line/highlight bars/donut/spike/strip/radar) or uses DASH layout → also read `CHARTS.md` now; chart geometry lives there. Content-collection card (3+ news/article/post items) → also read `COLLECTIONS.md` now (router + deck/accordion/list↔detail patterns). Both reads parallel with this one — never a later round-trip.
 
 ## Card skeleton (start every card from this)
 
@@ -185,6 +185,7 @@ ONE curve constant for all animation & transitions: `--ez` (already in skeleton 
 
 `.fu` rows/stats/legends · `.gy` svg bars (each rect) · `.dr` line paths (dasharray ≥ path length). Sibling stagger `animation-delay:.04s×i`, cap .3s. Heroes → count-up above.
 Tier by mode — FAST: main chart `.gy`/`.dr` + count-up, no `.fu`, no stagger. RICH/DASH: full set. Write only the keyframes you use.
+Chart micro-interactions (bar scrub-focus, trend crosshair scrub, donut tap swap) live in CHARTS.md §Micro-interactions — tap-first, mobile primary; bars ≥4 ship scrub-focus in every mode.
 
 ## LIVE channel (click wakes the agent)
 
