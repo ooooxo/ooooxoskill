@@ -9,10 +9,9 @@ description: >
   chartable metrics and render; findings never ship as plain text). Triggers:
   card, widget, 卡片, dashboard, visualize, 可视化. ALSO:
   algorithm/effect/parameter questions whose honest answer is "depends on the
-  scenario" → propose one-line LAB experiment card, build only on consent. ALSO: mid-task
-  decision points (2+ enumerable choices) → LIVE choice card, click wakes the
-  agent. EXCEPTION: stay plain text during coding/debugging/git work. Modes
-  FAST/RICH/MICRO/LAB + LIVE return channel, zero dependencies.
+  scenario" → propose one-line LAB experiment card, build only on consent.
+  EXCEPTION: stay plain text during coding/debugging/git work. Modes
+  FAST/RICH/LAB + LIVE return channel, zero dependencies.
 allowed-tools:
   - Read(~/.claude/skills/morii-card/**)
   - Read(~/.claude/plugins/cache/*/morii-card/**)
@@ -22,12 +21,12 @@ allowed-tools:
 
 One self-contained `.html`, zero dependencies. Model: professional dashboard widgets — graphics carry meaning, text exists as atoms.
 
-**Mode** — FAST (default, interactive chat): shell ≤12KB, ≤2 chart types, one pass. RICH (background/scheduled/subagent task, user asks polish, or clearly report-grade 8+ metric ask): ≤25KB, full anatomy, multi-chart. MICRO (confirmation/single-fact reply): shell ≤3KB, see MICRO section. LAB (hands-on experiment): propose-first, see LAB section. **Ambiguous?** → probe first, workflow step 0. Shell budget counts structure only — never cut data to fit. Never write a post-render summary.
+**Mode** — FAST (default, interactive chat): shell ≤12KB, ≤2 chart types, one pass. RICH (background/scheduled/subagent task, user asks polish, or clearly report-grade 8+ metric ask): ≤25KB, full anatomy, multi-chart. LAB (hands-on experiment): propose-first, see LAB section. Confirmations / 1–2 sentence answers: plain text, no card. **Ambiguous?** → probe first, workflow step 0. Shell budget counts structure only — never cut data to fit. Never write a post-render summary.
 **Decide fast, don't deliberate**: the tables below are lookups — first reasonable match wins (domain pair, layout, chart). No weighing alternatives, no draft-revise loop, no mental re-verification of snippet code: SNIPPETS patterns are pre-verified, copying them IS the correctness guarantee.
 
 ## Workflow — strict order
 
-0. Resolve mode (above). The ambiguity test is mechanical: interactive ask + (全面/整理/汇总-style phrasing OR 2+ themes OR likely 8+ metrics) + user named no mode → MUST probe 快速版（秒出核心）/ 精致版（完整层级，多等一会）BEFORE any search/fetch — a LIVE probe card that self-replaces into the final card (see LIVE CHANNEL); plain-text question only when the channel can't open. Signals clear → never ask; skipping a due probe is a workflow violation, not a judgment call.
+0. Resolve mode (above). The ambiguity test is mechanical: interactive ask + (全面/整理/汇总-style phrasing OR 2+ themes OR likely 8+ metrics) + user named no mode → MUST probe 快速版（秒出核心）/ 精致版（完整层级，多等一会）BEFORE any search/fetch — ONE plain-text question, never a card (no value rendered yet, attention is still in the terminal). Signals clear → never ask; skipping a due probe is a workflow violation, not a judgment call.
 1. **Data first.** Run every search/fetch/computation and finalize all numbers. Do NOT touch SNIPPETS.md or any HTML before data is complete — the card embeds data (invariant 5), so there is nothing to write yet. LAB cards: this step becomes defining the experiment variables + their controls; steps 2–5 apply unchanged — a lab IS a card.
 2. Map data shapes → layout & charts via the tables below (lookup, first match).
 3. Tell the user in ONE line what's coming + a SOFT ETA — always a range, rounded up, never a hard number (FAST 1–2分钟 · DASH 2组件 2–4分钟 · RICH/完整DASH 4–6分钟); finishing early beats overrunning. Then **Read `SNIPPETS.md`** (the LAST step before writing — invariant 7). Card draws charts from the CHARTS list or uses DASH → Read `CHARTS.md` in the SAME message (parallel Read calls, one round-trip).
@@ -87,30 +86,24 @@ Responsive, one file: viewport meta; body centers card, padding 16px; card `widt
 ## Charts (inline SVG, no libraries)
 
 Trend → line + same-hue area fade + end dot + **value tag pill at the end** (CHARTS) · value vs target → bullet/ring + dashed target line + label pill · categories ≤8 → rounded bars, values on bars; **gray-out all + highlight ONE in accent + tag** when one matters · avg/benchmark → dashed line + ink label pill · share → donut ≤5 slices (CHARTS) / concentric 2-ring · two-period → slope or dumbbell · time×category → heatmap tint cells · distribution → dot strip / waffle · magnitude → proportional circles · range+position → track + colored zone + position dot · sequence/events → **single-SVG spine + dots + fractional label grid (SNIPPETS) — never a CSS absolute line behind flex dots** · change → delta chip (SVG triangle + %) · dense vital/stream → spike micro-bars + **peak anchor annotation** (CHARTS) · phase/segment band → strip chart (CHARTS) · multi-dim profile, 5–8 axes ≤2 series → radar (CHARTS, fixed-px only).
-**Motion**: entrance-only on the unified `--ez` curve — fade-up / bar-grow / line-draw (SNIPPETS.md), `prefers-reduced-motion` guard; channels limited to opacity/transform/dashoffset. Tier by mode: MICRO no entrance (only `--ez` interaction transitions) · FAST animates the main chart (`.gy`/`.dr`) + hero count-up, NO row stagger · RICH/DASH full choreography (`.fu` rows, sibling stagger ≤.3s). Ship only the keyframes used.
+**Motion**: entrance-only on the unified `--ez` curve — fade-up / bar-grow / line-draw (SNIPPETS.md), `prefers-reduced-motion` guard; channels limited to opacity/transform/dashoffset. Tier by mode: FAST animates the main chart (`.gy`/`.dr`) + hero count-up, NO row stagger · RICH/DASH full choreography (`.fu` rows, sibling stagger ≤.3s). Ship only the keyframes used.
 Hygiene: ≤4 axis ticks, gridlines none or ≤8% opacity, bars start at 0, values labeled on-chart, charts use the card's accent pair. Every chart `<svg>` carries `role="img" aria-label="一句图意"`. ALL chart-builder JS sits in ONE try/catch whose catch swaps still-empty `.chart` svgs for a visible 「图表渲染失败」 caption (CHARTS) — never ship a silent blank.
 **Chart integrity — never squeezed invisible**: every chart owns its full row/column width (never shares a flex row with shrinkable text); chart `<svg>` gets a fixed pixel `height` attribute and its container a matching `min-height`; when width would drop below readable (chart <240px, bars <8px, labels colliding) STACK via media query or cut items — never shrink-to-fit, never horizontal scroll.
 **One-SVG rule**: any multi-part graphic (spine+dots, bars+axis, line+markers) is ONE `<svg>` — never CSS-absolute fragments over HTML flow. Full-width SVGs containing circles/text use percentage coords with NO viewBox (stretched viewBox deforms circles/glyphs); `viewBox+preserveAspectRatio="none"` only for pure path/line/rect. Wrapping labels stay HTML in a fractional grid matching the SVG percentages. SVG colors via `style=`, never bare presentation attributes.
 
 Interaction-state and texture specs live in `SNIPPETS.md` (loaded at write time per invariant 7).
 
-## MICRO (interaction reply card)
-
-Confirmation / single-fact reply as a tiny card, shell ≤3KB: icon tile + title → ONE conclusion atom (value or ≤7字 phrase + optional chip) → action row only when a real decision exists. Decision rows ride the LIVE channel when open (option tiles, see LIVE CHANNEL); fallback = clipboard echo "已选 … · 已复制,回贴对话" (pattern in SNIPPETS). No charts required; all invariants, color, and motion rules unchanged.
-
 ## LIVE channel (回传通道) — clicks reach the agent
 
-Cross-mode affordance, NOT a mode. Open ONLY in interactive sessions (background/scheduled/subagent: never — nobody to wake) AND only at a genuine decision point — the agent needs the answer to proceed (mode probe, plan/option pick, upgrade, drill into held-back data). Never decorative: a card with nothing to ask ships without a channel.
+Cross-mode affordance, NOT a mode. Open ONLY in interactive sessions (background/scheduled/subagent: never — nobody to wake) AND only when a rendered data card holds more than its face shows (drill) or a LAB runs multi-round. Questions and choices are NEVER cards — ask in plain text; LIVE rides cards that already carry content, it never justifies one. Never decorative: a card with nothing to ask ships without a channel.
 
-**Preflight — gate, not optional**: ONE foreground Bash (SNIPPETS, copy exact) checks python3 exists AND the chosen port binds. `LIVE_NO` → ship NO live markup at all: probe falls back to a plain-text question, decision rows ship clipboard-only. Never render a `live()` card whose channel was never verified. ONCE per session: reuse the verdict for later cards (fresh port each time — a rare bind clash surfaces as the listener's own early death, layers 2–3 catch it).
+**Preflight — gate, not optional**: ONE foreground Bash (SNIPPETS, copy exact) checks python3 exists AND the chosen port binds. `LIVE_NO` → ship NO live markup at all: drill affordances simply don't render. Never render a `live()` card whose channel was never verified. ONCE per session: reuse the verdict for later cards, fresh port each time — a rare bind clash surfaces as the listener's own early death, which the dead-listener rule below already covers.
 
-**Mechanism**: after `LIVE_OK`, BEFORE the Write, start the one-shot listener (SNIPPETS, copy exact) via Bash run_in_background — pick a port 20000–40000, embed the same port in the card's `live()` helper. Click → listener prints `LIVE:<value>` and exits → harness wakes the agent → continue from the value. Timeout 600s; empty completion = user never clicked — say nothing, keep waiting in chat. Listener dies early (traceback in its completion output) → channel dead, treat clicks as never coming; the card's own `.catch`→clipboard floor still works. Max ONE open listener at a time; a typed chat reply always wins over a stale card.
+**Mechanism**: after `LIVE_OK`, BEFORE the Write, start the one-shot listener (SNIPPETS, copy exact) via Bash run_in_background — pick a port 20000–40000, embed the same port in the card's `live()` helper; a click wakes the agent (one-shot/timeout semantics live with the SNIPPETS code). Listener dies early (traceback in its completion output) → channel dead, treat clicks as never coming; the card's own `.catch`→clipboard floor still works. Max ONE open listener at a time; a typed chat reply always wins over a stale card.
 
-**Card side** (SNIPPETS pattern): `live(v)` = no-cors GET beacon; on reject → clipboard fallback + echo (old channel stays as the floor); options disable after send. Choices render as OPTION TILES — 36px tint tile + 600-weight label + muted ≤6字 meta, ≥44px tall — never a bare button row.
+**Card side** (SNIPPETS pattern): `live(v)` = no-cors GET beacon; on reject → clipboard fallback + echo (the floor); the affordance disables after send.
 
-**Self-replace**: when the answer determines a card you'll build (mode probe, upgrade button), the click flips the card to a `#w`-hash waiting state polling `location.reload()` every 2.5s; build the real card and overwrite the SAME file — Write `<file>.tmp.html` then `mv -f` (atomic rename; a reload never paints a half-written card). One file lives through 问→答→成品.
-
-**Sanctioned uses**: mode probe tiles (快速版/精致版) · upgrade offer as on-card button sending `rich` · drill row 「深入」 sending `detail:<topic>` ONLY when the agent holds more data than the card face shows · MICRO decision rows. LAB multi-round: Monitor variant (persistent listener loop, every click = one stdout event; TaskStop when done).
+**Sanctioned uses**: drill row 「深入」 sending `detail:<topic>` ONLY when the agent holds more data than the card face shows · LAB multi-round: Monitor variant (persistent listener loop, every click = one stdout event; TaskStop when done).
 
 ## LAB (interactive experiment card) — propose-first
 
@@ -129,7 +122,7 @@ For questions where the honest text answer is "看情况/取决于参数" — of
 ## Output
 
 Write `<topic>-card.html` to cwd. Interactive: `open <file> 2>/dev/null || true`. Background/subagent/scheduled: do NOT open, report the path. Follow-ups about a rendered card: answer in HTML (shell 2–10KB, detail in overlay); plain text only for 1–2 sentence answers. Tweaks to an existing card (swap a chart type, recolor, add/remove rows, reword) → surgical Edit calls on the existing file — seconds, not a regenerate; full rewrite ONLY for layout-level restructuring.
-**Upgrade offer** (the only allowed post-render line): if a FAST card held content back (cut metrics/charts, density-valve overflow), end with ONE quantified line — "另有 N 项指标、M 张图未展开，回「精致」出完整版"; channel open → put the offer ON the card instead: one quiet LIVE button sending `rich`, final card self-replaces (see LIVE CHANNEL). Nothing held back → say nothing.
+**Upgrade offer** (the only allowed post-render line): if a FAST card held content back (cut metrics/charts, density-valve overflow), end with ONE quantified line — "另有 N 项指标、M 张图未展开，回「精致」出完整版". Nothing held back → say nothing.
 
 ## Final scan
 

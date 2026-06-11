@@ -131,7 +131,7 @@ pv.onclick=()=>go(cur-1);nx.onclick=()=>go(cur+1);go(0);
 </script>
 ```
 
-Dot states change fill/stroke-opacity only — geometry frozen (invariant 2). Per-step panel heights may differ (tab precedent); don't JS-measure to lock the tallest. LIVE hooks ride existing rules only (a step whose action the agent must perform/verify = genuine decision point); plain reading steps get no channel.
+Dot states change fill/stroke-opacity only — geometry frozen (invariant 2). Per-step panel heights may differ (tab precedent); don't JS-measure to lock the tallest. LIVE hooks ride existing rules only (drill into held-back data); plain reading steps get no channel.
 
 ## Insight line (the verdict atom — max 1 per card)
 
@@ -184,11 +184,11 @@ ONE curve constant for all animation & transitions: `--ez` (already in skeleton 
 ```
 
 `.fu` rows/stats/legends · `.gy` svg bars (each rect) · `.dr` line paths (dasharray ≥ path length). Sibling stagger `animation-delay:.04s×i`, cap .3s. Heroes → count-up above.
-Tier by mode — MICRO: no entrance at all (`--ez` interaction transitions only). FAST: main chart `.gy`/`.dr` + count-up, no `.fu`, no stagger. RICH/DASH: full set. Write only the keyframes you use.
+Tier by mode — FAST: main chart `.gy`/`.dr` + count-up, no `.fu`, no stagger. RICH/DASH: full set. Write only the keyframes you use.
 
-## LIVE channel (click wakes the agent) + option tiles
+## LIVE channel (click wakes the agent)
 
-Preflight gate — ONE foreground Bash, once per session (reuse the verdict afterwards); `LIVE_NO` → no live markup anywhere (plain-text probe, clipboard-only actions):
+Preflight gate — ONE foreground Bash, once per session (reuse the verdict afterwards); `LIVE_NO` → no live markup anywhere (clipboard-only actions):
 
 ```bash
 command -v python3 >/dev/null && python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',PORT));s.close();print('LIVE_OK')" 2>/dev/null || echo LIVE_NO
@@ -212,38 +212,29 @@ srv.handle_request()"
 
 One-shot: exits on first click → completion notification carries `LIVE:<value>`; empty output = timeout, user never clicked — say nothing. LAB multi-round: replace the last line with `while True: srv.handle_request()` and run under Monitor (persistent) — each click = one event; TaskStop when done.
 
-Card side — option tiles + beacon + clipboard fallback + self-replace waiting state:
+Card side — drill affordance + beacon + clipboard fallback:
 
 ```html
-<div class="ask">
-  <div class="acts">
-    <button class="opt" data-v="快速版"><span class="tl"><!--SVG--></span><span><b>快速版</b><i>秒出核心</i></span></button>
-    <button class="opt" data-v="精致版"><span class="tl"><!--SVG--></span><span><b>精致版</b><i>完整层级 · 多等一会</i></span></button>
-  </div><div class="cap" id="echo"></div></div>
-<div class="wait"><b>已收到</b> <span class="cap">生成中,本页会自动刷新</span></div>
+<button class="drill" data-v="detail:渠道明细"><!--SVG-->深入 · 渠道明细</button>
+<div class="cap" id="echo"></div>
 <style>
-.acts{display:grid;gap:8px;margin-top:14px}
-.opt{display:flex;align-items:center;gap:11px;border:0;border-radius:12px;padding:10px 12px;min-height:44px;cursor:pointer;text-align:left;background:var(--inset);color:var(--ink);transition:box-shadow .15s var(--ez)}
-.opt:hover{box-shadow:inset 0 0 0 1.5px var(--a)}
-.opt:active{transform:scale(.96)}.opt:disabled{opacity:.4;cursor:default}
-.opt .tl{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--a) 12%,transparent);color:var(--at)}
-.opt b{display:block;font-size:.84rem}.opt i{font-style:normal;font-size:.7rem;color:var(--mut)}
-.wait{display:none}.w .ask{display:none}.w .wait{display:block}
+.drill{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:10px;padding:8px 14px;min-height:44px;cursor:pointer;font-size:.76rem;font-weight:600;background:var(--inset);color:var(--mut);transition:box-shadow .15s var(--ez)}
+.drill:hover{box-shadow:inset 0 0 0 1.5px var(--a)}
+.drill:active{transform:scale(.96)}.drill:disabled{opacity:.4;cursor:default}
 </style>
 <script>
 const PORT=24680;
-const live=v=>{document.querySelectorAll('.opt').forEach(b=>b.disabled=true);
+const live=v=>{document.querySelectorAll('.drill').forEach(b=>b.disabled=true);
   fetch('http://127.0.0.1:'+PORT+'/?c='+encodeURIComponent(v),{mode:'no-cors'})
-  .then(()=>{location.hash='w';location.reload()})
+  .then(()=>{document.getElementById('echo').textContent='已发送 · agent 处理中'})
   .catch(()=>{navigator.clipboard?.writeText(v).catch(()=>{});
     document.getElementById('echo').textContent='通道已关 · 已复制「'+v+'」,回贴对话即可';
-    document.querySelectorAll('.opt').forEach(b=>b.disabled=false)});};
-document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>live(b.dataset.v));
-if(location.hash==='#w'){document.documentElement.classList.add('w');setTimeout(()=>location.reload(),2500)}
+    document.querySelectorAll('.drill').forEach(b=>b.disabled=false)});};
+document.querySelectorAll('.drill').forEach(b=>b.onclick=()=>live(b.dataset.v));
 </script>
 ```
 
-Swap `PORT` to the live listener's port. Waiting state = static text, no looping spinner (motion rules hold); both `.ask`/`.wait` toggle via the `.w` class, never the `hidden` attribute. Self-replace overwrite: Write `<file>.tmp.html` then `mv -f` over the original — rename is atomic, a mid-write reload never paints half a card. Multi-select: class-toggle rows + ONE confirm button calling `live([...sel].join('、'))`. No channel open (background card / pure offline) → drop `live()`, keep the clipboard handler alone; non-replacing choices (MICRO decision rows) → in `.then` show "已发送 · agent 处理中" instead of the `#w` reload flip.
+Swap `PORT` to the live listener's port. No channel open (`LIVE_NO` / background card) → don't render the drill affordance at all.
 
 ## States & texture
 
