@@ -115,6 +115,10 @@ N bars: center_i=(i+.5)/N·100%, width ~9% (N=7), x=center−width/2, bottom edg
 
 Axis labels = HTML fractional grid matching bar count; highlighted period = `<b>` chip. Ink pill auto-inverts in dark (`--ink`/`--card`). ≥4 bars → upgrade to §Micro bar scrub-focus (this static geometry stays the layout base; the statically-highlighted bar becomes the default focus).
 
+## Leaderboard (featured spotlight + ranked bars) — graphic-first + interactive
+
+Full verified pattern: **`examples/leaderboard.html`** — copy its skeleton, swap data/accent. Shape: a **spotlight** for the selected entity (rank badge + name + big value + share% + rank-delta chip + its **trend sparkline** with single-hue area fade) above **ranked rows** — each row = rank + name + delta chip + leader-relative bar (fill = value/max) + value. **Tap any row → it features in the spotlight** and its bar becomes the lone accent bar (`.row.on .bar i{background:var(--a)}`); every other bar stays muted gray = one loud thing. Default feature = rank 1. The sparkline draws in (`strokeDashoffset` from `getTotalLength()`); rank-delta chips reuse `--up/--dn`. ≤8 rows on the face; more → expand or RICH. Solid fills only — no gradient bars/panels/glow. (A plain category bar chart that isn't named-entity ranks → use Highlight bars above instead.)
+
 ## Trend line + area fade + end dot + tag (JS-built from clientWidth)
 
 Path `d` can't take % — build px coords at load from `clientWidth` (cards are width-stable, no resize handler). End dot + tag pill live in the same coordinate space, alignment by construction.

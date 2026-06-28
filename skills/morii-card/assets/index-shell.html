@@ -1,0 +1,173 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>整理资料 · 卡片集</title>
+<style>
+:root{color-scheme:light dark;
+--bg:light-dark(#e9ebee,#0d0d0f);--panel:light-dark(#fbfbfc,#161618);--card:light-dark(#fff,#1c1c1e);
+--ink:light-dark(#16181c,#f2f3f5);--mut:light-dark(#6e7480,#9ba1ac);--fnt:light-dark(#a8adb8,#5d646f);
+--inset:light-dark(#eef0f2,#26262a);--hl:color-mix(in srgb,var(--fnt) 14%,transparent);
+--a:light-dark(#46474d,#c7c9cf);
+--ez:cubic-bezier(.16,1,.3,1)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{height:100vh;overflow:hidden;background:var(--bg);color:var(--ink);font-family:-apple-system,system-ui,'Segoe UI',sans-serif}
+.app{display:grid;grid-template-columns:1fr;grid-template-rows:auto 1fr;height:100vh}
+.nav{background:var(--panel);border-bottom:1px solid var(--hl);display:flex;flex-direction:column;min-height:0}
+.nhd{display:flex;align-items:center;gap:9px;padding:13px 16px 10px}
+.nhd .ic{width:24px;height:24px;border-radius:7px;flex:none;display:grid;place-items:center;background:color-mix(in srgb,var(--a) 16%,transparent)}
+.nhd .ic svg{width:14px;height:14px;fill:var(--a)}
+.nhd h1{font-size:.92rem;font-weight:650;letter-spacing:-.01em}
+.nhd .cnt{margin-left:auto;font-size:.68rem;font-weight:600;color:var(--mut);font-variant-numeric:tabular-nums;background:var(--inset);padding:3px 9px;border-radius:99px}
+.sb{margin:0 12px 8px;position:relative}
+.sb svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;fill:var(--fnt);pointer-events:none}
+.sb input{width:100%;height:38px;border:0;border-radius:11px;background:var(--inset);color:var(--ink);font-size:.84rem;font-family:inherit;padding:0 12px 0 33px;outline:none}
+.sb input::placeholder{color:var(--fnt)}
+.sb input:focus{box-shadow:inset 0 0 0 1.5px var(--a)}
+.tags{display:flex;gap:6px;overflow-x:auto;padding:0 12px 10px;scrollbar-width:none}
+.tags::-webkit-scrollbar{display:none}
+.tag{flex:none;min-height:30px;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:0;border-radius:99px;background:var(--inset);color:var(--mut);font-size:.74rem;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;transition:background .15s var(--ez),color .15s var(--ez),box-shadow .15s var(--ez)}
+.tag .d{width:7px;height:7px;border-radius:99px}
+.tag:active{transform:scale(.96)}
+.list{overflow-y:auto;padding:0 12px 12px;max-height:30vh}
+.list::-webkit-scrollbar{width:7px}.list::-webkit-scrollbar-thumb{background:var(--hl);border-radius:9px}
+.gh{position:sticky;top:0;z-index:1;background:var(--panel);font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--fnt);padding:9px 6px 5px}
+.item{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:8px 12px 8px 11px;margin-bottom:4px;border:0;border-radius:11px;background:transparent;color:var(--ink);cursor:pointer;transition:background .15s var(--ez),box-shadow .15s var(--ez);text-align:left;font-family:inherit}
+.item:hover{background:var(--inset)}
+.item:active{transform:scale(.99)}
+.item .dot{width:9px;height:9px;border-radius:99px;flex:none}
+.item .tx{min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.item .tt{font-size:.83rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .mt{font-size:.67rem;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item.on{background:var(--card);box-shadow:inset 0 0 0 1.5px var(--a),0 2px 8px light-dark(rgba(16,24,40,.08),rgba(0,0,0,.5))}
+.empty{padding:24px 12px;text-align:center;color:var(--fnt);font-size:.78rem}
+.stage{position:relative;min-height:0;background:var(--bg)}
+.frame{width:100%;height:100%;border:0;display:block;background:var(--bg);opacity:0;transition:opacity .3s var(--ez)}
+.frame.in{opacity:1}
+.se{position:absolute;inset:0;display:none;place-items:center;color:var(--fnt);font-size:.86rem;z-index:1}
+.se.on{display:grid}
+.vbtn{position:absolute;top:12px;right:12px;z-index:3;display:none;align-items:center;gap:6px;min-height:34px;padding:0 13px;border:0;border-radius:99px;background:var(--card);color:var(--ink);font-size:.74rem;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 1px 2px light-dark(rgba(16,24,40,.06),rgba(0,0,0,.4)),0 4px 14px light-dark(rgba(16,24,40,.08),rgba(0,0,0,.5));transition:box-shadow .15s var(--ez)}
+.vbtn.show{display:inline-flex}.vbtn:active{transform:scale(.96)}.vbtn svg{width:14px;height:14px;fill:currentColor}
+.grid{position:absolute;inset:0;z-index:2;overflow-y:auto;padding:18px;background:var(--bg);display:none;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:13px;align-content:start}
+.grid.on{display:grid}
+.gwrap{grid-column:1/-1}
+.gwrap .gl{font-size:.64rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--fnt);margin:6px 2px 0}
+.gc{display:flex;flex-direction:column;gap:7px;padding:15px;border-radius:15px;background:var(--card);box-shadow:0 1px 2px light-dark(rgba(16,24,40,.05),rgba(0,0,0,.4));cursor:pointer;text-align:left;border:0;font-family:inherit;color:var(--ink);transition:box-shadow .18s var(--ez);min-height:124px}
+.gc:hover{box-shadow:0 2px 6px light-dark(rgba(16,24,40,.08),rgba(0,0,0,.5)),0 10px 26px light-dark(rgba(16,24,40,.1),rgba(0,0,0,.55))}
+.gc:active{transform:scale(.985)}
+.gc .top{display:flex;align-items:center;gap:7px}
+.gc .top .dot{width:8px;height:8px;border-radius:99px;flex:none}
+.gc .top .tt{font-size:.85rem;font-weight:650;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc .val{font-size:1.5rem;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1;margin:3px 0 1px}
+.gc .val:empty{display:none}
+.gc .sm{font-size:.73rem;color:var(--mut);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gc .ft{margin-top:auto;display:flex;align-items:center;justify-content:space-between;font-size:.65rem;color:var(--fnt)}
+.gc .gtag{font-weight:600}
+.foot{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:7px;justify-content:center;padding:8px;font-size:.66rem;color:var(--fnt);pointer-events:none;z-index:1}
+.foot .ld{width:6px;height:6px;border-radius:99px;background:light-dark(#16a34a,#4ade80)}
+.foot kbd{font-family:ui-monospace,monospace;font-size:.62rem;background:var(--inset);color:var(--mut);border-radius:5px;padding:1px 5px}
+@media(min-width:720px){
+.app{grid-template-columns:288px 1fr;grid-template-rows:1fr}
+.nav{border-bottom:0;border-right:1px solid var(--hl)}
+.nhd{padding:18px 18px 12px}.sb{margin:0 14px 8px}
+.list{flex:1;max-height:none;padding:0 14px 14px}
+.foot{justify-content:flex-start;padding:12px 18px}
+}
+</style></head><body>
+<div class="app">
+<nav class="nav">
+<div class="nhd"><span class="ic"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h5l2 2h5a2 2 0 0 1 2 2v3H4zM4 12h16v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg></span><h1 id="title">整理资料</h1><span class="cnt" id="cnt"></span></div>
+<div class="sb"><svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 1 1-3.9 10.55l-3.3 3.3-1.4-1.42 3.3-3.3A6 6 0 0 1 10 4m0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/></svg><input id="q" placeholder="搜索卡片 / 标签 / 摘要…" autocomplete="off"></div>
+<div class="tags" id="tags"></div>
+<div class="list" id="list"></div>
+</nav>
+<div class="stage">
+<button class="vbtn" id="vbtn"></button>
+<iframe class="frame" id="frame" title="卡片"></iframe>
+<div class="grid" id="grid"></div>
+<div class="se" id="se">还没有卡片</div>
+<div class="foot"><span class="ld"></span>本地文件 · 可离线 · <kbd>←</kbd><kbd>→</kbd> 翻卡</div>
+</div>
+</div>
+<script>
+/* ── HUE: tag → accent dot color. Add new tags as needed; unlisted ones fall back to neutral gray. ── */
+const HUE={财务:'#16a34a',睡眠:'#6366f1',天气:'#0ea5e9',健康:'#f43f5e',新闻:'#d97706',科技:'#8b5cf6',旅行:'#14b8a6',美食:'#f97316',体育:'#0ea5e9'};
+const hueOf=g=>HUE[g]||'#94a3b8';
+/* ── CARDS: agent inserts one line per card between the markers, {f,t,g,v,s,d} + trailing comma (JS array, trailing comma is legal).
+   f=filename t=title g=tag v=headline value (shown on grid) s=one-line summary d=YYYY-MM-DD (card's write date).
+   These values = a copy of each card's <script id="card-meta"> block; the index can be rebuilt by scanning the cards' meta. ── */
+const CARDS=[
+/*CARDS-START*/
+/*CARDS-END*/
+];
+/* Time buckets computed against "now" → cards age automatically; newest→oldest within a group */
+const T=new Date(),ty=T.getFullYear(),tm=T.getMonth(),td=T.getDate();
+const bucketOf=d=>{const[Y,M,D]=(d||'').split('-').map(Number);if(!Y)return 2;
+const diff=Math.floor((new Date(ty,tm,td)-new Date(Y,M-1,D))/864e5);return diff<=0?0:diff<7?1:2};
+const ago=d=>{const[Y,M,D]=(d||'').split('-').map(Number);if(!Y)return'';
+const diff=Math.floor((new Date(ty,tm,td)-new Date(Y,M-1,D))/864e5);
+return diff<=0?'今天':diff===1?'昨天':diff<7?diff+' 天前':diff<30?Math.floor(diff/7)+' 周前':(M+'/'+D)};
+const GROUPS=['今天','本周','更早'];
+const list=document.getElementById('list'),frame=document.getElementById('frame'),grid=document.getElementById('grid'),
+se=document.getElementById('se'),q=document.getElementById('q'),tagsEl=document.getElementById('tags'),vbtn=document.getElementById('vbtn');
+document.getElementById('cnt').textContent=CARDS.length+' 张';
+let cur=-1,order=[],activeTag='全部',view='read';
+const GRID_ICON='<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
+const READ_ICON='<svg viewBox="0 0 24 24"><path d="M5 4h9a3 3 0 0 1 3 3v13l-4-2-4 2V7a3 3 0 0 0-3-3z"/></svg>';
+const setView=v=>{view=v;grid.classList.toggle('on',v==='grid');
+vbtn.innerHTML=v==='grid'?READ_ICON+'阅读':GRID_ICON+'概览';
+if(v==='grid')renderGrid()};
+vbtn.onclick=()=>setView(view==='grid'?'read':'grid');
+const TAGS=['全部',...[...new Set(CARDS.map(c=>c.g))]];
+TAGS.forEach(tag=>{const b=document.createElement('button');b.className='tag';b.dataset.tag=tag;
+b.innerHTML=(tag==='全部'?'':'<span class="d" style="background:'+hueOf(tag)+'"></span>')+tag;
+b.onclick=()=>{activeTag=tag;paintTags();render()};tagsEl.appendChild(b)});
+function paintTags(){[...tagsEl.children].forEach(b=>{const on=b.dataset.tag===activeTag,t=b.dataset.tag,hue=t==='全部'?null:hueOf(t);
+b.style.background=on?(hue?'color-mix(in srgb,'+hue+' 16%,transparent)':'var(--card)'):'var(--inset)';
+b.style.color=on?(hue||'var(--ink)'):'var(--mut)';
+b.style.boxShadow=on?'inset 0 0 0 1.5px '+(hue?'color-mix(in srgb,'+hue+' 45%,transparent)':'var(--a)'):'none'})}
+function visible(){const kw=q.value.trim().toLowerCase();const out=[];
+GROUPS.forEach((g,bi)=>{const hits=CARDS.map((c,i)=>({c,i})).filter(({c})=>bucketOf(c.d)===bi&&
+(activeTag==='全部'||c.g===activeTag)&&(!kw||(c.t+c.g+c.s+(c.v||'')).toLowerCase().includes(kw)))
+.sort((a,b)=>(a.c.d<b.c.d?1:a.c.d>b.c.d?-1:0));out.push({g:GROUPS[bi],hits})});return out}
+function render(){
+list.innerHTML='';order=[];
+visible().forEach(({g,hits})=>{if(!hits.length)return;
+const h=document.createElement('div');h.className='gh';h.textContent=g+' · '+hits.length;list.appendChild(h);
+hits.forEach(({c,i})=>{const b=document.createElement('button');b.className='item'+(i===cur?' on':'');
+b.innerHTML='<span class="dot" style="background:'+hueOf(c.g)+'"></span><span class="tx"><span class="tt"></span><span class="mt"></span></span>';
+b.querySelector('.tt').textContent=c.t;b.querySelector('.mt').textContent=c.g+' · '+c.s;
+b.onclick=()=>{go(i);setView('read')};list.appendChild(b);order.push(i)})});
+if(!order.length){const e=document.createElement('div');e.className='empty';e.textContent=CARDS.length?'无匹配卡片':'还没有卡片';list.appendChild(e)}
+if(view==='grid')renderGrid()}
+function renderGrid(){grid.innerHTML='';let any=false;
+visible().forEach(({g,hits})=>{if(!hits.length)return;any=true;
+const w=document.createElement('div');w.className='gwrap';w.innerHTML='<div class="gl">'+g+' · '+hits.length+'</div>';grid.appendChild(w);
+hits.forEach(({c,i})=>{const hue=hueOf(c.g);const t=document.createElement('button');t.className='gc';
+t.innerHTML='<div class="top"><span class="dot" style="background:'+hue+'"></span><span class="tt"></span></div>'+
+'<div class="val"></div><div class="sm"></div>'+
+'<div class="ft"><span class="gtag" style="color:'+hue+'"></span><span class="tm"></span></div>';
+t.querySelector('.tt').textContent=c.t;t.querySelector('.val').textContent=c.v||'';
+t.querySelector('.sm').textContent=c.s;t.querySelector('.gtag').textContent=c.g;t.querySelector('.tm').textContent=ago(c.d);
+t.onclick=()=>{go(i);setView('read')};grid.appendChild(t)})});
+if(!any){const e=document.createElement('div');e.className='empty gwrap';e.textContent='无匹配卡片';grid.appendChild(e)}}
+function go(i){if(i==null||i<0||i>=CARDS.length)return;
+if(i!==cur){cur=i;frame.classList.remove('in');frame.onload=()=>frame.classList.add('in');frame.src=CARDS[i].f;document.title=CARDS[i].t+' · 卡片集';
+try{history.replaceState(null,'','#'+CARDS[i].f)}catch(e){}}
+render();const el=list.querySelector('.item.on');if(el)el.scrollIntoView({block:'nearest'})}
+q.oninput=render;
+addEventListener('keydown',e=>{
+if(e.key==='Escape'&&view==='grid'){setView('read');return}
+if(e.target===q&&e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;
+if(view==='grid')return;
+const p=order.indexOf(cur);
+if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();go(order[Math.min(order.length-1,p+1)]??order[0])}
+if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();go(order[Math.max(0,p-1)]??order[0])}});
+paintTags();
+/* open index.html#<card-file> → deep-link to that card (read view); else ≥25 lands on the grid, <25 on the newest */
+function route(){const h=decodeURIComponent(location.hash.slice(1));const i=CARDS.findIndex(c=>c.f===h);
+if(i<0)return false;render();go(i);setView('read');return true}
+addEventListener('hashchange',route);
+if(!CARDS.length){vbtn.classList.remove('show');se.classList.add('on');render()}
+else{vbtn.classList.add('show');
+if(!route()){render();const nw=order[0];
+if(CARDS.length>=25){cur=nw;frame.src=CARDS[nw].f;frame.onload=()=>frame.classList.add('in');render();setView('grid')}
+else{go(nw);setView('read')}}}
+</script></body></html>

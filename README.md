@@ -1,6 +1,7 @@
 # MoriiCard
 
-Claude Code skill:把数据/信息渲染成**零依赖、单文件、可交互**的 HTML 卡片,代替纯文字回答。
+Agent skill:把数据/信息渲染成**零依赖、单文件、可交互**的 HTML 卡片,代替纯文字回答。
+Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用。
 
 搜索结果、统计、对比、榜单、日程、天气、新闻摘要——任何 3 个以上相关数字/事实,出卡不出段落。
 
@@ -12,33 +13,63 @@ Claude Code skill:把数据/信息渲染成**零依赖、单文件、可交互**
 - **克制配色** — 中性表面 + 每卡一对高饱和小面积 accent,60-30-10
 - **移动优先** — 430px 起步,桌面端自动展开多栏
 
-## 四模式 + 两能力
+## 四模式
 
 | 模式 | 场景 |
 |------|------|
 | FAST | 交互对话默认,秒级出卡 |
 | RICH | 报告级:完整层级、多图表 |
-| MICRO | 微确认/单事实回应 |
-| LAB | 「取决于参数」类问题 → 可动手实验台 |
-
-- **步进布局 (Stepper)** — 教程/流程类回答:进度点 + 上一步/下一步逐步跟进
-- **LIVE 回传** — 卡上选项可点击,点击直接唤醒 agent 继续干活
+| LAB  | 「取决于参数」类问题 → 可动手实验台 |
+| SERVE | 跟随运行中任务实时填充的卡 |
 
 ## 安装
 
+```bash
+npx skills add ooooxo/ooooxoskill
 ```
-/plugin marketplace add ooooxo/ooooxoskill
-/plugin install morii-card@ooooxoskill
+
+选中 **morii-card**、选要装的 agent(可多选)即可。装进各 agent 的个人 skill 目录
+(Claude Code → `~/.claude/skills/morii-card/`),所以调用是**裸名**:
+
+```
+/morii-card
 ```
 
 ## 更新
 
-自动。作者 push 即发版,订阅者每次启动 Claude Code 自动拉新;等不及时:
+跟随本仓库的最新提交:
 
+```bash
+npx skills update            # 更新全部
+npx skills update morii-card # 只更新这个
 ```
-/plugin marketplace update
+
+## 手动装法(不用 npx)
+
+```bash
+git clone https://github.com/ooooxo/ooooxoskill.git
+cp -R ooooxoskill/skills/morii-card ~/.claude/skills/morii-card
+# 更新:git pull 后再 cp 一次
 ```
 
 ## 触发
 
-说 卡片 / 可视化 / card / dashboard,或任何数据汇总型提问后自动出卡;手动调用 `/morii-card`(单 skill 插件,无命名空间前缀);写代码/调试/git 流程中保持纯文本不打扰。
+说 卡片 / 可视化 / card / dashboard,或任何数据汇总型提问后自动出卡;手动调用 `/morii-card`;
+写代码/调试/git 流程中保持纯文本不打扰。
+
+## 结构
+
+```
+skills/morii-card/
+  SKILL.md       主规范(模式/布局/配色/图形规则)
+  SNIPPETS.md    预验证骨架与交互片段(写卡前必读)
+  CHARTS.md      图表几何
+  COLLECTIONS.md 内容合集布局路由
+  LAB-LIVE.md    LAB 实验卡 + LIVE 回传通道
+  MULTI-CARD.md  多卡索引壳
+  SERVE.md       SERVE 实时任务卡
+  assets/        多卡索引壳模板
+  examples/      可直接抄骨架的成品卡
+```
+
+MIT · by Rainy
