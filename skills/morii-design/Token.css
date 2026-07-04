@@ -1,0 +1,140 @@
+/* =============================================================================
+   Token — Morii 设计系统设计令牌（唯一真源：颜色 / 圆角 / 间距 / 动效 / 字号）
+   -----------------------------------------------------------------------------
+   规则：任何界面、组件、卡片的颜色 **只能** 引用本文件的变量，禁止裸写十六进制。
+   新增颜色 = 先在此登记一个 token，再在别处引用。改色只改这里一处。
+
+   本文件是 Morii 应用内 src/panel/shell/tokens.css（作用域 .morii-shell，
+   ADR 0020 / 0048）的“可移植镜像”：
+     · 在 Morii 仓库内 → 直接用 tokens.css，不要复制本文件。
+     · 在独立 demo / 卡片 / 新原型 → 复制本文件，:root 作用域即可用。
+   两边 token 命名保持一致，设计可在两处无痛迁移。
+
+   ★ 复用优先（硬规则）：上新颜色前，先在下面的 token 里找能复用的。
+     能用现有 token（含 color-mix 派生）解决 → 必须复用，禁止新增。
+     只有「现有色板真的表达不了某个语义」才新增——且新增 = 先在此登记 token
+     并写明语义，再到别处引用。色彩熵越低越好：一个 --accent 派生出
+     press/soft/ink 四态，胜过四个独立色值。
+   ============================================================================= */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- 字体栈 ---------------------------------------------------------- */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+          "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+
+  /* ---- 表面 Surfaces（中性近黑，永不染色）----------------------------- */
+  --bg-window:     #0a0a0c;   /* 最底窗体 */
+  --bg-content:    #0d0d0f;   /* 内容区 */
+  --panel:         #1a1a1c;   /* 卡片基面 */
+  --panel-strong:  #202022;   /* 强调面 / 浮层 */
+  --panel-2:       #242427;   /* 面上的抬升项 */
+  --panel-hi:      #2c2c30;   /* 高亮项 */
+  --sidebar:       #121214;
+  --inset:         #28282b;   /* 凹陷块（引用 / 次级分组）*/
+
+  /* ---- 墨色 Ink（文字四档）------------------------------------------- */
+  --ink:    #f3f4f6;   /* 主文字 / 标题 */
+  --ink-2:  #c8ccd2;   /* 次要正文 */
+  --ink-3:  #8e949e;   /* 标签 / 静默说明 */
+  --ink-4:  #5c626c;   /* 最弱：占位、计数、轴标 */
+
+  /* ---- 线 & 悬浮态 ----------------------------------------------------- */
+  /* 边框/分割线刻意低对比；能用留白就别用线 */
+  --sep:        rgba(255,255,255,0.055);
+  --sep-strong: rgba(255,255,255,0.11);
+  --hairline:   rgba(255,255,255,0.045); /* 优雅细横线：仅密集列表/表格降级用 */
+  --hover:      rgba(255,255,255,0.055);
+  --hover-2:    rgba(255,255,255,0.10);
+
+  /* ---- 主题色 Accent（唯一强调色，可由 JS 注入 --user-accent 派生）---- */
+  --accent:        var(--user-accent, #4c8dff);
+  --accent-press:  color-mix(in srgb, var(--accent) 82%, #000);
+  --accent-soft:   color-mix(in srgb, var(--accent) 16%, transparent);  /* chip 底 */
+  --accent-ink:    color-mix(in srgb, var(--accent) 62%, #fff);          /* accent 文字 */
+  --selection:     color-mix(in srgb, var(--accent) 42%, transparent);
+  --shimmer:       var(--hover);   /* 骨架屏微光（复用悬浮高光，不引新色）*/
+
+  /* ---- 语义色 Semantic（仅在真实状态触发时使用，不做装饰）------------ */
+  --online: #30d158;
+  --up:     #16a34a;   /* 涨 / 正向 delta */
+  --down:   #dc2626;   /* 跌 / 负向 delta */
+  --warn:   #d97706;   /* 越过真实阈值才用 */
+  --crit:   #dc2626;
+
+  /* ---- 圆角阶梯 Radius（柔和圆角，禁锐角；卡片默认 14–16px 起）------- */
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r-md: 14px;   /* 默认柔和圆角下限 */
+  --r-lg: 18px;
+  --r-xl: 24px;   /* 大卡 / 面板 */
+  --r-pill: 99px; /* 胶囊按钮 / chip */
+
+  /* ---- 阴影 Shadow ----------------------------------------------------- */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md:  0 1px 2px rgba(0,0,0,0.5), 0 12px 30px rgba(0,0,0,0.38);
+  --shadow-lg:  0 1px 2px rgba(0,0,0,0.5), 0 22px 54px rgba(0,0,0,0.5);
+  --shadow-pop: 0 1px 2px rgba(0,0,0,0.6), 0 28px 64px rgba(0,0,0,0.6);
+
+  /* ---- 动效曲线 & 时长 Motion ----------------------------------------- */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --spring:      cubic-bezier(0.34, 1.56, 0.64, 1);   /* 按压回弹 */
+  --spring-soft: cubic-bezier(0.4, 1.3, 0.55, 1);
+  --t-fast: 180ms;
+  --t-med:  300ms;
+  --t-slow: 480ms;
+
+  /* ---- 图表领域色对 Accent pairs（可选；图表/chip/微图标专用）---------
+     仅当一张卡/组件需要「领域专属双色」时启用：把 --accent / --accent-2
+     局部覆写为下面某一对，表面仍中性。不需要双色就只用全局 --accent。
+     财务 #22c55e/#6366f1 · 科技 #6366f1/#38bdf8 · 健康 #f43f5e/#2dd4bf
+     体育 #f97316/#38bdf8 · 新闻 #f59e0b/#64748b · 天气 #38bdf8/#facc15
+     睡眠 #818cf8/#38bdf8 · 通用 #4c8dff + 灰 */
+  --accent-2: var(--accent);  /* 默认与主色同；需双色时局部覆写 */
+
+  /* ---- 排版尺度 Type scale（详见 SKILL.md §字号字距）----------------- */
+  --fs-hero:  30px;   /* 大数字 / 英雄值，700/-1px */
+  --fs-title: 18px;   /* 区块标题 650 */
+  --fs-body:  16px;   /* 正文 */
+  --fs-sub:   13px;   /* 次要 */
+  --fs-label: 12px;   /* 标签 */
+  --fs-cap:   11px;   /* 计数 / 轴标 */
+}
+
+/* ===================== 亮色覆写（系统灰白，ADR 0048）=================== */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-window:    #f5f5f7;
+  --bg-content:   #ffffff;
+  --panel:        #ffffff;
+  --panel-strong: #f5f5f7;
+  --panel-2:      #ebebed;
+  --panel-hi:     #e0e0e5;
+  --sidebar:      #f0f0f2;
+  --inset:        #e5e5ea;
+
+  /* 正文绝不纯黑：深炭黑降刺眼；次要文本中灰 */
+  --ink:   #1d1d1f;   /* 深炭黑（可选 #212529），非 #000 */
+  --ink-2: #424245;
+  --ink-3: #86868b;   /* 次要文本：中灰 */
+  --ink-4: #aeaeb2;
+
+  /* 边框/分割线刻意低对比（“优雅细横线”，能用留白就别用线）*/
+  --sep:        rgba(0,0,0,0.05);
+  --sep-strong: rgba(0,0,0,0.09);
+  --hairline:   rgba(0,0,0,0.045);
+  --hover:      rgba(0,0,0,0.035);
+  --hover-2:    rgba(0,0,0,0.06);
+
+  --accent-ink: color-mix(in srgb, var(--accent) 62%, #000);
+
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.08);
+  --shadow-md:  0 1px 2px rgba(0,0,0,0.06), 0 12px 30px rgba(0,0,0,0.10);
+  --shadow-lg:  0 1px 2px rgba(0,0,0,0.06), 0 22px 54px rgba(0,0,0,0.14);
+  --shadow-pop: 0 1px 2px rgba(0,0,0,0.08), 0 28px 64px rgba(0,0,0,0.18);
+
+  --online: #34c759;
+}

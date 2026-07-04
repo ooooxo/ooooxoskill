@@ -1,26 +1,20 @@
-# MoriiCard
+# Morii
 
-Agent skill:把数据/信息渲染成**零依赖、单文件、可交互**的 HTML 卡片,代替纯文字回答。
-Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用。
+一套 **视觉 / 设计** 向的 agent skill 系列 —— 把「看不见的东西」做成看得见的:
+数据出卡、界面成系统、图标成家族、图标会动。
+Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用,**按需装,装哪个用哪个**。
 
-搜索结果、统计、对比、榜单、日程、天气、新闻摘要——任何 3 个以上相关数字/事实,出卡不出段落。
+## 四个 skill
 
-## 效果
+| skill | 干什么 | 触发词 |
+|-------|--------|--------|
+| **morii-card** | 把数据/信息渲染成零依赖、单文件、可交互的 HTML 卡片,代替纯文字回答 | 卡片 · 可视化 · card · dashboard · 对比 |
+| **morii-design** | 新界面/组件/原型的视觉与交互规范底座(铺满视口的完整页面,非单卡) | 设计 · UI · 界面 · 组件 · 原型 · design system |
+| **morii-icon** | 画一个 Morii 实心风 SVG 图标 —— 扁平 · 大圆角 · 实心块面 · 单色成家族 | 图标 · icon · svg 图标 · glyph · 一套图标 |
+| **morii-charm** | 拟物「角饰」—— 用堆叠 div 手搭的立体小物件 + 一段循环动画,不是扁平图标 | 角饰 · 拟物图标 · 会动的图标 · charm · animated icon |
 
-- **单文件零依赖** — 一张卡 = 一个 `.html`,无 CDN 无框架,离线双击即开
-- **亮/暗双主题** — `light-dark()` 一套变量自适应系统主题
-- **图形优先** — 文字只以原子存在(标题/数值/标签/chip),结论靠图表说话;inline SVG 手绘,无图表库
-- **克制配色** — 中性表面 + 每卡一对高饱和小面积 accent,60-30-10
-- **移动优先** — 430px 起步,桌面端自动展开多栏
-
-## 四模式
-
-| 模式 | 场景 |
-|------|------|
-| FAST | 交互对话默认,秒级出卡 |
-| RICH | 报告级:完整层级、多图表 |
-| LAB  | 「取决于参数」类问题 → 可动手实验台 |
-| SERVE | 跟随运行中任务实时填充的卡 |
+一家人:`morii-design` 定页面基调 → `morii-card` 出数据卡 → `morii-icon` 画其中的静态图标 →
+`morii-charm` 做会动的拟物小物件。互相引用,但各自独立可用。
 
 ## 安装
 
@@ -28,11 +22,18 @@ Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用。
 npx skills add ooooxo/ooooxoskill
 ```
 
-选中 **morii-card**、选要装的 agent(可多选)即可。装进各 agent 的个人 skill 目录
-(Claude Code → `~/.claude/skills/morii-card/`),所以调用是**裸名**:
+跑起来是个多选器 —— **勾你要的那几个**(可只装一个),再选装进哪些 agent。
+装进各 agent 的个人 skill 目录(Claude Code → `~/.claude/skills/<name>/`),调用是**裸名**:
 
 ```
-/morii-card
+/morii-card   /morii-design   /morii-icon   /morii-charm
+```
+
+只装单个,直接点名:
+
+```bash
+npx skills add ooooxo/ooooxoskill@morii-icon
+npx skills add ooooxo/ooooxoskill@morii-charm
 ```
 
 ## 更新
@@ -40,36 +41,40 @@ npx skills add ooooxo/ooooxoskill
 跟随本仓库的最新提交:
 
 ```bash
-npx skills update            # 更新全部
-npx skills update morii-card # 只更新这个
+npx skills update            # 全部
+npx skills update morii-icon # 只更新这个
 ```
 
 ## 手动装法(不用 npx)
 
 ```bash
 git clone https://github.com/ooooxo/ooooxoskill.git
-cp -R ooooxoskill/skills/morii-card ~/.claude/skills/morii-card
+cp -R ooooxoskill/skills/morii-icon ~/.claude/skills/morii-icon   # 换成你要的那个
 # 更新:git pull 后再 cp 一次
 ```
-
-## 触发
-
-说 卡片 / 可视化 / card / dashboard,或任何数据汇总型提问后自动出卡;手动调用 `/morii-card`;
-写代码/调试/git 流程中保持纯文本不打扰。
 
 ## 结构
 
 ```
-skills/morii-card/
-  SKILL.md       主规范(模式/布局/配色/图形规则)
-  SNIPPETS.md    预验证骨架与交互片段(写卡前必读)
-  CHARTS.md      图表几何
-  COLLECTIONS.md 内容合集布局路由
-  LAB-LIVE.md    LAB 实验卡 + LIVE 回传通道
-  MULTI-CARD.md  多卡索引壳
-  SERVE.md       SERVE 实时任务卡
-  assets/        多卡索引壳模板
-  examples/      可直接抄骨架的成品卡
+skills/
+  morii-card/    数据 → 单文件交互 HTML 卡片
+    SKILL.md       主规范(模式/布局/配色/图形规则)
+    SNIPPETS.md    预验证骨架与交互片段(写卡前必读)
+    CHARTS.md      图表几何
+    COLLECTIONS.md 内容合集布局路由
+    LAB-LIVE.md    LAB 实验卡 + LIVE 回传通道
+    MULTI-CARD.md  多卡索引壳
+    SERVE.md       SERVE 实时任务卡
+    assets/ examples/
+  morii-design/  界面/组件/原型的视觉规范底座
+    SKILL.md · Token.css(设计令牌单一真源)
+  morii-icon/    单个实心风 SVG 图标
+    SKILL.md · build-gallery.mjs(渲染自检工具) · design-card.md · exemplars(-dark).svg
+  morii-charm/   拟物会动的角饰
+    SKILL.md · charms-gallery.html · references/
 ```
+
+每个 skill 自带支持文件与工具;`npx skills` 会把整个文件夹一并落到
+`~/.claude/skills/<name>/`,所以 SKILL.md 里对这些文件的引用装完即通。
 
 MIT · by Rainy

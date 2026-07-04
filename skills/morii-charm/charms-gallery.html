@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Morii 角饰家族 · 活规格 (charms gallery)</title>
+<style>
+  /* ── Design tokens (ported 1:1 from tokens.css + capsule.css 暖墨阶, ADR 0150) ── */
+  :root[data-theme="dark"] {
+    --panel: #1a1a1c;
+    --panel-hi: #2c2c30;
+    --hairline: rgba(255, 255, 255, 0.04);
+    --ink: #f0eee9;
+    --ink-2: rgba(240, 238, 233, 0.72);
+    --ink-4: rgba(240, 238, 233, 0.24);
+    --stage-bg: #0e0e10;
+  }
+  :root[data-theme="light"] {
+    --panel: #ffffff;
+    --panel-hi: #e0e0e5;
+    --hairline: rgba(0, 0, 0, 0.06);
+    --ink: #26231d;
+    --ink-2: rgba(38, 35, 29, 0.74);
+    --ink-4: rgba(38, 35, 29, 0.3);
+    --stage-bg: #ecebe8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 40px 28px 80px;
+    background: var(--stage-bg);
+    color: var(--ink);
+    font: 14px/1.5 -apple-system, "SF Pro Text", "PingFang SC", system-ui, sans-serif;
+    transition: background 0.2s;
+  }
+  h1 { font-size: 19px; font-weight: 650; margin: 0 0 4px; }
+  .sub { color: var(--ink-2); font-size: 13px; margin: 0 0 24px; max-width: 640px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 28px; }
+  button {
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 10px; padding: 7px 14px; cursor: pointer;
+  }
+  button:hover { background: var(--panel-hi); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 30px 22px; max-width: 1180px; }
+
+  /* ── Mock capsule card — the charm rides its top-left corner (overflow visible) ── */
+  .card {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 18px;
+    padding: 16px 16px 14px 40px;
+    min-height: 88px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+    display: flex; flex-direction: column; justify-content: center; gap: 7px;
+  }
+  .card .who { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .card .ln { height: 7px; border-radius: 4px; background: var(--ink-4); }
+  .card .ln.a { width: 78%; }
+  .card .ln.b { width: 52%; }
+  .cap { margin-top: 14px; font-size: 11.5px; color: var(--ink-2); }
+  .cap b { color: var(--ink); font-weight: 650; }
+  .empty { border-style: dashed; border-color: var(--ink-4); align-items: center; justify-content: center; color: var(--ink-4); font-size: 12px; }
+
+  /* ════════════════════════ CHARMS (ported 1:1 from src/panel/capsule/charms/) ════════════════════════ */
+
+  /* ── CharmClock ── */
+  .aclock { position: absolute; left: -26px; top: -21px; z-index: 3; width: 58px; height: 58px; transform: rotate(-8deg); animation: clock-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .aring { position: relative; width: 100%; height: 100%; border-radius: 50%; background: var(--panel-hi); border: 1px solid var(--hairline); box-shadow: 0 4px 12px rgba(0,0,0,.32), inset 0 -8px 14px rgba(0,0,0,.12); animation: ringburst 3.6s ease-in-out infinite 1.4s; transform-origin: 50% 8%; }
+  .tick { position: absolute; left: 50%; top: 4px; width: 2.5px; height: 5px; margin-left: -1.25px; border-radius: 2px; background: var(--ink-4); transform-origin: 50% 25px; }
+  .t2 { transform: rotate(90deg); } .t3 { transform: rotate(180deg); } .t4 { transform: rotate(270deg); }
+  .hand { position: absolute; left: 50%; bottom: 50%; transform-origin: 50% 100%; border-radius: 3px; }
+  .hh { width: 3.5px; height: 13px; margin-left: -1.75px; background: var(--ink); }
+  .mh { width: 2.8px; height: 18px; margin-left: -1.4px; background: var(--ink-2); }
+  .sh { width: 1.5px; height: 21px; margin-left: -.75px; background: var(--clock-tint); animation: sweep 60s linear infinite; }
+  .capdot { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: var(--clock-tint); }
+  @keyframes sweep { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+  @keyframes ringburst { 0%,28%,100% { transform: rotate(0); } 4% { transform: rotate(-7deg); } 9% { transform: rotate(6deg); } 14% { transform: rotate(-5deg); } 19% { transform: rotate(3.5deg); } 24% { transform: rotate(-1.5deg); } }
+  @keyframes clock-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmNote ── */
+  .anote { position: absolute; left: -22px; top: -18px; z-index: 3; width: 54px; height: 54px; transform: rotate(-8deg); animation: note-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .paper { position: relative; width: 100%; height: 100%; background: #e5c86e; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.3), inset 0 -10px 16px rgba(0,0,0,.12); animation: notesway 5s ease-in-out infinite 1.2s; transform-origin: 50% 10%; }
+  :root[data-theme="light"] .paper { background: #ecd27c; }
+  .fold { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; background: color-mix(in srgb, #e5c86e 55%, #000 12%); border-radius: 0 0 8px 0; clip-path: polygon(100% 0, 0 100%, 100% 100%); }
+  .nlines { position: absolute; left: 10px; right: 12px; top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .nlines i { height: 2.5px; border-radius: 2px; background: rgba(60,45,10,.38); }
+  .nlines i:nth-child(2) { width: 70%; } .nlines i:nth-child(3) { width: 45%; }
+  @keyframes notesway { 0%,100% { transform: rotate(0); } 50% { transform: rotate(2.6deg); } }
+  @keyframes note-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmDonut ── */
+  .adonut { position: absolute; left: -24px; top: -20px; z-index: 3; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; transform: rotate(-8deg); animation: donut-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .dring { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,.32), inset 0 1px 3px rgba(0,0,0,.22); }
+  .dring::after { content: ""; width: 26px; height: 26px; border-radius: 50%; background: var(--panel); box-shadow: inset 0 2px 4px rgba(0,0,0,.28); }
+  @keyframes donut-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmBallot ── */
+  .abox { position: absolute; left: -24px; top: -20px; z-index: 3; width: 58px; height: 58px; transform: rotate(-8deg); animation: box-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .slip { position: absolute; left: 50%; top: 7px; width: 17px; height: 15px; margin-left: -8.5px; border-radius: 3px; background: #f4f1ea; box-shadow: 0 2px 5px rgba(0,0,0,.25); animation: slipdrop 4.2s ease-in-out infinite 1.2s; }
+  .slip::after { content: ""; position: absolute; left: 4px; top: 3.5px; width: 8px; height: 4.5px; border-left: 2.2px solid var(--box-tint); border-bottom: 2.2px solid var(--box-tint); transform: rotate(-45deg); }
+  .btop { position: absolute; left: 50%; top: 23px; width: 42px; height: 10px; margin-left: -21px; z-index: 2; border-radius: 4px; background: linear-gradient(color-mix(in srgb, var(--box-tint) 78%, #fff), var(--box-tint)); box-shadow: 0 2px 5px rgba(0,0,0,.28), inset 0 1.5px 1.5px rgba(255,255,255,.3); }
+  .bslot { position: absolute; left: 50%; top: 26.5px; width: 20px; height: 3px; margin-left: -10px; z-index: 3; border-radius: 2px; background: rgba(0,0,0,.6); box-shadow: inset 0 1px 1.5px #000; }
+  .bbody { position: absolute; left: 50%; top: 31px; width: 36px; height: 19px; margin-left: -18px; z-index: 2; border-radius: 0 0 7px 7px; background: linear-gradient(var(--box-tint), color-mix(in srgb, var(--box-tint) 60%, #000)); box-shadow: 0 5px 12px rgba(0,0,0,.35), inset 0 -7px 10px rgba(0,0,0,.22); }
+  @keyframes slipdrop { 0%,12% { transform: translateY(0); opacity: 1; } 32%,60% { transform: translateY(17px); opacity: 1; } 68% { transform: translateY(17px); opacity: 0; } 76% { transform: translateY(0); opacity: 0; } 86%,100% { transform: translateY(0); opacity: 1; } }
+  @keyframes box-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmPlane ── */
+  .aplane { position: absolute; z-index: 3; left: -24px; top: -20px; width: 58px; height: 58px; transform: rotate(-8deg); animation: plane-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .aplane .pinner { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+  .fly { position: relative; width: 42px; height: 38px; animation: planefloat 4.2s ease-in-out infinite; }
+  .p1 { position: absolute; inset: 0; background: linear-gradient(135deg, #f4f1ea, #c6c2b8); clip-path: polygon(0 44%, 100% 4%, 56% 96%); }
+  .p2 { position: absolute; inset: 0; background: rgba(60,55,45,.32); clip-path: polygon(34% 38%, 100% 4%, 56% 96%, 44% 62%); }
+  .psh { position: absolute; bottom: 1px; left: 50%; width: 26px; height: 6px; margin-left: -13px; border-radius: 50%; background: rgba(0,0,0,.3); filter: blur(3px); animation: planeshadow 4.2s ease-in-out infinite; }
+  @keyframes planefloat { 0%,100% { transform: translate(0,0) rotate(0); } 50% { transform: translate(-1.5px,-3px) rotate(-3.5deg); } }
+  @keyframes planeshadow { 0%,100% { transform: scaleX(1); opacity: 1; } 50% { transform: scaleX(.8); opacity: .6; } }
+  @keyframes plane-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } }
+
+  /* ── CharmGift ── */
+  .agift { position: absolute; left: -24px; top: -20px; z-index: 3; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; transform: rotate(-8deg); animation: gift-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .gw { position: relative; width: 100%; height: 100%; animation: giftjump 4.6s ease-in-out infinite 1.2s; transform-origin: 50% 92%; }
+  .glid, .gbow { animation: lidpop 4.6s ease-in-out infinite 1.2s; }
+  .gbody { position: absolute; left: 50%; top: 25px; width: 36px; height: 20px; margin-left: -18px; border-radius: 3px 3px 7px 7px; background: linear-gradient(var(--gift-tint), color-mix(in srgb, var(--gift-tint) 62%, #000)); box-shadow: 0 5px 12px rgba(0,0,0,.35), inset 0 -7px 10px rgba(0,0,0,.22); }
+  .glid { position: absolute; left: 50%; top: 15px; width: 44px; height: 11px; margin-left: -22px; border-radius: 4px; background: linear-gradient(color-mix(in srgb, var(--gift-tint) 76%, #fff), var(--gift-tint)); box-shadow: 0 3px 7px rgba(0,0,0,.3), inset 0 1.5px 1.5px rgba(255,255,255,.3); }
+  .grib { position: absolute; left: 50%; top: 15px; width: 7px; height: 30px; margin-left: -3.5px; border-radius: 2px; background: color-mix(in srgb, var(--gift-tint) 42%, #fff); }
+  .gbow { position: absolute; left: 50%; top: 6px; width: 22px; height: 10px; margin-left: -11px; }
+  .gbow::before, .gbow::after { content: ""; position: absolute; top: 0; width: 11px; height: 10px; background: color-mix(in srgb, var(--gift-tint) 48%, #fff); border-radius: 65% 35% 25% 60%; box-shadow: inset 0 -2px 3px rgba(0,0,0,.14); }
+  .gbow::before { left: 0; transform: rotate(-16deg); } .gbow::after { right: 0; transform: scaleX(-1) rotate(-16deg); }
+  @keyframes giftjump { 0%,26%,100% { transform: translateY(0) scale(1,1); } 4% { transform: translateY(1px) scale(1.07,.88); } 9% { transform: translateY(-6px) scale(.95,1.07) rotate(-2deg); } 14% { transform: translateY(.5px) scale(1.06,.9); } 19% { transform: translateY(-1.5px) scale(.99,1.02); } 23% { transform: translateY(0) scale(1,1); } }
+  @keyframes lidpop { 0%,8%,26%,100% { transform: translateY(0) rotate(0); } 11% { transform: translateY(-3.5px) rotate(2.5deg); } 16% { transform: translateY(.5px) rotate(0); } 20% { transform: translateY(-1px); } }
+  @keyframes gift-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmBot ── */
+  .abot { position: absolute; left: -24px; top: -20px; z-index: 3; width: 56px; height: 56px; transform: rotate(-8deg); animation: bot-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .bw { position: relative; width: 100%; height: 100%; }
+  .bhead { position: absolute; left: 50%; top: 17px; width: 38px; height: 29px; margin-left: -19px; border-radius: 13px 13px 11px 11px; background: linear-gradient(#f0f1f4, #c0c4cd); box-shadow: 0 4px 10px rgba(0,0,0,.32), inset 0 -6px 8px rgba(0,0,0,.15), inset 0 2px 2px rgba(255,255,255,.75); }
+  :root[data-theme="light"] .bhead { background: linear-gradient(#fdfdfe, #cfd3da); }
+  .bear { position: absolute; top: 26px; width: 5px; height: 12px; border-radius: 3px; background: #b3b8c2; box-shadow: inset 0 -3px 4px rgba(0,0,0,.2); }
+  .bear.l { left: 6px; } .bear.r { right: 6px; }
+  .bvisor { position: absolute; left: 50%; top: 25px; width: 28px; height: 13px; margin-left: -14px; border-radius: 8px; background: #1b1c23; box-shadow: inset 0 1.5px 2.5px rgba(0,0,0,.8); }
+  .beye { position: absolute; top: 29px; width: 5px; height: 5.5px; border-radius: 50%; background: color-mix(in srgb, var(--bot-tint) 72%, #fff); box-shadow: 0 0 5px var(--bot-tint); }
+  .beye.l { left: 50%; margin-left: -9.5px; } .beye.r { left: 50%; margin-left: 4.5px; }
+  .bant { position: absolute; left: 50%; top: 9px; width: 2.5px; height: 10px; margin-left: -1.25px; border-radius: 2px; background: #b3b8c2; }
+  .bdot { position: absolute; left: 50%; top: 4px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--bot-tint); box-shadow: 0 0 7px var(--bot-tint); opacity: .85; }
+  @keyframes bot-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmEnvelope ── */
+  .aenv { position: absolute; left: -24px; top: -20px; z-index: 3; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; transform: rotate(-8deg); animation: env-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .epaper { position: absolute; left: 50%; top: 15px; width: 32px; height: 16px; margin-left: -16px; z-index: 0; border-radius: 3px 3px 0 0; background: #f4f1ea; box-shadow: 0 -1px 3px rgba(0,0,0,.18); animation: paperpeek 4.4s ease-in-out infinite 1.4s; }
+  .epaper::after { content: ""; position: absolute; left: 5px; right: 5px; top: 4px; height: 2px; border-radius: 2px; background: rgba(60,50,25,.28); box-shadow: 0 5px 0 rgba(60,50,25,.2); }
+  .ebody { position: absolute; left: 50%; top: 22px; width: 42px; height: 25px; margin-left: -21px; z-index: 1; border-radius: 5px; background: linear-gradient(var(--env-tint), color-mix(in srgb, var(--env-tint) 64%, #000)); box-shadow: 0 5px 12px rgba(0,0,0,.35), inset 0 -7px 10px rgba(0,0,0,.2); }
+  .eflap { position: absolute; left: 50%; top: 22px; width: 42px; height: 14px; margin-left: -21px; z-index: 2; clip-path: polygon(0 0, 100% 0, 50% 100%); background: linear-gradient(color-mix(in srgb, var(--env-tint) 80%, #fff), var(--env-tint)); }
+  @keyframes paperpeek { 0%,26%,100% { transform: translateY(0); } 10% { transform: translateY(-5px); } 18% { transform: translateY(0); } }
+  @keyframes env-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmInbox ── */
+  .aib { position: absolute; left: -24px; top: -20px; z-index: 3; width: 58px; height: 58px; transform: rotate(-8deg); animation: aib-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .aib .ibinner { position: relative; width: 100%; height: 100%; }
+  .sheet { position: absolute; left: 50%; top: 4px; width: 17px; height: 18px; margin-left: -8.5px; z-index: 0; border-radius: 2.5px; background: #f4f1ea; box-shadow: 0 2px 5px rgba(0,0,0,.25); opacity: 0; }
+  .aib.on .sheet { animation: aib-drop 2.8s ease-in-out infinite .8s; }
+  .sheet .ln2 { position: absolute; left: 3.5px; right: 3.5px; height: 2px; border-radius: 2px; background: rgba(60,50,25,.3); }
+  .sheet .l1 { top: 4px; } .sheet .l2 { top: 9px; right: 7px; }
+  .flap { position: absolute; top: 23px; width: 13px; height: 8px; z-index: 2; background: color-mix(in srgb, var(--box-tint) 62%, #000); box-shadow: 0 2px 4px rgba(0,0,0,.25); }
+  .flap.fl { left: 5px; border-radius: 4px 2px 2px 4px; transform: rotate(-34deg); }
+  .flap.fr { right: 5px; border-radius: 2px 4px 4px 2px; transform: rotate(34deg); }
+  .mouth { position: absolute; left: 50%; top: 26px; width: 30px; height: 5px; margin-left: -15px; z-index: 2; border-radius: 3px 3px 1px 1px; background: color-mix(in srgb, #000 58%, var(--box-tint)); box-shadow: inset 0 1.5px 2.5px rgba(0,0,0,.6); }
+  .ibbody { position: absolute; left: 50%; top: 29px; width: 38px; height: 20px; margin-left: -19px; z-index: 1; border-radius: 2px 2px 7px 7px; background: linear-gradient(var(--box-tint), color-mix(in srgb, var(--box-tint) 60%, #000)); box-shadow: 0 5px 12px rgba(0,0,0,.35), inset 0 -7px 10px rgba(0,0,0,.22); }
+  @keyframes aib-drop { 0%,10% { transform: translateY(-4px); opacity: 0; } 22% { transform: translateY(0); opacity: 1; } 46%,58% { transform: translateY(17px); opacity: 1; } 66% { transform: translateY(17px); opacity: 0; } 100% { transform: translateY(-4px); opacity: 0; } }
+  @keyframes aib-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  /* ── CharmRadar ── */
+  .aradar { position: absolute; left: -24px; top: -20px; z-index: 3; width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; transform: rotate(-8deg); animation: radar-on 450ms cubic-bezier(.18,1.42,.32,1) 240ms both; }
+  .scr { position: relative; width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--radar-tint) 22%, #10141a) 0%, #10141a 78%); box-shadow: 0 4px 12px rgba(0,0,0,.35), inset 0 0 0 1.5px color-mix(in srgb, var(--radar-tint) 45%, transparent), inset 0 0 10px rgba(0,0,0,.55); overflow: hidden; }
+  .rring { position: absolute; inset: 9px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--radar-tint) 28%, transparent); }
+  .rring.r2 { inset: 17px; }
+  .beam { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 0deg, color-mix(in srgb, var(--radar-tint) 50%, transparent) 0deg, transparent 75deg); animation: radarspin 3.2s linear infinite; }
+  .blip { position: absolute; width: 4.5px; height: 4.5px; border-radius: 50%; background: color-mix(in srgb, var(--radar-tint) 75%, #fff); animation: blipping 3.2s ease-out infinite; }
+  .bp1 { right: 11px; top: 13px; } .bp2 { left: 13px; bottom: 11px; animation-delay: 1.6s; }
+  @keyframes radarspin { to { transform: rotate(360deg); } }
+  @keyframes blipping { 0% { opacity: .1; } 10% { opacity: 1; } 55% { opacity: .25; } 100% { opacity: .1; } }
+  @keyframes radar-on { from { opacity: 0; transform: rotate(-14deg) scale(1.45); } to { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aring, .sh, .paper, .slip, .fly, .psh, .gw, .glid, .gbow, .epaper, .aib.on .sheet, .beam, .blip { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+  <h1>Morii 角饰家族 · 活规格</h1>
+  <p class="sub">10 个拟物角饰，1:1 移植自 <code>src/panel/capsule/charms/</code>（ADR 0150）。这是「看家族气质 + 渲染新草稿对齐」的取景框——画新角饰时把它塞进最后那张虚线卡，在明暗两主题里 56px 实机看它动。你无法从 CSS 字符串判断一个角饰，必须渲染并观察。</p>
+  <div class="toolbar">
+    <button id="theme">切到亮色主题</button>
+    <button id="replay">重放进场（stick-on）</button>
+  </div>
+
+  <div class="grid" id="grid">
+
+    <div class="card" style="--clock-tint:#f0a04b">
+      <div class="aclock"><div class="aring"><i class="tick"></i><i class="tick t2"></i><i class="tick t3"></i><i class="tick t4"></i><i class="hand hh" style="transform:rotate(300deg)"></i><i class="hand mh" style="transform:rotate(48deg)"></i><i class="hand sh"></i><i class="capdot"></i></div></div>
+      <div class="who">08:30 起床</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>闹钟</b> · 迷你钟 · 活物件（指针指提醒时刻 + 秒针慢扫 + 响一阵歇一阵）</div>
+    </div>
+
+    <div class="card">
+      <div class="anote"><div class="paper"><span class="nlines"><i></i><i></i><i></i></span><span class="fold"></span></div></div>
+      <div class="who">存为便签</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>便签</b> · 折角黄纸 · 活物件（轻摆）· 固定纸色不吃 tint</div>
+    </div>
+
+    <div class="card">
+      <div class="adonut"><div class="dring" style="background:conic-gradient(#56c288 0% 46%, #6ba4ff 46% 72%, color-mix(in srgb, var(--ink) 18%, var(--panel)) 72% 100%)"></div></div>
+      <div class="who">回复汇总</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>回复</b> · 裸分段甜甜圈 · 静态数据件（真数据配色，余量墨色补满）</div>
+    </div>
+
+    <div class="card" style="--box-tint:#a98bff">
+      <div class="abox"><i class="slip"></i><i class="btop"></i><i class="bslot"></i><i class="bbody"></i></div>
+      <div class="who">周末去哪玩？</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>投票</b> · 投票箱 · 活物件（白票带勾周期投入，z 序=票从顶盖后进箱）</div>
+    </div>
+
+    <div class="card">
+      <div class="aplane"><div class="pinner"><i class="psh"></i><div class="fly"><i class="p1"></i><i class="p2"></i></div></div></div>
+      <div class="who">发送给 阿雨</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>发送</b> · 纸飞机 + 地影 · 活物件（漂浮时地影同步缩放）· 固定纸色</div>
+    </div>
+
+    <div class="card" style="--gift-tint:#ff7eb0">
+      <div class="agift"><div class="gw"><i class="gbody"></i><i class="glid"></i><i class="grib"></i><i class="gbow"></i></div></div>
+      <div class="who">有新版本 0.12.0</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>更新</b> · 礼物盒 · 活物件（卡通三段式蹦跳 + 盖子单独掀）</div>
+    </div>
+
+    <div class="card" style="--bot-tint:#52d0c8">
+      <div class="abot"><div class="bw"><i class="bant"></i><i class="bdot"></i><i class="bear l"></i><i class="bear r"></i><i class="bhead"></i><i class="bvisor"></i><i class="beye l"></i><i class="beye r"></i></div></div>
+      <div class="who">AI 助手</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>AI</b> · 机器人头 · 全静态（宿主 AI 卡是收缩 morph 壳，透明窗禁无限动画层）</div>
+    </div>
+
+    <div class="card" style="--env-tint:#6ba4ff">
+      <div class="aenv"><i class="epaper"></i><i class="ebody"></i><i class="eflap"></i></div>
+      <div class="who">写简讯</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>简讯</b> · 信封 · 活物件（信纸从封身后周期探头）</div>
+    </div>
+
+    <div class="card" style="--box-tint:#56c288">
+      <div class="aib on"><div class="ibinner"><i class="sheet"><i class="ln2 l1"></i><i class="ln2 l2"></i></i><i class="flap fl"></i><i class="flap fr"></i><i class="mouth"></i><i class="ibbody"></i></div></div>
+      <div class="who">接收中…</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>接收</b> · 开盖纸箱 · 活物件（传输中文件页循环落入，完成静止）</div>
+    </div>
+
+    <div class="card" style="--radar-tint:#46c7b8">
+      <div class="aradar"><div class="scr"><i class="rring"></i><i class="rring r2"></i><i class="beam"></i><i class="blip bp1"></i><i class="blip bp2"></i></div></div>
+      <div class="who">附近的人</div><div class="ln a"></div><div class="ln b"></div>
+      <div class="cap"><b>附近</b> · 雷达屏 · 活物件（扫描波旋转 + 目标点随波错峰闪现）</div>
+    </div>
+
+    <div class="card empty">
+      ↖ 把新角饰草稿贴到这里的左上角<br>在明暗两主题里 56px 看它动
+    </div>
+
+  </div>
+
+<script>
+  const root = document.documentElement;
+  document.getElementById('theme').onclick = (e) => {
+    const light = root.dataset.theme === 'light';
+    root.dataset.theme = light ? 'dark' : 'light';
+    e.target.textContent = light ? '切到亮色主题' : '切到暗色主题';
+  };
+  // 重放 stick-on 进场：抹掉 animation 再强制 reflow 复位
+  document.getElementById('replay').onclick = () => {
+    document.querySelectorAll('.aclock,.anote,.adonut,.abox,.aplane,.agift,.abot,.aenv,.aib,.aradar').forEach(el => {
+      const a = el.style.animation;
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    });
+  };
+</script>
+</body>
+</html>
