@@ -72,6 +72,4 @@ Viewport meta; body centers the card, padding 16px; card `width:min(430px,100%)`
 
 ## Write-time floor
 
-You hold these *as you compose* — invariants + design floor, listed once so nothing slips. Fix on sight; don't re-open the finished card to re-grade it.
-
-Untinted surfaces · single vivid accent, ≤2 hues, zero bare colored text (weight emphasizes) · **no color gradients / glow** (only same-hue chart fade) · **graphics carry the data — no number-walls** · one focal point, rest recedes · **every card ships ≥1 real interaction** + desktop `user-select:none` · no paragraphs on metric cards (digest/editorial exempt) · collections routed, full summaries · overlay = class toggle · hero ink + unboxed · charts full-row + fixed height, stack at narrow · snippets copied not improvised · entrance motion one-shot on `--ez` · valid HTML both themes · card-meta in `<head>` + indexed via `morii-index.mjs add` (every data card, card 1 included — never `open` the bare file).
+The distilled checklist lives in **`SKILL.md` §Write-time floor** — always loaded, so it holds even without this file. This file is its full expansion; when the two ever disagree, this file wins and the floor needs updating.

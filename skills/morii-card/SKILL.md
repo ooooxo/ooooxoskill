@@ -146,3 +146,9 @@ Write to a `ViewCard/` folder in cwd — path `ViewCard/<topic>-card.html`; keep
 
 Follow-ups about a rendered card → answer in HTML (shell 2–10KB, detail in overlay); plain text only for 1–2 sentence answers. Tweaks to an existing card (swap a chart, recolor, add/remove rows, reword) → surgical Edit calls — seconds, not a regenerate (color/type/motion tweaks: consult `DESIGN.md` first); full rewrite only for layout-level restructuring.
 **Upgrade offer** (the only allowed post-render line): if a FAST card held content back (cut metrics/charts, density-valve overflow), end with ONE quantified line — 「另有 N 项指标、M 张图未展开，回『精致』出完整版」. Nothing held back → say nothing.
+
+## Write-time floor — the always-loaded safety net
+
+You hold these *as you compose* (full rules + rationale: `DESIGN.md`, mandatory at write time — this distilled floor is the structural backstop that stays in context even if that read is ever missed). Fix on sight; don't re-open the finished card to re-grade it.
+
+Untinted surfaces · single vivid accent, ≤2 hues, zero bare colored text (weight emphasizes) · **no color gradients / glow** (only same-hue chart fade) · **graphics carry the data — no number-walls** · one focal point, rest recedes · **every card ships ≥1 real interaction** + desktop `user-select:none` · no paragraphs on metric cards (digest/editorial exempt) · collections routed, full summaries · overlay = class toggle · hero ink + unboxed · charts full-row + fixed height, stack at narrow · snippets copied not improvised · entrance motion one-shot on `--ez` · valid HTML both themes · card-meta in `<head>` + indexed via `morii-index.mjs add` (every data card, card 1 included — never `open` the bare file).
