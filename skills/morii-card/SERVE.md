@@ -13,32 +13,10 @@ kill the server and you keep a finished static card.
 
 ## When (trigger)
 
-**The principle**: a task's state **evolves observably over time** (progress %,
-units completing, metrics moving) AND **a viewer is present** AND it outlasts a
-few seconds → live card. Named tools below are instances, never the boundary —
-an eval harness, a benchmark sweep, a migration script with a row counter all
-qualify the same way.
+The decision already happened upstream — SKILL.md scenario rows ①③④⑤ (principle: state evolves observably + viewer present + outlasts a few seconds; tests/evals & `/loop` auto-fire, explicit asks build directly, other long tasks offer first). Two build-time rules remain here:
 
-**Auto-fire on tests/evals & loops; offer for everything else.** SERVE was too
-shy before (offer-first across the board) — these two cases the user always
-wants live, so build the card WITHOUT asking, as the **first** step before
-kicking the run:
-
-- **Test / eval run — AUTO, no question.** Any time you're about to run a
-  test/spec/eval suite — `pytest` · `jest` · `vitest` · `go test` · `cargo test` ·
-  `npm/pnpm/yarn test` · `mvn test` · `phpunit` · `rspec` · `ctest` · an eval or
-  benchmark harness · anything matching `*test*`/`*spec*`/`*eval*` — that will
-  take more than a few seconds → build the live card first, then run. Evals fit
-  SERVE especially well: the run streams in the background while the user
-  watches pass/fail units and score metrics move in real time.
-- **`/loop` — AUTO, no question.** Any iteration running under the `/loop` skill
-  (recurring task, polling, watch) → build/keep a live card. A `/loop` counts as
-  **watched**, NOT headless — do not fall through to the static fallback for it.
-  Reuse the same card across iterations (re-seed + patch), don't spawn a new one
-  each tick.
-- **Explicit** progress ask (「实时给我看进度」「边跑边看」「做个进度卡」) → build directly, no question.
-- **Ambient** other long task (build / deploy / scrape / batch) in an **interactive** session → ONE plain line 「要开张实时进度卡边跑边看吗?」 → build on yes.
-- **Fall back to a normal static card** (render the final settled snapshot once) ONLY when ANY: preflight fails (no python3 / port taken) · task is seconds-short · truly headless run with no viewer (scheduled / cron / subagent — but a `/loop` does NOT count as headless, see above). Same card shape, the live overlay is simply absent.
+- **`/loop` reuses ONE card** across iterations (re-seed + patch, never a new card per tick), and counts as **watched**, never headless.
+- **Fall back to a normal static card** (render the final settled snapshot once) ONLY when ANY: preflight fails (no python3 / port taken) · task is seconds-short · truly headless run with no viewer (scheduled / cron / subagent — a `/loop` does NOT count). Same card shape, the live overlay is simply absent.
 
 ## Lifecycle
 

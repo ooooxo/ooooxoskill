@@ -49,8 +49,8 @@ Match by principle first; the rows below are canonical instances (anchors, not a
 | # | You're facing | Route |
 |---|---------------|-------|
 | ① | a process with observable evolving state about to run >几秒 while a viewer is present — test/**eval** suite, benchmark sweep, batch scrape, long build/deploy, or any **`/loop`** tick | **SERVE** — auto, NO question; card FIRST, then kick the run (`SERVE.md`); /loop reuses one card across ticks |
-| ② | the answer is a function of user-turnable parameters (you catch yourself writing 「取决于 / 看情况 / trade-off」) | **LAB** — offer ONE plain line, build on yes (`LAB-LIVE.md`) |
-| ③ | your next step depends on the user's choice/judgment over MANY items — multi-select, filter, approve/reject, rank (筛选 / 评判 / 挑几个深入) | **LIVE selection card** (`LAB-LIVE.md` §Selection) — option rows + one submit, selection beacons back; ≤3 options or yes/no → plain text question, never a card |
+| ② | the answer is a function of user-turnable parameters (you catch yourself writing 「取决于 / 看情况 / trade-off」) | **LAB** — offer ONE plain line, build on yes (`LAB.md`) |
+| ③ | your next step depends on the user's choice/judgment over MANY items — multi-select, filter, approve/reject, rank (筛选 / 评判 / 挑几个深入) | **LIVE selection card** (`LIVE.md` §Selection) — option rows + one submit, selection beacons back; ≤3 options or yes/no → plain text question, never a card |
 | ④ | user asks 实时进度 / 边跑边看 / 做个进度卡 | **SERVE** — build directly, no question |
 | ⑤ | other long task starting (build / deploy / scrape / batch), interactive session | **SERVE** — offer ONE line 「要开张实时进度卡边跑边看吗?」 |
 | ⑥ | user says 做个 demo 让我试 / 让我玩玩 | **LAB** — build directly, skip the offer |
@@ -61,15 +61,15 @@ Match by principle first; the rows below are canonical instances (anchors, not a
 | ⑪ | background / scheduled / subagent run, nobody watching (and NOT ①) | **RICH** — don't open, report the path |
 | ⑫ | several genuinely independent KPI domains | **DASH** bento (`charts/dash.md`), FAST or RICH budget |
 | ⑬ | single long-form article | **editorial** card |
-| ⑭ | interactive session AND the card holds more data than its face shows | add **LIVE** drill channel on top (`LAB-LIVE.md`) — an affordance, not a mode |
+| ⑭ | interactive session AND the card holds more data than its face shows | add **LIVE** drill channel on top (`LIVE.md`) — an affordance, not a mode |
 | ⑮ | 1–2 sentence answer · confirmation · the coding/git/translation work itself | **NO card** — plain text |
 
 | Mode | When | Shell budget | Build |
 |------|------|------|------|
 | **FAST** | default — interactive chat, user watching | ≤12KB, ≤2 chart types | one pass; animate main chart + hero count-up only |
 | **RICH** | background / scheduled / subagent run (nobody watching, **but not `/loop` or a test run → those go SERVE**) **or** user said 精致 / 完整 / 详细 / 报告 | ≤25KB | full anatomy, multi-chart, full motion |
-| **LAB** | "取决于参数/场景" questions — propose-first (see **LAB**) | free, stay lean anyway | experiment stage |
-| **SERVE** | a running task to watch live — **auto-fires (no question) on any test run or `/loop` iteration**; offer-first for other long tasks (build/deploy/scrape/batch); shell renders before data, fills via SSE, settles to static (see **SERVE**) | free, stay lean anyway | skeleton-first; relay server + live stream |
+| **LAB** | scenario rows ②⑥ — propose-first (`LAB.md`) | free, stay lean anyway | experiment stage |
+| **SERVE** | scenario rows ①④⑤ — shell renders before data, fills via SSE, settles static (`SERVE.md`) | free, stay lean anyway | skeleton-first; relay server + live stream |
 
 Shell budget counts **structure only** (CSS/SVG/JS) — gathered data never counts and is never cut to fit. Plain text, no card: confirmations, 1–2 sentence answers, coding/debug/git. Never append a post-render text summary — the card IS the answer.
 
@@ -199,11 +199,9 @@ Default data card, top to bottom:
 
 Interaction-state and texture specs live in `SNIPPETS.md` (loaded at write time per invariant 7).
 
-## LAB, LIVE & SERVE — specialized, load on demand
+## LAB, LIVE & SERVE — load on demand
 
-- **LAB mode**: when the honest answer is 「取决于参数/场景」 (防抖vs节流 · A*vs Dijkstra · 缓动参数怎么调), offer a hands-on experiment card instead of prose — propose ONE line, build on yes. Full propose-first rules + anatomy in **`LAB-LIVE.md`**.
-- **LIVE channel**: clicks in a rendered card wake the agent — interactive sessions only. Three sanctioned shapes: drill-back into held data · multi-round LAB · **selection card** when your next step needs the user's judgment over many substantive items (simple questions / ≤3 options stay plain text). Preflight + listener + §Selection pattern in **`LAB-LIVE.md`**. (Card→agent; the inverse of SERVE.)
-- **SERVE mode**: a running task to watch live (test progress, build, deploy, scrape) — the card's shell renders before data exists and fills as the task runs, then settles into an ordinary static card. **Auto-fires without asking whenever you run tests or are inside a `/loop`** (build it as the FIRST step, before kicking the run); offer-first for other long tasks. agent→card over SSE; degrades to static when no server. Trigger, lifecycle, schema, and the copy-exact relay server + card boot snippets live in **`SERVE.md`** — load it before building one.
+Triggers live in the scenario table (rows ①–⑥, ③⑭ for LIVE) — don't re-derive them here. Build specs, loaded only when building: LAB anatomy + rule deltas → **`LAB.md`** · LIVE preflight / listener / drill / §Selection code → **`LIVE.md`** · SERVE lifecycle / snapshot schema / relay / card boot → **`SERVE.md`**.
 
 ## Output
 
