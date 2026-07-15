@@ -3,8 +3,7 @@
 Read this only when you're about to produce a **Live Task Card**: a card whose
 shell renders before its data exists and fills from a running task in real time,
 then settles into an ordinary self-contained static MoriiCard. The fourth mode,
-beside FAST / RICH / LAB. Transport rationale: `docs/adr/0001-*`. Vocabulary:
-`CONTEXT.md`.
+beside FAST / RICH / LAB.
 
 The contract that makes it work: **the card is a normal self-contained `.html`
 with its snapshot embedded inline** (so `file://` always paints). A background
@@ -14,10 +13,32 @@ kill the server and you keep a finished static card.
 
 ## When (trigger)
 
-Offer-first, mirroring LAB:
+**The principle**: a task's state **evolves observably over time** (progress %,
+units completing, metrics moving) AND **a viewer is present** AND it outlasts a
+few seconds → live card. Named tools below are instances, never the boundary —
+an eval harness, a benchmark sweep, a migration script with a row counter all
+qualify the same way.
+
+**Auto-fire on tests/evals & loops; offer for everything else.** SERVE was too
+shy before (offer-first across the board) — these two cases the user always
+wants live, so build the card WITHOUT asking, as the **first** step before
+kicking the run:
+
+- **Test / eval run — AUTO, no question.** Any time you're about to run a
+  test/spec/eval suite — `pytest` · `jest` · `vitest` · `go test` · `cargo test` ·
+  `npm/pnpm/yarn test` · `mvn test` · `phpunit` · `rspec` · `ctest` · an eval or
+  benchmark harness · anything matching `*test*`/`*spec*`/`*eval*` — that will
+  take more than a few seconds → build the live card first, then run. Evals fit
+  SERVE especially well: the run streams in the background while the user
+  watches pass/fail units and score metrics move in real time.
+- **`/loop` — AUTO, no question.** Any iteration running under the `/loop` skill
+  (recurring task, polling, watch) → build/keep a live card. A `/loop` counts as
+  **watched**, NOT headless — do not fall through to the static fallback for it.
+  Reuse the same card across iterations (re-seed + patch), don't spawn a new one
+  each tick.
 - **Explicit** progress ask (「实时给我看进度」「边跑边看」「做个进度卡」) → build directly, no question.
-- **Ambient** long task (tests / build / deploy / scrape / batch) in an **interactive** session → ONE plain line 「要开张实时进度卡边跑边看吗?」 → build on yes.
-- **Fall back to a normal static card** (just render the final settled snapshot once) when ANY: background / scheduled / subagent (nobody watching) · task is seconds-short · preflight fails (no python3 / port taken). Same card shape, the live overlay is simply absent.
+- **Ambient** other long task (build / deploy / scrape / batch) in an **interactive** session → ONE plain line 「要开张实时进度卡边跑边看吗?」 → build on yes.
+- **Fall back to a normal static card** (render the final settled snapshot once) ONLY when ANY: preflight fails (no python3 / port taken) · task is seconds-short · truly headless run with no viewer (scheduled / cron / subagent — but a `/loop` does NOT count as headless, see above). Same card shape, the live overlay is simply absent.
 
 ## Lifecycle
 
@@ -68,8 +89,10 @@ deltas below.
 2. **Write the card** `<topic>-card.html` to cwd — skeleton + the embedded
    snapshot block + the boot snippet (below). The embedded snapshot IS the
    initial `pending` state (declares `sections`, known values, placeholders).
-3. **Save the relay** — write the `relay.py` below to the scratchpad (it is
-   plumbing, not the artifact). Copy it EXACT.
+3. **Copy the relay** — never transcribe it by hand:
+   ```bash
+   cp "<this skill dir>/assets/relay.py" <scratch>/relay.py
+   ```
 4. **Start the relay** in background:
    `python3 <scratch>/relay.py PORT <abs path to card.html>` — wait for the
    `SERVE_OK :PORT` line.
@@ -91,98 +114,13 @@ deltas below.
 8. **Settle** — final patch `{"phase":"settled","outcome":"success|failure|partial", …}`. Server writes the final HTML.
 9. **Teardown** — `TaskStop` the relay. The card's EventSource sees `settled` (or the stream end) and stays a finished static card.
 
-## Relay server — copy EXACT (stdlib only, `ThreadingHTTPServer`)
+## Relay server
 
-```python
-import sys, json, threading, queue, re
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
-
-PORT = int(sys.argv[1]); CARD = sys.argv[2]
-state = {"phase": "pending"}
-lock = threading.Lock()
-clients = []                      # list[queue.Queue]
-clients_lock = threading.Lock()
-MARK = re.compile(r'(<script id="state"[^>]*>)(.*?)(</script>)', re.S)
-
-def write_through(snap):
-    try:
-        with open(CARD, "r", encoding="utf-8") as f: html = f.read()
-        html = MARK.sub(lambda m: m.group(1) + snap + m.group(3), html, count=1)
-        with open(CARD, "w", encoding="utf-8") as f: f.write(html)
-    except Exception: pass
-
-def merge(patch):
-    with lock:
-        for k in ("phase","title","sections","outcome","note","headline","progress"):
-            if k in patch: state[k] = patch[k]
-        if "units" in patch: state["units"] = patch["units"]
-        if "unit" in patch:
-            u = patch["unit"]; arr = state.setdefault("units", [])
-            for i, x in enumerate(arr):
-                if x.get("id") == u.get("id"): arr[i] = {**x, **u}; break
-            else: arr.append(u)
-        if "metrics" in patch: state["metrics"] = patch["metrics"]
-        if "metric" in patch:
-            mt = patch["metric"]; arr = state.setdefault("metrics", [])
-            for i, x in enumerate(arr):
-                if x.get("label") == mt.get("label"): arr[i] = {**x, **mt}; break
-            else: arr.append(mt)
-        snap = json.dumps(state, ensure_ascii=False)
-    write_through(snap)
-    with clients_lock:
-        for q in list(clients): q.put(snap)
-    return snap
-
-class H(BaseHTTPRequestHandler):
-    def log_message(self, *a): pass
-    def _cors(self): self.send_header("Access-Control-Allow-Origin", "*")
-    def do_GET(self):
-        path = urlparse(self.path).path
-        if path == "/events":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream")
-            self.send_header("Cache-Control", "no-cache"); self._cors(); self.end_headers()
-            q = queue.Queue()
-            with clients_lock: clients.append(q)
-            with lock: snap = json.dumps(state, ensure_ascii=False)
-            try:
-                self.wfile.write(f"data: {snap}\n\n".encode()); self.wfile.flush()
-                while True:
-                    try: msg = q.get(timeout=15)
-                    except queue.Empty:
-                        self.wfile.write(b": ping\n\n"); self.wfile.flush(); continue
-                    self.wfile.write(f"data: {msg}\n\n".encode()); self.wfile.flush()
-            except Exception: pass
-            finally:
-                with clients_lock:
-                    if q in clients: clients.remove(q)
-            return
-        if path in ("/", "/" + CARD.replace("\\", "/").split("/")[-1]):
-            try:
-                with open(CARD, "rb") as f: body = f.read()
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8"); self._cors(); self.end_headers()
-                self.wfile.write(body)
-            except Exception:
-                self.send_response(404); self.end_headers()
-            return
-        self.send_response(404); self.end_headers()
-    def do_POST(self):
-        if urlparse(self.path).path == "/push":
-            n = int(self.headers.get("Content-Length", 0) or 0)
-            try: patch = json.loads(self.rfile.read(n) or b"{}")
-            except Exception: patch = {}
-            merge(patch)
-            self.send_response(204); self._cors(); self.end_headers()
-            return
-        self.send_response(404); self.end_headers()
-
-ThreadingHTTPServer.daemon_threads = True
-srv = ThreadingHTTPServer(("127.0.0.1", PORT), H)
-print(f"SERVE_OK :{PORT}", flush=True)
-srv.serve_forever()
-```
+Lives at `assets/relay.py` (stdlib only, `ThreadingHTTPServer`). Endpoints:
+`GET /<card>.html` serves the card · `GET /events` SSE full-snapshot stream
+(15s keepalive pings) · `POST /push` merges a patch, write-throughs the
+embedded `<script id="state">` block in the card file, and broadcasts. Copy it
+(step 3), never re-author or transcribe it.
 
 ## Card boot — copy EXACT, then write your own `render(s)`
 

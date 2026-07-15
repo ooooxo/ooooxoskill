@@ -1,8 +1,13 @@
-# Canonical snippets & skeleton
+# Canonical snippets & skeleton — the always-read core
 
 **STOP — is your data collected and final?** If any search/fetch/computation remains, close this file and finish data work first (Workflow step 1); come back as the last step before writing. If data is ready: copy these patterns and write the HTML now, in one pass. Pre-verified — do not re-check, simulate, or improvise them. **Your next tool call after this Read is the Write — do not think the card through first; compose it as you write.**
 
-Card draws charts (trend line/highlight bars/donut/spike/strip/radar) or uses DASH layout → also read `CHARTS.md` now; chart geometry lives there. Content-collection card (3+ news/article/post items) → also read `COLLECTIONS.md` now (router + deck/accordion/list↔detail patterns). Both reads parallel with this one — never a later round-trip.
+Read WITH this file, in the SAME message (parallel, one round-trip), only what THIS card uses:
+- each chart the card draws → its `charts/<type>.md` (pattern-file pointers in the SKILL.md chart table; no pointer → compose under the table's rules + §One-SVG below)
+- 5+ measures stage layout → `snippets/stage.md` · ordered procedure → `snippets/stepper.md` · sourced/researched card → `snippets/citations.md`
+- content collection (3+ news/article/post items) → `COLLECTIONS.md`
+
+Never read a pattern file the card doesn't use.
 
 ## Card skeleton (start every card from this)
 
@@ -92,46 +97,7 @@ Dots at `cx=(i+0.5)/N`; spine from first to last cx. Label grid `repeat(N,1fr)` 
 </div>
 ```
 
-`.t{font-size:.72rem;font-weight:600;margin-top:6px} .d{font-size:.66rem;color:var(--fnt)}`. Vertical variant: swap axes — SVG column of spine+dots beside rows of labels. In SVG always set color via `style=`, never bare presentation attributes.
-
-## Stepper (ordered procedure — timeline progress head + sequenced panels)
-
-Progress dots reuse timeline math (`cx=(i+0.5)/N`, fractional label grid); step panels swap like tabs (`hidden` safe — sections carry no author `display`). ONE state source `go(i)`; dots clickable, prev/next ≥44px, counter. Step body = step title + ≤1 instruction sentence + insets/point rows — text atoms hold.
-
-```html
-<!-- N=4: 12.5% / 37.5% / 62.5% / 87.5%; svg height 18 fits the current-dot halo -->
-<svg width="100%" height="18" style="display:block">
-  <line x1="12.5%" y1="9" x2="87.5%" y2="9" style="stroke:var(--hl);stroke-width:2"/>
-  <circle class="sd" cx="12.5%" cy="9" r="5"/><circle class="sd" cx="37.5%" cy="9" r="5"/>
-  <circle class="sd" cx="62.5%" cy="9" r="5"/><circle class="sd" cx="87.5%" cy="9" r="5"/>
-</svg>
-<div class="tg"><!-- fractional label grid repeat(N,1fr), .t/.d per step --></div>
-<section class="sp">…step 1…</section><section class="sp" hidden>…step 2…</section>
-<div class="snv"><button id="pv">上一步</button><span class="cap" id="ct"></span><button id="nx">下一步</button></div>
-<style>
-.sd{cursor:pointer;transition:fill .15s var(--ez)}
-.snv{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
-.snv button{min-height:44px;padding:0 18px;border:0;border-radius:11px;background:var(--inset);color:var(--ink);font-size:.8rem;font-weight:600;cursor:pointer;transition:box-shadow .15s var(--ez)}
-.snv button:hover{box-shadow:inset 0 0 0 1.5px var(--a)}.snv button:active{transform:scale(.96)}
-.snv button:disabled{opacity:.4;cursor:default;box-shadow:none}
-</style>
-<script>
-const sp=[...document.querySelectorAll('.sp')],sd=[...document.querySelectorAll('.sd')],
-tl=[...document.querySelectorAll('.tg .t')],N=sp.length,
-pv=document.getElementById('pv'),nx=document.getElementById('nx'),ct=document.getElementById('ct');
-let cur=0;
-const go=i=>{cur=Math.max(0,Math.min(N-1,i));
-  sp.forEach((p,j)=>p.hidden=j!==cur);
-  sd.forEach((d,j)=>{d.style.fill=j<=cur?'var(--a)':'var(--inset)';
-    d.style.stroke='var(--a)';d.style.strokeWidth=8;d.style.strokeOpacity=j===cur?.22:0});
-  tl.forEach((t,j)=>t.style.color=j===cur?'var(--ink)':'var(--mut)');
-  ct.textContent=(cur+1)+' / '+N;pv.disabled=cur===0;nx.disabled=cur===N-1};
-sd.forEach((d,j)=>d.onclick=()=>go(j));
-pv.onclick=()=>go(cur-1);nx.onclick=()=>go(cur+1);go(0);
-</script>
-```
-
-Dot states change fill/stroke-opacity only — geometry frozen (invariant 2). Per-step panel heights may differ (tab precedent); don't JS-measure to lock the tallest. LIVE hooks ride existing rules only (drill into held-back data); plain reading steps get no channel.
+`.t{font-size:.72rem;font-weight:600;margin-top:6px} .d{font-size:.66rem;color:var(--fnt)}`. Vertical variant: swap axes — SVG column of spine+dots beside rows of labels. In SVG always set color via `style=`, never bare presentation attributes. Ordered procedure with rich per-step content → `snippets/stepper.md`.
 
 ## Insight line (the verdict atom — max 1 per card)
 
@@ -185,132 +151,9 @@ ONE curve constant for all animation & transitions: `--ez` (already in skeleton 
 
 `.fu` rows/stats/legends · `.gy` svg bars (each rect) · `.dr` line paths (dasharray ≥ path length). Sibling stagger `animation-delay:.04s×i`, cap .3s. Heroes → count-up above.
 Tier by mode — FAST: main chart `.gy`/`.dr` + count-up, no `.fu`, no stagger. RICH/DASH: full set. Write only the keyframes you use.
-Chart micro-interactions (bar scrub-focus, trend crosshair scrub, donut tap swap) live in CHARTS.md §Micro-interactions — tap-first, mobile primary; bars ≥4 ship scrub-focus in every mode.
-
-## LIVE channel (click wakes the agent)
-
-Preflight gate — ONE foreground Bash, once per session (reuse the verdict afterwards); `LIVE_NO` → no live markup anywhere (clipboard-only actions):
-
-```bash
-command -v python3 >/dev/null && python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',PORT));s.close();print('LIVE_OK')" 2>/dev/null || echo LIVE_NO
-```
-
-Agent side — after `LIVE_OK`, start BEFORE the Write (Bash `run_in_background`; copy exact, same PORT as preflight, embed it in the card):
-
-```bash
-python3 -c "
-from http.server import BaseHTTPRequestHandler,HTTPServer
-from urllib.parse import urlparse,parse_qs
-class H(BaseHTTPRequestHandler):
-    def do_GET(s):
-        v=parse_qs(urlparse(s.path).query).get('c',[''])[0]
-        s.send_response(204);s.send_header('Access-Control-Allow-Origin','*');s.end_headers()
-        print('LIVE:'+v,flush=True)
-    def log_message(*a):pass
-srv=HTTPServer(('127.0.0.1',PORT),H);srv.timeout=600
-srv.handle_request()"
-```
-
-One-shot: exits on first click → completion notification carries `LIVE:<value>`; empty output = timeout, user never clicked — say nothing. LAB multi-round: replace the last line with `while True: srv.handle_request()` and run under Monitor (persistent) — each click = one event; TaskStop when done.
-
-Card side — drill affordance + beacon + clipboard fallback:
-
-```html
-<button class="drill" data-v="detail:渠道明细"><!--SVG-->深入 · 渠道明细</button>
-<div class="cap" id="echo"></div>
-<style>
-.drill{display:inline-flex;align-items:center;gap:7px;border:0;border-radius:10px;padding:8px 14px;min-height:44px;cursor:pointer;font-size:.76rem;font-weight:600;background:var(--inset);color:var(--mut);transition:box-shadow .15s var(--ez)}
-.drill:hover{box-shadow:inset 0 0 0 1.5px var(--a)}
-.drill:active{transform:scale(.96)}.drill:disabled{opacity:.4;cursor:default}
-</style>
-<script>
-const PORT=24680;
-const live=v=>{document.querySelectorAll('.drill').forEach(b=>b.disabled=true);
-  fetch('http://127.0.0.1:'+PORT+'/?c='+encodeURIComponent(v),{mode:'no-cors'})
-  .then(()=>{document.getElementById('echo').textContent='已发送 · agent 处理中'})
-  .catch(()=>{navigator.clipboard?.writeText(v).catch(()=>{});
-    document.getElementById('echo').textContent='通道已关 · 已复制「'+v+'」,回贴对话即可';
-    document.querySelectorAll('.drill').forEach(b=>b.disabled=false)});};
-document.querySelectorAll('.drill').forEach(b=>b.onclick=()=>live(b.dataset.v));
-</script>
-```
-
-Swap `PORT` to the live listener's port. No channel open (`LIVE_NO` / background card) → don't render the drill affordance at all.
+Chart micro-interactions (bar scrub-focus, crosshair scrub, donut tap swap) live in each chart's own `charts/<type>.md` — tap-first, mobile primary; bars ≥4 ship scrub-focus in every mode.
 
 ## States & texture
 
 States: hover shadow-lift or `brightness(1.05)`; active `scale(.96)`; `:focus-visible` 2px accent outline; loading `…`; error `--`; disabled `opacity:.4`. Feedback ≤100ms. Transitions 150/200/300ms on `var(--ez)`.
 Texture: radius 16–20px card / 10–12px tiles. Shadow light `0 1px 2px rgba(16,24,40,.04), 0 10px 28px rgba(16,24,40,.07)`; dark `0 1px 2px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.4)`. 4px grid: pad 22–26, sections 18–20, items 10–12. Depth via bg→card→inset tones, not heavy shadow.
-
-## Citations: claim refs + SVG source marks
-
-**Sources never sit on the card face** — faintest metadata tier. Card face gets at most ONE quiet affordance (the evidence-overlay button, or a faint `来源 ×n` micro-line opening the overlay). Inside the overlay: numbered evidence entries, then ONE compact SVG row of source marks.
-
-**Claim ref** — tiny numbered index beside a point-row phrase/quote; accent-tinted by default (color = clickable), hover deepens + shows a "查看依据" tooltip, click opens the overlay. Index matches the overlay entry number. Refs rendered inside the overlay are inert markers (no tooltip, no pointer).
-
-**Source marks** — one `<svg>`, letter-in-circle per source at `cx=14+34i` (NO external favicon services; offline). No tooltips, no hint text — hover fill + pointer is the affordance; click opens the site.
-
-```html
-<b>竞争压力<span class="ref" data-ov>2</span></b>
-…overlay panel, after the numbered entries:
-<div class="sl"><span class="lb" style="font-size:.64rem">来源</span>
-  <svg class="sm" width="166" height="28"><!-- width = N*34 -->
-    <a href="https://techcrunch.com/…" target="_blank" rel="noopener"><circle cx="14" cy="14" r="12"/><text x="14" y="18">T</text></a>
-    <!-- ×N at cx 48,82,116,150… -->
-  </svg></div>
-<style>
-.ref{display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;
-  margin-left:4px;padding:0 3px;border-radius:5px;font-size:.6rem;font-weight:650;cursor:pointer;
-  vertical-align:2px;position:relative;
-  background:color-mix(in srgb,var(--a) 11%,transparent);color:var(--at);transition:background .15s}
-.ref:hover{background:color-mix(in srgb,var(--a) 22%,transparent)}
-.ref::after{content:"查看依据";position:absolute;bottom:calc(100% + 6px);left:50%;
-  transform:translateX(-50%);padding:4px 8px;border-radius:6px;white-space:nowrap;
-  background:var(--ink);color:var(--card);font-size:.62rem;font-weight:550;
-  opacity:0;pointer-events:none;transition:opacity .15s}
-.ref:hover::after{opacity:1}
-.ov .ref{cursor:default}.ov .ref::after{display:none}
-.sl{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--hl)}
-.sm a{cursor:pointer}
-.sm circle{fill:color-mix(in srgb,var(--a) 12%,transparent);transition:fill .15s}
-.sm a:nth-of-type(even) circle{fill:color-mix(in srgb,var(--b) 12%,transparent)}
-.sm text{font-size:11px;font-weight:700;fill:var(--at);text-anchor:middle}
-.sm a:nth-of-type(even) text{fill:var(--bt)}
-.sm a:hover circle{fill:var(--a)}
-.sm a:nth-of-type(even):hover circle{fill:var(--b)}
-.sm a:hover text{fill:var(--card)}
-</style>
-<script>document.querySelectorAll('[data-ov]').forEach(r=>r.onclick=e=>{e.stopPropagation();ov.classList.add('open')});</script>
-```
-
-## Value tag pill at a line end (trend charts)
-
-```html
-<g style="font-size:7px"><rect x="246" y="48" rx="4" width="34" height="13" style="fill:var(--ink)"/>
-<text x="263" y="57" text-anchor="middle" style="fill:var(--card)">$61.6k</text></g>
-```
-
-## Stage switcher (graphic-first dashboard) — the dense-data default
-
-Many measures of one entity → DON'T stack numbers (the cardinal sin); use a **stage + graphic-selector**. Full verified pattern: **`examples/stage-dashboard.html`** (copy its skeleton). Shape: insight line → a big **stage** (one metric's interactive graphic + ONE headline value + a sub line) → a strip of **mini-graphic tabs**, each drawing its own sparkline/hypnogram + label + value. Tap a tab → the stage rebuilds to that metric and replays the draw-in. The graphic is the control: scrub it to read any point. ONE accent for the whole card. (Comparison/ranking cards reuse the same spirit — see `examples/leaderboard.html`, `examples/compare-cards.html`.)
-
-Core primitives (reused by the stage, the leaderboard spark, and every line chart):
-
-**Line scrub** — drag/tap to read any point; headline value + label update live, dot follows:
-```js
-const scrub=e=>{e.preventDefault();const r=gfx.getBoundingClientRect(),i=Math.max(0,Math.min(N-1,Math.round((e.clientX-r.left-L)/((W-L-R)/(N-1)))));
-  dot.setAttribute('cx',X(i));dot.setAttribute('cy',Y(d[i]));setBig(d[i]);};
-gfx.onpointerdown=e=>{e.preventDefault();gfx.setPointerCapture(e.pointerId);scrub(e);gfx.onpointermove=scrub};
-gfx.onpointerup=gfx.onpointercancel=()=>gfx.onpointermove=null;
-```
-`e.preventDefault()` + `.card{user-select:none}` stop desktop drag from selecting text — a real bug otherwise.
-
-**Line draw-in** — the entrance every chart uses (replays on stage switch):
-```js
-const len=path.getTotalLength();path.style.strokeDasharray=len;path.style.strokeDashoffset=len;
-path.style.animation='draw .7s var(--ez) forwards'; // @keyframes draw{to{stroke-dashoffset:0}}
-```
-
-**Hypnogram** (sleep / any staged time-series) — a stepped line, deep low / light mid / REM high, one accent + single-hue fade; scrub → 「02:15 · 深睡」. Full code in the stage example.
-
-**The only gradient** (same-hue opacity fade, inside a chart): `<linearGradient id=fg x2=0 y2=1><stop offset=0 stop-color=var(--a) stop-opacity=.24/><stop offset=1 stop-color=var(--a) stop-opacity=0/></linearGradient>` → `fill:url(#fg)`. No two-hue gradients, gradient surfaces, or glows anywhere.

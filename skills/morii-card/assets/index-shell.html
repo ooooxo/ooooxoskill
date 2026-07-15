@@ -163,8 +163,10 @@ if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();go(order[Math.max(
 paintTags();
 /* open index.html#<card-file> → deep-link to that card (read view); else ≥25 lands on the grid, <25 on the newest */
 function route(){const h=decodeURIComponent(location.hash.slice(1));const i=CARDS.findIndex(c=>c.f===h);
-if(i<0)return false;render();go(i);setView('read');return true}
-addEventListener('hashchange',route);
+if(i<0)return false;try{sessionStorage.removeItem('mrld')}catch(e){}render();go(i);setView('read');return true}
+/* self-heal: a live tab getting a hash CARDS doesn't know = index.html changed on disk after this tab loaded → reload once to re-parse (sessionStorage guard stops a loop when the card is genuinely absent) */
+addEventListener('hashchange',()=>{if(route()||!location.hash)return;
+try{if(sessionStorage.getItem('mrld')!==location.hash){sessionStorage.setItem('mrld',location.hash);location.reload()}}catch(e){}});
 if(!CARDS.length){vbtn.classList.remove('show');se.classList.add('on');render()}
 else{vbtn.classList.add('show');
 if(!route()){render();const nw=order[0];

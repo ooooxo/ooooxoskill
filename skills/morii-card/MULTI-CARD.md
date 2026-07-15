@@ -9,36 +9,21 @@ inside the frame, `←/→` switches, the user never leaves the page.
 deps, offline, shareable. A server belongs only to a SERVE live-task card and
 has nothing to do with this navigator.
 
-Read this only when folding cards into a collection. Design settled in a
-grilling session.
+Read this only when folding cards into a collection.
 
 ## When (trigger)
 
-- **Creating `ViewCard/` also drops the shell**: `mkdir -p ViewCard` copies
-  `index.html` in (skipped if present, see below). From card 1 there's an index;
-  every later card auto-appears in the sidebar.
-- So **every data card runs the flow below** — no "which card number" check.
-  Card 1's index is just a one-card shell (harmless); consecutive 整理资料
-  naturally accumulate into a collection.
+- **Every data card runs the flow below** — no "which card number" check. Card
+  1's index is just a one-card shell (harmless); consecutive 整理资料 naturally
+  accumulate into a collection.
 - A SERVE live-task card stays single-file, never joins the collection.
 
-## Shell template — copy-exact, never re-author (like relay.py)
+## Flow per card — ONE command, `assets/morii-index.mjs`
 
-Template: `assets/index-shell.html`. **Copy the whole file** to
-`ViewCard/index.html`; you **never hand-write or edit the shell code**. The only
-thing that ever changes is the `CARDS` marker block inside it.
-
-**Standard `ViewCard/` setup** (run this once per data card, idempotent):
-
-```bash
-mkdir -p ViewCard && [ -f ViewCard/index.html ] || cp "<this skill dir>/assets/index-shell.html" ViewCard/index.html
-```
-
-`[ -f … ] ||` guarantees an **existing index is skipped, never overwritten**
-(user edits and accumulated `CARDS` stay safe). `<this skill dir>` = the
-absolute path of the directory this file lives in.
-
-## Two steps per card
+All index bookkeeping (shell copy, row insert/update, validation, opening) is
+owned by the script. You never `cp` the shell or hand-Edit `index.html` when
+node is available — the old manual flow caused ordering bugs (index opened
+before it was updated → stale tab showing no new card).
 
 1. **Write the card** `ViewCard/<topic>-card.html` — an ordinary self-contained
    MoriiCard, full `SKILL.md` rules, nothing compromised for the shell (it must
@@ -50,79 +35,111 @@ absolute path of the directory this file lives in.
    ```
 
    `v` = the card's headline value (already computed while building it; the
-   overview grid shows it).
-2. **Append one line** — a single targeted Edit between `/*CARDS-START*/` and
-   `/*CARDS-END*/`, values **copied straight from the card-meta block** (don't
-   re-invent them → no drift):
+   overview grid shows it). Filenames: ASCII / pinyin (`spending-card.html`),
+   not CJK — keeps the `#<card-file>` hash route encoding-safe. **Recurring
+   topics get a date suffix** (`sleep-0715-card.html`): reusing a filename
+   OVERWRITES the old card's HTML forever — the index row gets replaced, the
+   content is gone. `add` warns when it sees a same-filename different-title
+   replacement, but by then the file is already overwritten; unique names are
+   the only real guard.
 
-```js
-{f:'sleep-card.html',t:'睡眠 7 天',g:'睡眠',v:'6.8h',s:'工作日普遍不足 7 小时',d:'2026-06-29'},
-```
+2. **Index + open in one call** (the Bash step right after the Write):
 
-`CARDS` is a **JS array (not JSON)**: trailing commas are legal, so inserting a
-line never breaks syntax — no "last line can't have a comma" bookkeeping.
-**Never rewrite the whole index** (it clobbers user edits and wastes tokens).
-`file://` blocks `fetch`/ES-module import, so the data must be inlined in the
-shell — it can't live in an external json or `.mjs`; the card-meta block is the
-**copy source at write time**, not a runtime read of the card.
+   ```bash
+   node "<this skill dir>/assets/morii-index.mjs" add ViewCard/<topic>-card.html --open   # interactive
+   node "<this skill dir>/assets/morii-index.mjs" add ViewCard/<topic>-card.html          # background: report the printed URL
+   ```
 
-**Append discipline — a malformed line white-screens the whole index** (a JS
-syntax error throws at parse, before any try/catch). So:
-- If a value contains `'`, switch that one value to a `"…"` string (or drop the
-  apostrophe). Never leave an unescaped `'` inside a `'…'` string.
-- Filenames `f`: use ASCII / pinyin (`spending-card.html`), not CJK — keeps the
-  `#<card-file>` hash route encoding-safe.
-- One object per line, trailing comma, only inside the marker region. Don't touch
-  any other line of the shell.
+   `<this skill dir>` = the absolute path of the directory this file lives in.
+   The script is idempotent — safe to re-run any time. It:
+
+   - copies `assets/index-shell.html` → `ViewCard/index.html` **only if absent**
+     (an existing index is never overwritten — user edits and accumulated
+     `CARDS` stay safe);
+   - reads the card's `card-meta` block and **upserts** one row in the
+     `/*CARDS-START*/…/*CARDS-END*/` region, keyed by filename — re-running
+     replaces the row, never duplicates it;
+   - serializes values with `JSON.stringify` — apostrophes / quotes in titles
+     and summaries can never white-screen the index;
+   - **refuses to write** if the resulting region doesn't parse as a JS array;
+   - auto-assigns a palette color to a tag the shell's `HUE` map doesn't know
+     (stable hash, skips already-used colors) — no manual HUE edits ever;
+   - holds a `.index.lock` around the read-modify-write, so concurrent `add`
+     calls can't eat each other's rows (a stale lock >10s is stolen; if one is
+     ever reported, delete it and re-run);
+   - prints (and with `--open` opens) a **cache-busted deep-link**
+     `file://…/index.html?r=<ts>#<card-file>`.
+
+**Why the cache-buster matters**: reopening the *same* `index.html#…` URL in an
+already-open tab fires only `hashchange` — the page does NOT reload, so its
+in-memory `CARDS` array is stale and the new card silently fails to appear
+(the classic bug this script exists to kill). The `?r=<timestamp>` makes every
+open a fresh navigation → full reload → fresh `CARDS`. Belt-and-braces, the
+shell also self-heals: a live tab receiving a hash it can't find in `CARDS`
+reloads itself once (sessionStorage guard prevents loops).
+
+The `CARDS` region stays the only thing that ever changes inside the shell;
+never touch any other line, never rewrite the whole index by hand.
 
 ### CARDS row fields (= card-meta fields + filename `f`)
 
 | Key | Meaning | Example |
 |-----|---------|---------|
-| `f` | card filename (same dir as index) | `'sleep-card.html'` |
-| `t` | title ≤10 chars | `'睡眠 7 天'` |
-| `g` | tag (single; drives filter + group dot color) | `'睡眠'` |
-| `v` | headline value, shown on the grid, ≤8 chars | `'6.8h'` / `'¥2,847'` / `'+14%'` |
-| `s` | one-line summary ≤16 chars (searchable) | `'工作日普遍不足 7 小时'` |
-| `d` | write date `YYYY-MM-DD` | `'2026-06-29'` |
+| `f` | card filename (same dir as index; added by the script) | `"sleep-card.html"` |
+| `t` | title ≤10 chars | `"睡眠 7 天"` |
+| `g` | tag (single; drives filter + group dot color) | `"睡眠"` |
+| `v` | headline value, shown on the grid, ≤8 chars | `"6.8h"` / `"¥2,847"` / `"+14%"` |
+| `s` | one-line summary ≤16 chars (searchable) | `"工作日普遍不足 7 小时"` |
+| `d` | write date `YYYY-MM-DD` | `"2026-06-29"` |
 
 `d` stores the date, not the bucket: the browser computes 今天/本周/更早 against
 "now", so cards age automatically; within a group they sort newest→oldest. Use
-the environment's current date for `d`. `v` is plain-text headline value — the
-shell **draws no chart** from it (never fabricates data). A real sparkline per
-tile is a future upgrade (add a real series `p:[…]`); the default is `v`-only.
+the environment's current date for `d` (missing `d` → the script falls back to
+file mtime). `v` is plain-text headline value — the shell **draws no chart**
+from it (never fabricates data). A real sparkline per tile is a future upgrade
+(add a real series `p:[…]` to card-meta; the script passes extra keys through);
+the default is `v`-only.
 
-### Rebuild (index lost / corrupted)
+### Rebuild (index lost / corrupted / cards moved in by hand)
 
-Each card carries its card-meta block → scan `ViewCard/*.html`, read each block,
-and regenerate the whole `CARDS` marker region. No server, no backup needed.
+```bash
+node "<this skill dir>/assets/morii-index.mjs" rebuild ViewCard
+```
+
+Each card carries its card-meta block, so the index is disposable: rebuild
+scans `ViewCard/*.html`, reads every block, and regenerates the whole `CARDS`
+region sorted newest→oldest (files without card-meta, e.g. SERVE cards, are
+skipped with a note). No server, no backup needed.
 
 ### Tag colors
 
 The shell's top `HUE` map binds tag→dot color (财务 green / 睡眠 indigo / 天气
-blue …). Used a new tag? Add a line to `HUE` (a small Edit); if you don't, it
-falls back to neutral gray, no error. Neutral shell + per-card dot color → never
-a rainbow (invariant: one accent per card, shell itself stays neutral).
+blue …). `add`/`rebuild` auto-extend it: an unknown tag gets a stable-hashed
+color from a 12-color pool, skipping colors already in use — you never edit
+`HUE` by hand. Neutral shell + per-card dot color → never a rainbow (invariant:
+one accent per card, shell itself stays neutral).
 
-## Open — deep-link to the card just made
+## Open behavior
 
-Interactive: **`open "file://$(pwd)/ViewCard/index.html#<card-file>"`** — a `file://`
-**absolute** URL, never a bare relative path. The shell hash-routes straight to that
-card's reading view (replaces the old `open <card>.html`: both direct AND inside the
-collection). **Why the URL form is mandatory**: `open "ViewCard/index.html#foo"` makes
-macOS look for a literal file named `index.html#foo` (the `#` is part of the path),
-find none, and `|| true` swallows the error → nothing opens. The `file://` URL routes
-it to the browser, which honors the `#` anchor. Example:
+Interactive: `--open` on the `add` call (or `node … open ViewCard/<card>.html`
+to re-open later without editing). Background/scheduled/subagent: no `--open` —
+report the printed URL. Opened without a hash: `≥25 cards` lands on the
+overview grid (easier to find), `<25` lands on the **newest** card.
 
-```bash
-open "file://$(pwd)/ViewCard/index.html#sleep-card.html" 2>/dev/null || true   # macOS
-xdg-open "file://$(pwd)/ViewCard/index.html#sleep-card.html" 2>/dev/null &     # Linux
-```
+The printed URL is always an **absolute `file://` URL** — a bare relative path
+with `#` makes macOS `open` look for a literal file named `index.html#…`, find
+none, and fail silently.
 
-Opened without a hash: `≥25 cards` lands on the overview grid (easier to find),
-`<25` lands on the **newest** card. The shell listens for `hashchange`, so
-reopening an already-open tab still jumps. Background/scheduled/subagent: don't
-open, report the `ViewCard/index.html` path (may carry `#<card-file>`).
+### Fallback — node unavailable
+
+Only then, do it by hand, in this exact order: ①
+`mkdir -p ViewCard && [ -f ViewCard/index.html ] || cp "<this skill dir>/assets/index-shell.html" ViewCard/index.html`
+② one targeted Edit appending a single line between `/*CARDS-START*/` and
+`/*CARDS-END*/` — `{f:"sleep-card.html",t:"睡眠 7 天",g:"睡眠",v:"6.8h",s:"…",d:"2026-06-29"},`
+(one object per line, trailing comma legal — JS array, not JSON; double-quote
+values, a malformed line white-screens the whole index) ③ **only after** the
+Edit: `open "file://$(pwd)/ViewCard/index.html?r=$(date +%s)#<card-file>"`
+(Linux: `xdg-open … &`). Update before open, never the reverse.
 
 ## Scale — built into the template, nothing extra to build
 
@@ -131,4 +148,4 @@ open, report the `ViewCard/index.html` path (may carry `#<card-file>`).
   the overview grid** (each tile = dot + title + headline `v` + summary + tag +
   relative time), tap a tile to enter the iframe, `Esc` back to the grid.
 - Search and tag filter both apply to grid and sidebar. All of this **lives in
-  the template** — you write none of it; still just cp + append a line.
+  the template** — you write none of it; still just one `add` call per card.
