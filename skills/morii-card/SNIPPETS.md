@@ -2,7 +2,7 @@
 
 **STOP — is your data collected and final?** If any search/fetch/computation remains, close this file and finish data work first (Workflow step 1); come back as the last step before writing. If data is ready: copy these patterns and write the HTML now, in one pass. Pre-verified — do not re-check, simulate, or improvise them. **Your next tool call after this Read is the Write — do not think the card through first; compose it as you write.**
 
-Read WITH this file, in the SAME message (parallel, one round-trip), only what THIS card uses:
+Read WITH this file, in the SAME message (parallel, one round-trip): **`DESIGN.md` always** (the rules these patterns implement — color / invariants / atoms / chart build rules), plus only what THIS card uses:
 - each chart the card draws → its `charts/<type>.md` (pattern-file pointers in the SKILL.md chart table; no pointer → compose under the table's rules + §One-SVG below)
 - 5+ measures stage layout → `snippets/stage.md` · ordered procedure → `snippets/stepper.md` · sourced/researched card → `snippets/citations.md`
 - content collection (3+ news/article/post items) → `COLLECTIONS.md`
