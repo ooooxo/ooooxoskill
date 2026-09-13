@@ -112,12 +112,14 @@ const regionLines = (region) => region.split('\n').map(s => s.trim()).filter(Boo
 
 // ---------- HUE: auto-assign a palette color to unknown tags ----------
 function ensureHue(idx, tag) {
-  if (!tag || /['"\\{}:,]/.test(tag)) return;
+  if (!tag || /[{}]/.test(tag)) return;
   const src = readFileSync(idx, 'utf8');
   const m = src.match(/const HUE=\{([^}]*)\}/);
   if (!m) return;
   const entries = m[1];
-  const keys = [...entries.matchAll(/([^,{\s:'"]+):/g)].map(x => x[1]);
+  // keys may be bare (财务:) or quoted ("开源/技术":) — capture both, unescape quoted
+  const keys = [...entries.matchAll(/(?:"((?:[^"\\]|\\.)*)"|([^,{}\s:'"]+))\s*:/g)]
+    .map(x => x[1] !== undefined ? JSON.parse('"' + x[1] + '"') : x[2]);
   if (keys.includes(tag)) return;
   const used = [...entries.matchAll(/#[0-9a-fA-F]{6}/g)].map(x => x[0].toLowerCase());
   let h = 0; for (const ch of tag) h = (h * 31 + ch.codePointAt(0)) >>> 0;
@@ -126,7 +128,9 @@ function ensureHue(idx, tag) {
     const c = PALETTE[(h + i) % PALETTE.length];
     if (!used.includes(c)) { color = c; break; }
   }
-  const insert = (entries.trim() ? ',' : '') + tag + ":'" + color + "'";
+  // quote any tag that isn't a valid JS identifier (slash/space/dot/dash…) so the key can't break parsing
+  const key = /^[\p{ID_Start}$_][\p{ID_Continue}$_]*$/u.test(tag) ? tag : JSON.stringify(tag);
+  const insert = (entries.trim() ? ',' : '') + key + ":'" + color + "'";
   writeFileSync(idx, src.replace(/const HUE=\{[^}]*\}/, () => 'const HUE={' + entries + insert + '}'));
   console.log('HUE + ' + tag + ' → ' + color);
 }

@@ -92,6 +92,20 @@ The tables here are **lookups** — scan to the first row that fits and move. DE
 
 **Language**: explicit request > conversation-dominant > 中文.
 
+## Morii card window — preferred delivery when `card_open` is present
+
+If the morii MCP card tools are connected (`mcp__morii__card_open` / `card_append` / `card_close`) AND the session is interactive (a user is watching), deliver the card into a **Morii desktop window** instead of file+browser. The window is on screen in seconds and the card grows section by section — that progressive render is the whole point of this transport. Everything before delivery (data-first, DESIGN/SNIPPETS reads, layout/chart routing, card-meta) is unchanged; only steps 4–5 change:
+
+1. `card_open {title, width, height}` right before writing — window pops with a shimmer skeleton. Size = the card's design size in logical px (FAST default 760×640; wide DASH 960+).
+2. Stream via `card_append`, **serial calls only** (parallel appends interleave garbage). First chunk = `<head>` (title + card-meta + full `<style>`) + opening layout containers; then one chunk per section; `<script>`s in the final chunk. Chunks may split mid-tag (streaming parser). 2–8KB per chunk is the sweet spot; never buffer the finished card into one giant append — that collapses the progressive render.
+3. `card_close {card_id, save_path}` with **save_path defaulting to the absolute path of `ViewCard/<topic>-card.html` in cwd** — Morii writes the exact streamed bytes to disk (zero re-generation, file ≡ window). Then run the step-5 index `add` **without `--open`** (the window already shows the card; the index keeps the collection navigable).
+4. **SERVE** progress cards: open + stream the shell, then push each tick as a `card_append` of `<script>update({...})</script>` (a written script executes immediately and can mutate earlier DOM) — **no relay server needed in window mode**; `card_close` only when the run truly ends.
+5. **LIVE** selection/verdict cards: NOT via the card window yet (no return channel) — keep the existing browser/localhost flow.
+6. Background / scheduled / subagent runs (route ⑪, nobody watching): do NOT open windows — file-only flow as before.
+7. A tool error like「卡不存在或窗已被用户关闭」means the user closed the window: stop streaming that card, don't reopen it. After the final append (or when anything feels off), one `card_status` call verifies the card is actually alive on screen — `ready:true` = host mounted and rendering; `ready:false` after your appends = frontend never attached (tell the user, don't keep streaming blind); `visible:false` = user closed it.
+
+Tools absent → original file + step-5 `--open` flow, unchanged.
+
 ## Pick layout & chart
 
 **Layout by data shape** (first match):
@@ -140,7 +154,7 @@ Triggers live in the scenario table (rows ①–⑥, ③⑭ for LIVE) — don't 
 
 ## Output
 
-Write to a `ViewCard/` folder in cwd — path `ViewCard/<topic>-card.html`; keeps generated cards collected, not scattered in cwd. **Recurring topics get a date suffix** (`sleep-0715-card.html`) — reusing a filename silently overwrites the old card forever; check `ls ViewCard/` when the topic sounds familiar. Interactive: open via the step-5 index command (never `open` the bare card file — it bypasses the collection). Background/subagent/scheduled: do NOT open, report the path.
+Write to a `ViewCard/` folder in cwd — path `ViewCard/<topic>-card.html`; keeps generated cards collected, not scattered in cwd. (Card-window delivery active → the same file lands via `card_close(save_path)` instead of a Write; identical path rules.) **Recurring topics get a date suffix** (`sleep-0715-card.html`) — reusing a filename silently overwrites the old card forever; check `ls ViewCard/` when the topic sounds familiar. Interactive: open via the step-5 index command (never `open` the bare card file — it bypasses the collection). Background/subagent/scheduled: do NOT open, report the path.
 
 **Multi-card index**: step 5's `morii-index.mjs add` is the whole flow — every data card joins the `ViewCard/index.html` navigator (search + tag + time-group + overview grid, `file://`-offline). Field schema + rebuild + no-node fallback → **`MULTI-CARD.md`** (load before building a collection). SERVE live-task cards stay single-file.
 
