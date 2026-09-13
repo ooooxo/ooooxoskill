@@ -6,9 +6,28 @@ The 10 shipped charms, each read in three passes aligned to the two pillars in S
 - **零件 (parts)** — the stacked divs it decomposes into + the signature detail.
 - **动画 (§B animation)** — the CSS trick + the verb-loop (or why it's quiet).
 
-Read this to see **how a specific object was faked out of divs** — the ring hole-punch, the bow border-radius, the squash-stretch keyframe are non-obvious and worth reusing. Source of truth = `src/panel/capsule/charms/Charm*.vue`; live versions animate in `charms-gallery.html`.
+> ## ⚠️ 读这份文件的时机 (when to read this)
+> **Not at the start of a new charm — at the differentiation gate (SKILL.md §B7 / build-loop step 8).**
+> Read before you've chosen your own object and you will design a near-neighbor of whatever you just read. That is the documented failure mode of this family: everything drifted toward these ten silhouettes and these ten loops.
+>
+> This file has **two legitimate uses**:
+> 1. **排除表 (exclusion list)** — what's taken, so your draft isn't a re-run of it. See 占用总表 below.
+> 2. **机制来源 (mechanism source)** — the non-obvious div tricks: the ring hole-punch, the bow border-radius, metal gradients, z-order occlusion. Steal **mechanisms**. Never a silhouette, never a choreography.
+>
+> Source of truth = `src/panel/capsule/charms/Charm*.vue`; live versions animate in `charms-gallery.html`.
 
-**But do not template.** Each charm is its own object solved fresh. Copy a *technique* (a gradient body, a z-order occlusion), never clone a silhouette into a new meaning — a blob-with-a-notch that "sort of" means the new thing is the failure mode (SKILL.md §Banned).
+## 占用总表 (what the family already spends) — check yours against this
+
+| axis | 已占用 | 还空着 |
+|---|---|---|
+| 剪影类 | 正圆盘 ×3 (clock·donut·radar) **满** · 方盒 ×4 (ballot·gift·inbox·bot) **满** · 纸片 ×2 (note·envelope) 快满 · 三角折面 ×1 (plane) | 细长竖立 · 软垂坠 · 有机不规则 · 铰接多关节 · 堆叠层 · 开放框架 · 液体容器 · 缠绕穿线 |
+| 材质 | 纸 ×3 · 塑/涂装 tint 体 ×3 · 金属 ×1 · 暗屏 ×1 · 便签黄 ×1 | 玻璃 · 木 · 陶 · 织物 · 皮革 · 液体 · 有机体 |
+| 动的零件 | 整体 ×2 (clock dial, note) · 内容物 ×3 (slip, letter, sheet) · 指针/光束 ×2 · 整体+盖 ×1 (gift) · 影子 ×1 (plane) | 铰链 · 绳/线 · 液面 · 关节臂 · 表面纹理 · 一列子件 |
+| 属性 | rotate ×4 · translateY ×3 · scale ×1 | clip-path · background-position · border-radius · width/height · 3D flip · steps() · filter · skew |
+| 节奏包络 | burst-rest ×2 · linear spin ×2 · one-shot drop ×2 · bounce ×1 · peek ×1 | 呼吸 · staccato steps · 蓄力慢+突然弹 · drift+jitter · traveling stagger · hold-frame · double-beat |
+| 周期 | 3.2s ×1 · 3.6s ×2 · 4.2–4.6s ×3 · 60s ×1，起始延迟几乎全是 1.2–1.4s | 2.6–3.2s 轻物 · 5–6s 重物 · 错开的起始延迟 |
+
+**≥3 axes matching one shipped charm = clone.** (SKILL.md §B7.)
 
 ## Contents
 1. [CharmClock 迷你钟 — 闹钟](#clock) · live
@@ -88,9 +107,12 @@ Shared by all: `position:absolute; z-index:3; left:-24 top:-20; ~54–58px; rota
 
 ---
 
-## Cross-cutting patterns (harvest these)
-- **z-order narrative (Ballot/Envelope/Inbox):** moving piece *behind* the container; sliding toward the seam reads as in/out. The occlusion is the meaning.
-- **synced dual loops (Plane, Radar, Clock, Gift):** two leaf nodes, same period, phase/scale offset → altitude, beam+blip, tick+ring, jump+lidpop. One loop = flat; two synced = alive.
+## Cross-cutting **mechanisms** (harvest these — they are structure, not choreography)
+
+Safe to reuse: these describe *how divs fake matter*, and reusing them makes a charm read as family. What is **not** safe to reuse is the gesture on top of them — a third slip dropping into a third box is a clone even though z-order is a fine mechanism.
+
+- **z-order narrative (Ballot/Envelope/Inbox):** moving piece *behind* the container; sliding toward the seam reads as in/out. The occlusion is the meaning. ⚠️ 已用 3 次，方向也用完了（下进 / 上出 / 落入）— reuse only with a genuinely new direction or seam (sideways feed, through a hole, diagonal).
+- **synced dual loops (Plane, Radar, Clock, Gift):** two leaf nodes, same period, phase/scale offset → altitude, beam+blip, tick+ring, jump+lidpop. One loop = flat; two synced = alive. The *technique* stays open; the four pairings above are taken.
 - **the 3-move depth kit (all tinted charms):** vertical gradient body + drop-shadow lift + inset underside, then a lit lid with `inset 0 1.5px rgba(255,255,255,.3)`.
 - **material honesty:** paper `#f4f1ea`, note `#e5c86e`, metal `linear-gradient(#f0f1f4,#c0c4cd)`, screen `#10141a` — only *one* surface wears `--tint`.
 - **hole-punch for rings (Donut):** solid disc + `::after` filled `var(--panel)` = a real ring showing the surface through it.

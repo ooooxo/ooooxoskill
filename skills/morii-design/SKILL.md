@@ -1,225 +1,214 @@
 ---
 name: morii-design
 description: >
-  Morii 设计系统模板 —— 任何新界面、组件、原型、页面的视觉与交互规范底座。
-  当任务是「设计/搭建 UI、做页面、做应用界面、做组件、原型、设计稿、前端」时套用。
-  产出完整页面 / 应用界面（铺满视口、多视图、可含导航），不是单张 widget 卡片。
-  内核：克制 · 层次 · 呼吸感。先按内容气质定风格基调，再落地统一规范。
-  要点：图形优先 · 中性表面 + 克制色彩(90/10 可全单色) · 文字降为原子 ·
-  禁 emoji 用小而减色的扁平 SVG · 设计令牌单一真源(Token.css)且复用优先 ·
-  字重两档 + 大留白 · 微到柔和圆角 + 弥散/无阴影 · 弱化边框分割(留白>细线) ·
-  等宽小便签 · 异步三态 · 微交互 + 进出双向动画 · 单页 + tab + modal + popup + 全局提醒(禁路由)。
-  Triggers: 设计, UI, 界面, 组件, 原型, 页面, design system, 设计风格, 设计模板.
+  Morii Design System — the visual + interaction baseline and workflow entry for ANY interface,
+  page, app screen, component, prototype, or front-end visual work.
+  Whenever the task is 设计 UI / 做页面 / 做应用界面 / 做组件 / 做原型 / 做设计稿 / 写前端界面 / 改视觉,
+  run this skill FIRST, then build. This file is the mandatory always-on floor + router;
+  details load on demand — never assemble rules from memory.
+  Output is a COMPLETE page / app screen (fills the viewport, may carry nav and multiple views),
+  never a single floating widget card.
+  Core三词: 克制 · 层次 · 呼吸感 — graphics carry the information, text is reduced to atoms,
+  surfaces stay neutral, whitespace is the protagonist.
+  Workflow: ① Token single source → ② modules (skeleton / containers / charts / states)
+  + baseline feedback → ③ icons (call morii-icon) → ⏸ ship the static build and ASK
+  → ④ add motion (read MOTION.md only once authorized).
+  Triggers: 设计, UI, 界面, 组件, 原型, 页面, 前端, 视觉, design system, 设计风格, 设计规范, 设计模板.
 allowed-tools:
   - Read(~/.claude/skills/morii-design/**)
   - Read(./src/panel/shell/tokens.css)
-  - Read(~/.claude/skills/morii-card/**)
+  - Read(~/.claude/skills/morii-icon/**)
+  - Skill(morii-icon)
 ---
 
-# Morii Design System
+# Morii Design System — Entry & Workflow
 
-**内核三词：克制 · 层次 · 呼吸感。** 图形承载信息、文字只是原子；表面恒中性、颜色克制点睛；留白是主角、层次靠阴影色阶而非塞满；单页架构、微交互顺滑。不是「装饰页面」，是「把信息压成最少的视觉原子、用图形讲清、再给足呼吸空间」。
+**Every design task goes through this file.** It stays resident: it pins the output form, states the supreme law, runs the workflow, and routes to details. Details live in satellite files — **read the one for the step you are on, and only that one**. Writing without reading it = assembling rules from memory = rework.
 
-**动手顺序**：先 §A 定**风格基调**（按内容气质）→ 再 §B 吃透**美学总纲**（克制/层次/呼吸）→ 然后 §0–§11 落地。基调与总纲是上位法，下文细则在其下微调。
-
----
-
-## ⚑ 输出形态：完整页面 / 应用，不是一张卡片
-
-**本 skill 的产出是「页面」或「应用界面」——铺满视口、可含多视图与导航的真实 UI，不是居中漂浮的单张 widget 卡。** 这是与 `morii-card` 的根本分界：morii-card 产出一张自包含小卡；morii-design 产出整个页面/软件界面。
-
-- **页面铺满视口**：`body` 不居中放一张 `min(430px)` 小卡。用 **app shell** 组织——顶栏/侧栏/内容区，或全宽单列内容流，`max-width` 取页面级（内容区 `680–1200px` 视类型，看板可更宽），响应式收窄到移动端。
-- **多视图在一页内**：多个「页面」用 §9 的 tab / 视图切换在同一 `body` 内呈现（单页心智、禁路由），不是每个视图各开一张卡。
-- **morii-card 只是零件来源，不是输出模板**：从它**借** 设计原子（stat row、point row、chip、insight line）、**借** 图表几何（CHARTS.md）、**借** 合集/交互片段（COLLECTIONS/SNIPPETS）——但**绝不照搬它的单卡外壳**（`.card{width:min(430px)}`、居中 body、card 解剖公式当整页结构）。读那些文件时只取里面的**组件与图表代码**，丢弃它的页面级外壳与「一切都是一张卡」的假设。
-- **卡片在页面里是「可选的分组容器」之一**，不是页面本身。多数区块按 §B 走通栏 + 留白；只有真要抬升的独立意群才装进卡。一个页面可以一张卡都没有。
-- **页面骨架自己搭**：`<header>` / `<aside>` / `<main>` / `<section>` / 视图容器 + tab 状态机 + 各区块。下文 §6 的「数据卡解剖」只是**页面内某个数据 widget** 的内部结构，不是整页模板。
+**Core三词：克制 · 层次 · 呼吸感.** Not "decorating a page" — *compressing information into the fewest visual atoms, saying it with graphics, then giving it room to breathe.*
 
 ---
 
-## A. 风格基调：先匹配内容气质（动手前第一决策）
+## ⚑ Output form: a page / app, not a card
 
-**风格不是「做得好看」，是「匹配内容气质」。** 先判断内容属哪类，定基调，再调下文 token——基调决定圆角软硬、配色冷暖、留白疏密、动效快慢、是否衬线。**先定调、后落地、全程一致；一个产品只走一个基调。**
+**What this skill produces is a page or an app screen — real UI that fills the viewport and may carry navigation and multiple views. Not a centered floating widget card.** If the deliverable is one small self-contained widget, this is the wrong skill; everything below assumes a whole page.
 
-| 内容气质 | 风格原型 | 在本系统 token 上的偏移 |
+- **Fill the viewport.** `body` does not center a `min(430px)` card. Use one of the four skeletons — app shell / content flow / dashboard grid / mobile single column (`LAYOUT.md` §1).
+- **Multiple views live in one page.** Switch with tabs inside the same `body` (single-page mindset, no routing) — not one card per view.
+- **A card is just one optional grouping container inside the page**, never the page itself. **A page may contain zero cards.**
+- **This skill is self-contained.** Every rule, snippet, and piece of geometry it needs lives in the files below, in this system's own token vocabulary. **Do not import structure or CSS from a card-scoped source** — a fixed `min(430px)` shell, a centered `body`, or an "everything is one card" assumption will silently undo the page.
+
+> The "data widget anatomy" in `LAYOUT.md` §3 is the internal structure of **one metric block inside a page** — **not a whole-page template**. Building the whole page from it is this skill's most frequent failure.
+
+---
+
+## §B Supreme law: 克制 · 层次 · 呼吸 (applies throughout)
+
+**Four principles first:**
+
+- **Details compound.** Users almost never notice any single detail on its own — that is exactly the point. Invisible correctness stacks up into "can't say why, but it feels right." So "nobody will notice" is never a reason.
+- **Every number must be defensible.** Spacing, radius, duration, easing, elevation — none of them are casual. If you cannot say *why this value*, it belongs in a token.
+- **Consistent = predictable.** Things that look alike must behave alike and sit in the same place. The same action looks the same, moves the same, and takes the same time everywhere. Predictability *is* the premium feel. So the recurring choices are made **once per product, not once per screen** — the surface ramp, the radius ladder, the icon tier, the motion personality. **This is a consistency requirement, not a style template:** nothing here prescribes which values you pick, only that a value picked in one place is the value everywhere.
+- **Derive from the content, not from a preset.** Every number below has a range, and the range is resolved by what the thing actually is — how large the box is, how dense the information is, how often the user sees it, whether the gesture carries momentum. Reaching for a named style ("make it techy", "make it editorial") skips that reasoning and produces a template wearing the content as a costume.
+- **Minimal ≠ least.** You delete noise, not information. Hiding every function in a drawer *looks* minimal and is harder to use; sometimes **adding** context makes things simpler (put the remaining time on the progress bar). Common things up front, advanced one layer down.
+
+**Nine rules:**
+
+1. **Restrained color, 90/10.** ≥90% neutral (white/gray/black) + ≤10% one brand hue — **fully monochrome is allowed**. Color accents, it does not ground.
+2. **Never pure black against pure white.** Text uses neutral ink steps (`--ink` / `--ink-3`, not `#000`); surfaces are near-black or system off-white (not `#fff`). The premium feel comes from neutrals, not from hard contrast.
+3. **Two weights carry the hierarchy.** Regular (400–450) + bold (650–720). Hierarchy comes from weight + ink depth, not from stacking font sizes.
+4. **Generous whitespace (prefer empty over full).** Whitespace is the protagonist. Spacing runs ~1.5× the usual; if it is empty, let it be empty — never fill to fill.
+5. **Layers, not density.** Depth comes from z-order + surface steps (bg → content → inset) + diffuse shadow. Not from borders on all four sides, not from a dense grid.
+6. **Break the closed card.** Do not box every block with a border and a shadow. Segmentation priority: **full-bleed + generous whitespace > very faint hairline > pure whitespace.** Use a card only to *elevate one genuinely independent idea* — few cards, large, widely spaced.
+7. **Radius subtle to soft, never a full circle.** Containers/buttons 10–16px. Full pill/circle is only for small chips and tags. No sharp hard edges anywhere.
+8. **Shadow: either none, or diffuse.** Tight hard shadows are banned. If used, go very faint over a large area, producing "floating," not "outlined."
+9. **Reject the cheap look.** No high-saturation clashes, no rainbow / multi-hue / bargain gradients. **Gradient whitelist:** ① very faint same-hue ambient background (opacity <6%) ② same-hue fade inside a chart shape. Everything else is flat.
+
+---
+
+## Workflow — four stages, in order; each reads exactly one file
+
+| Stage | Do | Read | Gate |
+|---|---|---|---|
+| **① Token** | Pull the single source, list what you will reuse | `Token.css` (or the project's `tokens.css`), then `FOUNDATION.md` once | never skip |
+| **② Modules + baseline feedback** | skeleton → containers → graphics → states → **give real feedback** | `LAYOUT.md` · `SHELL.md` · `CHARTS.md` · `STATES.md` | first three skip by condition; **baseline feedback never skips** |
+| **③ Icons** | Anything newly drawn or redrawn → call the skill | `Skill(morii-icon)` | skip when every icon is reused |
+| **⏸ Ship gate** | run the iron checklist → **render and look at it** → ship the static build → **ask about ④** | — | **motion named in the request = pre-authorized, pass straight through**; gesture physics still asked separately |
+| **④ Add motion** | entrance choreography / gesture physics / chart polish | `MOTION.md` | only with pre-authorization or explicit yes; both gates must pass |
+
+Concrete values for color / type / spacing / category marking / icon usage / buttons / component states / selection & cursor are in `FOUNDATION.md` — read it once after stage ①, before the first line of CSS.
+
+**Three product-wide decisions get made the first time each one comes up, then never re-opened** (§B "consistent = predictable"): the **icon tier** (solid or line — `morii-icon` §A owns the choice, stage ③) · the **motion personality** (duration baseline, curve, whether anything springs — `MOTION.md` §13, stage ④) · **where in each `FOUNDATION.md` range this product sits** (radius, whitespace, ink contrast). Each is resolved from the content in front of you, and each is written down the moment it is decided, because the second screen has to match the first.
+
+### ① Token: single source, reuse first
+
+**Every color / radius / spacing / motion value references a token. Raw hex is banned everywhere.**
+
+Source of truth: inside the Morii repo → `src/panel/shell/tokens.css` (scoped to `.morii-shell`, ADR 0020/0048). Standalone demo/prototype → copy this skill's **`Token.css`** (`:root` scope, identical names, so migration between the two is painless).
+
+**Reuse first (hard rule):** before adding a value, look for one to reuse.
+
+1. An existing token (including `color-mix()` derivations) can express it → **reuse it, adding is banned.**
+2. Only when a semantic genuinely does not exist → add it, and **register the token with its semantic written down** before referencing it.
+3. Lower entropy wins: `--accent` deriving `-press/-soft/-ink` beats four hard-coded colors. Recoloring then touches one place.
+
+Quick map: surfaces `--bg-window/--panel/--panel-2/--inset` · ink four steps `--ink→--ink-4` · accent `--accent` (+`-press/-soft/-ink`, optional `--accent-2`) · semantic `--up/--down/--warn/--crit/--online` · lines `--sep/--hairline` · radii `--r-xs…--r-xl/--r-pill` · motion `--ease-out/--spring/--t-fast…` · skeleton `--shimmer`.
+
+### ② Design modules (read by condition — only the ones you use)
+
+| Read | Trigger | Contents |
 |---|---|---|
-| **科技 / 效率 / 工具** | futuristic minimalism + glassmorphism | 冷 accent(靛/天蓝) · 近黑表面 + 半透磨砂浮层(`backdrop-filter:blur`) · 锐利克制 · 动效快(`--t-fast`)而精准 · 等宽数字突出 · 几何无衬线 |
-| **人文 / 阅读 / 内容** | editorial sketch | 暖中性纸感底 · 衬线标题(`Georgia,'Songti SC'`) · 大留白宽行距(1.7+) · 单栏长文 · accent 近乎无色 · 细描边点缀 · 动效慢而柔 |
-| **生活 / 消费 / 社交** | organic modern + soft geometry | 圆角偏大 · 暖 accent(橙/玫红/青) · 柔和大阴影 · 圆润图标 · 弹簧动效(`--spring`)更弹 · 友好 chip |
-| **金融 / 商务 / 数据** | corporate elegance + data-driven | 冷静(靛+灰/绿) · 致密 stat row/表格/图表主导 · 中等圆角 · 精确对齐 · tabular-nums 铺满 · 动效低调淡入 · 信息密度高 |
+| **`LAYOUT.md`** | output is a page (always) | four skeletons · block segmentation · nine container atoms |
+| **`SHELL.md`** | persistent frame, more than one view, any overlay or toast | app shell behavior (what is sticky, what scrolls) · tabs · **the overlay contract + its three forms — popover / inside-window / drawer** · confirmation · toast · stepper · collection routing · density valve |
+| **`CHARTS.md`** | drawing any SVG graphic | one-SVG rule · `d` rejects percentages · type lookup · hygiene · scrub-focus |
+| **`STATES.md`** | async data / possibly-empty regions / **anything that can fail while the screen stays usable** / any explanatory gray text | three states · lightweight loading criteria · empty state · content density · ⓘ tooltip layer · **failure notices (surface speaks human, diagnostics behind hover)** |
 
-判断不了（混合/不明）→ 默认科技基调（系统原生态：近黑 + 靛 + 弹簧）。
+"≥1 graphic per block" is an iron rule, so `CHARTS.md` is read almost every time in practice.
 
-## B. 美学总纲：克制 · 层次 · 呼吸
+#### Baseline feedback — the half of motion that is NOT gated
 
-所有基调共享的最高审美法则，**逐条只在此定义一次，下文不重复**。
+Stage ④ is gated, but **these four are not "motion polish," they are baseline usability — without them the interface is simply broken.** Ship them in the static build; **no need to read `MOTION.md`**.
 
-- **克制色彩 90/10**：≥90% 中性（白/灰/黑）+ ≤10% 单一品牌色，**可以全单色无品牌色**。色彩是点睛不是底色。配色复用优先（见 §0）。
-- **不用纯黑纯白对撞**：文字走中性墨色档（炭黑 `--ink` / 中灰 `--ink-3`，非 `#000`）；表面近黑 / 系统灰白（非 `#fff`）。高级感来自中性，不来自硬撞。
-- **字重两档拉层级**：只用常规(400–450) + 粗体(650–720) 两档（hero 数字可 700+），禁满屏 300/600/800 乱跳。标题够粗、正文够细够淡，层级靠粗细 + 墨色深浅，不靠字号堆。
-- **大留白（宁空勿满）**：留白是主角。间距比常规约大 1.5×；空着就让它空，绝不为填满而填。
-- **层次而非塞满**：深度靠 z 序 + 色阶（bg → 内容 → inset 凹块）+ 弥散阴影，不靠四面描边、不靠密集格子。
-- **打破封闭卡片**：别把每块内容都框成带边带影的盒子（密集格子感是反面）。分段优先级 **① 通栏模块(full-bleed)+大留白 > ② 极淡细横线(hairline) > ③ 纯留白**。真正要「抬升一个独立意群」才用卡——卡要大、要少、间距大。
-- **圆角：微到柔和，不用正圆**：容器/按钮 **10–16px**（`--r-sm`~`--r-md`，基调偏组织/数据取小、偏生活取大）；**正圆/全胶囊 `--r-pill` 仅给小 chip/标签**，不给主按钮/容器。界面无锐角硬边。
-- **阴影：要么无，要么弥散**：紧实硬阴影禁用；要用就**极淡大范围弥散**（大 blur+spread、极低 opacity，如 `0 20px 60px rgba(0,0,0,.05)`），制造「飘浮」非「描边」。
-- **拒绝廉价感**：禁高饱和撞色、禁彩虹/多色/廉价渐变。**渐变白名单**：①极淡同色氛围背景(opacity<6%) ②图表图形内部同色渐隐——其余纯色。
+| Required | How | Without it |
+|---|---|---|
+| Press feedback | every pressable element gets `:active { transform: scale(var(--press)) }` — **fire on press, do not wait for click** | pressing does nothing; feels dead |
+| Hover / focus state | hover changes only `background/opacity/box-shadow/fill` (**geometry frozen**); `:focus-visible` gets a 2px accent outline | no focus ring = a11y defect |
+| Three-state fade | loading ↔ empty ↔ content **cross-fade**, never a hard cut, never a white flash | content jumps; reads as careless |
+| Paired enter/exit for overlays | every overlay form (popover / inside-window / drawer) shares one presentation, mirrored in direction; **unmount only after the exit animation finishes**; never toggle `hidden` on an element that carries `display` | open written without close = half-finished |
 
----
+This layer needs only four gates: **pick one of four curves** (in/out `--ease-out` · on-screen movement `--ease-in-out` · hover/color `--ease-hover` · constant `linear`), **never `ease-in`** · **under 300ms, exit ≈ enter ×0.7** · **animate only `transform`/`opacity`, never `transition: all`** · **interruptible from any frame, no input lock while it plays**. Values and the state table are in `FOUNDATION.md` §7.
 
-## 0. 设计令牌 Token：单一真源 · 复用优先
+### ③ Icons: call `morii-icon`
 
-**所有颜色/圆角/间距/动效只引用 token，任何位置禁裸写十六进制。**
+**Any SVG glyph that must be newly drawn or redrawn** (a shape inside a button, the glyph in an icon tile, an empty-state illustration) → invoke **`morii-icon`** with the `Skill` tool, and pass along the product's icon tier once it is fixed. It owns form and quality; **this skill never restates how to draw**. On conflict, `morii-icon` wins.
 
-真源：Morii 仓库内 → `src/panel/shell/tokens.css`（`.morii-shell` 作用域，ADR 0020/0048）；独立 demo/原型 → 复制本 skill 的 **`Token.css`**（`:root` 作用域，命名一致，两边无痛迁移）。
+Icons that already exist (in the project registry, or already drawn on this page) are **reused, not redrawn**.
 
-**复用优先（硬规则）**：上新值前先在 token 里找复用。
-1. 现有 token（含 `color-mix()` 派生）能表达 → **必须复用，禁新增**。
-2. 仅当某语义真的缺 → 才新增，且先登记 token + 写明语义再引用。
-3. 熵越低越好：`--accent` 派生 `-press/-soft/-ink` 四态胜过四个硬编码色。改色只动一处。
+Size / ink step / tile / a11y — the **usage layer** — is in `FOUNDATION.md` §5.
 
-速记：表面 `--bg-window/--panel/--panel-2/--inset` · 墨色四档 `--ink→--ink-4` · 强调 `--accent`(+`-press/-soft/-ink`/可选 `--accent-2`) · 语义 `--up/--down/--warn/--crit/--online` · 线 `--sep/--hairline`(低对比) · 圆角 `--r-xs…--r-xl/--r-pill` · 动效 `--ease-out/--spring/--t-fast…` · 骨架 `--shimmer`。
+### ⏸ Ship gate: static build first, then ask about motion
 
-## 1. 配色
+After stage ③, **do not casually write the entrance animations in** — motion written before the design is settled is thrown away the first time the design changes.
 
-- **中性表面**：卡面与页底永远固定中性色，**任何情绪色相不得染表面**（§B 总纲落地）。
-- **一卡一强调对**：每卡/组件只用 `--accent` 一主色 + tint（需双色启 `--accent-2`，仍 ≤2 hue）。DASH 仪表盘放宽为「一组件一色对」。
-- **颜色只碰**：图表几何 · chip（12% tint 底 + text-grade 文字）· 强调态图标 · 焦点态。
-- **鲜艳小面积 60-30-10**：accent 可高饱和(S 55–75)但单元素小、总彩色面积 ≤10%；≥60% 中性/留白 · ~30% 灰调 · ≤10% accent。
-- **裸色禁令**：裸色的句子/数值/标签禁止，用字重强调。唯一例外：DASH stat row 可给一个 delta 染 text-grade accent（chip 语义、无盒）。
-- **不只靠颜色**：状态/区别必叠第二通道（图标/形状/文字/位置）——涨跌加 ▲▼、选中加对勾/粗体/thumb。色盲与暗环境也读得懂。
-- **语义色按需**：delta `--up`/`--down`；告警 `--warn`/`--crit` **仅跨真实阈值**才出现，无阈值不告警、不装饰。
-- **领域色对**（图表，见 Token.css）：财务 绿/靛 · 科技 靛/天蓝 · 健康 玫红/青 · 体育 橙/天蓝 · 新闻 琥珀/灰蓝 · 睡眠 靛紫/天蓝 · 通用 蓝+灰。
-- **对比度**：正文 ≥4.5:1 · hero/大字 ≥3:1 · UI 元件(图标/控件轮廓/focus ring) ≥3:1；亮暗两态都验。
+**First check for pre-authorization:** the user named motion in the request itself (「要有动效 / 要顺滑 / 加点动画 / 会动的」, "make it smooth", "add animation") → **treat it as confirmed, go straight to ④, do not ask.** Asking when you already know the answer trips the skill's own "say it once" rule.
 
-## 2. 排版
+> **Pre-authorization covers the decorative layer only** — entrance choreography, chart transition polish. **Gesture physics (drawer / swipe-to-delete / drag-to-reorder) is expensive and rework-prone: ask about it separately, pre-authorized or not.**
 
-系统字体栈 `--font`（衬线仅人文基调标题）；数字一律 `tabular-nums`；大数收 万/亿（1.2万、3.4亿）。字重两档见 §B。
+No pre-authorization → run the gate in order:
 
-| 角色 | 字号 | 字重 | 字距 |
-|------|------|------|------|
-| 英雄数字 Hero | `clamp(28px,7vw,30px)` | 700–720 | `-0.02em`（大字收紧） |
-| 区块标题 | **18px** | 650 | `-0.1px` |
-| 正文 | **16px** | 400–450 | 0（行高 1.5–1.6） |
-| 次要文本 | 13px | 500 | 0 |
-| 标签 label | 12px | 500–600 | caps 时 `+0.07em` |
-| eyebrow | 11px | 700 | `+0.6px` 大写 |
+1. Run the **iron checklist** below.
+2. **Render it and look at it** (screenshot / browser) — static frames, both light and dark.
+3. Ship the static build.
+4. Make the last line of the delivery message **ask whether to enter ④** — not a blank "want animation?", but the specific places you intend to animate, so the answer can be one word:
 
-层级靠对比（字重 + 墨色档），不靠字号堆。一个区块对齐轴**尽量单一**（左对齐就全左），别左中右混排——对齐线越少越整。
+> 静态版已交付，铺满视口、明暗两版都渲染看过了。要不要进最后一步补入场动效？
+> 值得动的有：hero 数字滚动 · 图表条形生长 · 列表错峰淡入（约 +3 处）。
+> 手势交互（抽屉 / 滑动删除）另算，需要的话一起说。
 
-## 3. 间距 · 分隔（圆角/阴影见 §B）
+**No confirmation → stop at the static build. That is a finished state, not an omission.**
 
-- **4px 栅格 + 大留白**：卡 padding 24–36 · 区块间 24–32 · 项间 10–12（比常规约大 1.5×）。孤数不入盒，留白分隔。
-- **弱化边框与分隔线**：边框/分隔线刻意**低对比**（`--sep/--hairline` 已调淡）。分组优先 留白 > inset 色阶块（把一组裹进 inset 底）> 极淡细横线；**不画 `<hr>`/重描边卡/虚弱 1px 灰框**。卡边界靠阴影 + 表面色差，不靠 border。
-- **凹陷块 inset**：比卡面深/浅一档的中性、无边框，承载引述/次级分组——取代彩色框、border-left callout、一切分隔线。
+### ④ Add motion: once authorized, read `MOTION.md`
 
-## 4. 图标：禁 Emoji，缩小减色减装饰
+**Entry condition: pre-authorized in the request, or asked at the gate and answered yes.** Neither → do not build it; stop at the static version.
 
-- **任何位置禁 emoji 当图标**，一律 inline SVG、扁平填充、`fill="currentColor"`。线性图标描边 1.5–2px、`linecap/linejoin:round`。
-- **缩小**：默认 16–18px，工具/行内 14–16px，宁小勿大。
-- **减色**：默认单色 `--ink-3` 中灰，不默认上 accent；accent 只留激活/焦点态。
-- **减装饰**：不堆多余描边/填充/徽标/底框，一个图标只说一件事。
-- **icon tile**：22–34px 圆角方块，**默认中性**（`--inset` 底 + `--ink-3`），仅强调态换 `--accent-soft` + accent。
+This stage covers the **polish layer** only — entrance choreography (fade-up / stagger / count-up / line-draw / bar-grow) · chart scrub transition polish · gesture physics (drag / drawer / fling) · timeline choreography / delight budget. Criterion: **usable without it, better with it.** Baseline feedback was already delivered in stage ② and does not belong here.
 
-## 5. 按钮
+Before animating each spot, pass two gates:
 
-- **纯图形优先**：语义自明的动作（关闭/更多/搜索/编辑/加/分享）用纯 `icon-btn`（SVG + `aria-label`），不带文字。语义含糊（归档/导出/同步）才配 ≤2 字标签——平衡图标与文字，别全图标猜谜、也别图标文字冗余。
-- **单一主按钮**：一屏只有**一个**实心 accent 主操作（最重要那个），其余降幽灵/inset/纯图形。
-- **目标尺寸 ≥44×44px**（图标钮视觉可小、热区要足）。
-- **破坏性动作例外**：删除等保留文字确认，不靠纯图标。
+- **Frequency gate.** Seen 100+ times a day (shortcuts, command palette, core navigation) → **never animate**. Dozens of times → dial it down to nearly imperceptible. Overlay layer / drawer / toast → standard. Rare & first-run only → the "delight budget" is allowed.
+- **Purpose gate.** If you cannot name one of **feedback / spatial continuity / state legibility / jump prevention / explanation** → do not animate. **Deleting an animation is often the strongest optimization.**
 
-## 6. 页面布局 · 容器原子
+Both gates pass → **read `MOTION.md`** (curves · durations · physicality · paired enter/exit · interruptibility · gestures · timeline choreography · performance · review · motion personality). Writing without reading it reliably produces `ease-in`, `scale(0)`, and `Math.random()` as a delay.
 
-**页面级骨架（先搭这个，不是先搭卡）**：按 §A 基调选其一——
-- **App shell**：顶栏（品牌 + 视图 tab + 操作）+ 可选侧栏（导航）+ 内容区；工具/效率/后台类。
-- **全宽内容流**：单列居中内容（`max-width` 680–820）+ 顶部标题区；阅读/内容类。
-- **看板网格**：响应式 grid 铺指标区块，宽 `max-width` 1100–1280；数据/运营类。
-- **移动优先单列**：贴 `min(440px,100%)` 但是**整页竖向流 + 底部 tab bar**，不是漂浮卡；健康/生活类。
-
-内容区里再按 §9 切视图、按 §B 用通栏/留白组织区块。**孤立数据 widget 才用下面的解剖**。
-
-**数据 widget 解剖（页面内某个指标块的内部结构，非整页模板）**：`[icon tile + 灰标题 + ⓘ] … [ghost ···]` → **HERO + delta chip** → 一句灰上下文 → **图表区 40–60%** → 微轴标 → stat/point 行 → inset 块 → 来源（最弱层）。
-
-容器原子（细节抄 morii-card SNIPPETS）：
-- **Insight line（结论行）**——每卡至多一句裁决：accent 引导点 + ≤18字结论(650)，hero 下/图表上。说结论，永不复述图表。
-- **Stat row**——2–4 值并排：墨色大数 + 下方灰标签，无盒共基线。
-- **Number block**——灰标签 → 大数 → 上下文行；禁 "0→742" 融合，禁染数字。
-- **Point row + echo**——点/图标 + ≤7字短语(600) + 右对齐证据值 + graphic echo（同单位可比给 micro-bar）。
-- **Inset block**——凹陷中性块、无边框；引述/建议/次级组。
-- **Icon tile row**——方块 + 名 + 灰 meta + chevron/值；实体列表。
-- **Inverted mini-card**——单个强调项的反色子卡，每卡 ≤1。
-- **Segmented pills**——分段控件：inset 轨 + active 卡色 thumb。
-- **Citations**——来源永不上卡面：一个安静入口开 overlay；观点旁 accent 微染 `.ref` 角标；overlay 内编号 + 一行 SVG 字母圆章。
-
-**容器原则**：盒子只用来聚合 ≥3 个同类原子；单值/双值开放平铺。**能删的容器就删**——少一层嵌套少一份噪音。
-
-## 7. 图形与图表
-
-全部 inline SVG、零依赖。几何抄 morii-card CHARTS.md，构图自由。
-
-- **图形优先**：信息先想能不能画再退用文字；每区块 ≥1 图形，数字旁配 echo 给量感。
-- **One-SVG 规则**：≥2 部件协同的图形画进一个 `<svg>` 靠同坐标系对齐，禁 CSS 绝对碎片拼贴。含圆/文字的全宽 SVG 用百分比坐标、无 viewBox（拉伸 viewBox 会压扁圆/变形字）；纯 path/line/rect 才可 `viewBox+preserveAspectRatio="none"`。
-- **图表完整性**：每图独占整行宽 + 固定像素 `height`；窄到不可读（<240px、柱<8px、标签碰撞）就堆叠或砍项，绝不缩放变形、绝不横向滚动。
-- **类型速查**：趋势→折线+同色面积渐隐+端点值标 · 分类→圆角条「灰化全部+唯一焦点柱 accent+标牌」 · 占比→甜甜圈≤5片 · 双期→slope/dumbbell · 时间×类→热力格 · 生命体征→spike 微柱+峰值锚注 · 多维→radar(固定px) · 变化→delta chip。
-- **锚注**：图内单点强调（峰值点+紧贴数值），取代图例。
-- **卫生**：轴 ticks ≤4 · 网格线无或 ≤8% · 柱从 0 起 · 值标在图上 · 每 `<svg>` 带 `role="img" aria-label` · builder JS 进一个 try/catch，失败换可见「图表渲染失败」提示，绝不静默空白。
-
-## 8. 内容状态
-
-- **异步必走三态**：**加载 → 置空 → 内容**，缺一即半成品。加载 = **纯环形加载圈**（细描边 accent 弧 + 极淡轨道、round 端点、平滑旋转，可加柔和脉冲；居中、**不带文字**），做精致不做廉价；禁白屏闪屏。置空 = 扁平 SVG + ≤12字灰文案 + 可选主操作，绝不裸字「暂无数据」；内容 = 淡入替换（§10），不硬切。
-- **内容地板**：卡面承载的实质信息不少于纯文本回答；已收集的摘要/引述/细节是数据（不计壳预算），禁压成光杆标题，精华上卡面、其余进折叠。
-- **重要内容首屏可见**：核心信息默认可见，不藏 hover、不靠滚动；次要才进折叠/overlay。
-- **文字原子**：数据区文字仅以原子存在——标题≤3词 · 数值 · 标签≤6字 · chip≤7字 · 每区至多一句灰文案。指标区禁段落（编辑部长文例外）。
-
-## 9. 信息架构：单页心智，禁多级路由
-
-**单页面 + tab + modal + popup + 全局提醒**，砍页面层级，用户永不迷路。
-
-- **tab/分段控件切页**（active 卡色 thumb，状态单源），不路由跳转、不堆导航。
-- **Modal/Overlay**：临时聚焦内容；最多一层；背景点击 + `Esc` + × 三出口；CSS class 切换（禁 `hidden` 切带 `display` 的元素——锁死打开态）。
-- **Popover**：菜单/选择器/详情；弹簧入场，`transform-origin` 对齐触发点。
-- **全局 toast**：系统反馈，短暂不打断可堆叠。
-- **密度阀（早折叠）**：>2 主题 → 2–3 分段 tab；>8 行 / 面项 >4 行 → 手风琴/播报卡叠/列表↔详情。禁硬塞、禁无限纵滚；横滚仅放行播报卡叠吸附条。
-- **合集路由**（3+ 内容项，抄 COLLECTIONS.md）：3–5精选→播报卡叠 · 4–8单主题→单开手风琴 · 6+→列表↔详情 · >2主题→tabs · 要求完整→全铺。整卡/整行即热区，返回键在读完处。每条 = 完整标题 + 2–4句摘要 + meta，永不光杆标题。
-- **步进 stepper**：≥3 步有序依赖、每步携富内容 → 时间线进度头(点可跳) + 逐 panel 切换 + 上/下一步(≥44px) + 计数。<3 步或标签级 → 普通时间线。
-
-## 10. 动效与微交互
-
-- **动效常量**：全局一条缓动 `--ez`(≈`--ease-out`)。一切动画**一次性入场** ≤700ms，绝不循环、绝不 hover/scroll 触发；通道限 `opacity/transform/stroke-dashoffset`；`prefers-reduced-motion` 必降级。
-- **入场套路**：fade-up（行/stat）· bar-grow（柱）· line-draw（路径）· hero count-up。兄弟 stagger `0.04s×i` 封顶 0.3s。只写用到的 keyframes。
-- **状态/视图切换设双向动画**：tab 换页、列表↔详情、modal/popover 开关、加载↔内容——**进入态与消失态都要设计**，旧态淡/缩出、新态淡/弹入、方向呼应；**退出动画跑完再卸载 DOM**（`transitionend`/定时移除）。进 `--spring-soft` / 出 `--ease-in-out`，时长 `--t-med`。
-- **几何冻结**：hover 只改 `background/opacity/box-shadow/fill`，几何不变；按压 `scale(.9–.985)` 走 `--spring`。高度变化只允许显式点击换内容。
-- **图表微交互（tap-first）**：≥4 柱必带 scrub-focus（每柱常显值 + 整列热区 + 按住横扫移焦点 + 联动读数行，默认焦点=洞察柱）；趋势加十字游标、环图点扇区切心（RICH）。热区是整列/行/卡，永不细小图元本体；`touch-action:pan-y` 保竖滚；过渡 ≤.18s。不响应点按的图表是死图。
-- **状态机**：hover shadow-lift/`brightness(1.05)` · active `scale(.96)` · `:focus-visible` 2px accent outline · loading `…` · error `--` · disabled `opacity:.4`。反馈 ≤100ms。
-- **触控目标 ≥44px**。
-
-## 11. 反蠢规则（看到就改）
-
-- **无死按钮**：每个 handler 真有效，不做假可点元素。
-- **弹层 class 切换三出口**：背景+Esc+×，最多一层，禁 `hidden` 切带 `display` 元素。
-- **tab 状态单源**：一个状态函数驱动 active + panel 显隐。
-- **数据内嵌优先**：已有数据直写 HTML；仅明确要求实时才 `fetch` + 快照兜底。
-- **静默失败禁令**：图表进 try/catch，失败给可见提示。
-- **保持一致**：同类元素同规格（间距/圆角/字号/动效全走 token），同动作处处长一样、动一样。
-- **极简 ≠ 简陋**：删的是噪音不是信息——留白克制是手段，内容密度与功能完整不能砍。
+After adding motion, **render again**: slow it 3–5× and step through frames; the mid-frames (driver held at `.25/.5/.75`) must hold up too.
 
 ---
 
-## 落地清单（写界面逐条对照，看到就改）
+## Iron checklist (walk it before shipping — fix on sight)
 
-- [ ] **产出页面/应用，不是单卡**（§⚑）：铺满视口、app shell/内容流/看板、多视图在一页内，morii-card 只借零件不照搬外壳
-- [ ] **先定风格基调**（§A）→ 吃透**克制/层次/呼吸总纲**（§B）→ 再落地
-- [ ] 颜色/圆角/间距全走 Token，零裸写；**新值前先找复用**
-- [ ] 中性表面 + 克制色彩 90/10（可全单色），无裸色文字，不只靠颜色传意
-- [ ] 字重只用常规+粗体两档；正文 16/标题 18/Hero 30；数字 tabular-nums；对齐轴单一
-- [ ] 大留白（间距 ~1.5×）；圆角 10–16（正圆仅 chip）；阴影无或弥散；弱化边框分割（留白>细线）
-- [ ] 打破封闭卡片：通栏/留白优先，能删的容器就删
-- [ ] 无 emoji；图标小而减色减装饰 + currentColor；按钮纯图形优先 + 单一主按钮 + 热区≥44
-- [ ] 每区块 ≥1 图形 + echo；图表 One-SVG + 固定高 + 整行宽，窄屏堆叠不缩放，进 try/catch
-- [ ] 异步走三态；重要内容首屏可见；内容地板不压光杆；便签等宽网格
-- [ ] 切页用 tab 不路由；浮层 modal/popover；反馈 toast；密度阀早折叠
-- [ ] 入场动效一次性走 `--ez`；状态切换进出双向动画 + 退出后卸载；几何冻结；reduced-motion 降级
-- [ ] 对比度 正文4.5/hero3/UI3；一致；极简≠简陋
-- [ ] 反蠢：无死按钮、弹层三出口、tab 单源、静默失败给提示
+- [ ] **Output is a page/app, not a floating card**; one of the four skeletons chosen, fills the viewport
+- [ ] **Product-wide decisions made once and identical everywhere**: surface ramp · radius ladder · icon tier · motion personality — and each one derived from the content, not from a named style
+- [ ] Color/radius/spacing/motion **all reference tokens, zero raw values**; look for reuse before adding
+- [ ] Neutral surfaces + restrained 90/10 (monochrome allowed); **no bare colored text**; **never color as the only channel**
+- [ ] Exactly two font weights; body 16 / heading 18 / hero 30; figures `tabular-nums`; one alignment axis per block
+- [ ] Generous whitespace (~1.5×); radius 10–16 (full round only on chips); **nested radius derived, outer = inner + padding** — never both picked off the ladder; shadow none or diffuse; **whitespace > hairline > border**
+- [ ] **Centered = optically centered**: text centered on its ink (`text-box` trim), asymmetric glyphs corrected inside the glyph, lone blocks lifted by an uneven free-space split — judged in the render, not the inspector
+- [ ] Closed cards broken up; **delete every container you can**
+- [ ] **No emoji**; icons small, desaturated, undecorated; `fill="currentColor"` on the outer shell; call `morii-icon` for anything new
+- [ ] Buttons: pure-graphic first · **one primary per screen** · hit area ≥44px
+- [ ] **≥1 graphic per block** + echo; charts one-SVG + fixed height + full row width; stack instead of shrinking on narrow screens; **wrapped in try/catch with a visible failure notice**
+- [ ] Async runs three states: **light loading** (nothing under 300ms · neutral thin arc · skeleton when the shape is known) · **empty state explains only, no button**, truly centered then optically lifted
+- [ ] **Failure notices speak the user's language, not the machine's**: surface = one human sentence + at most one line of what to do; **raw diagnostics** (exception text, host/port/config names, enum codes, HTTP status) live **behind hover/ⓘ**, never on the surface; problem and fix are **two lines**, never glued with `——`/`·`; one notice per cause
+- [ ] **The shell paints before the fetch** — never `if (loading)` around a whole view; headings / column headers / labels / containers render on the first frame, only the data slots load, slots reserve their height so filling in shifts nothing, and one ring covers one filling range
+- [ ] **One container type per category dimension**: all chips or all tags; **no bare dots** (status lamp excepted, and it must carry text)
+- [ ] **A record's fields are ranked, never aligned into a `Label Value` list** (`LAYOUT.md` §3 record face): status chip → identity heading → icon + caption label over bold value → prose out of the grid. Labels get **demoted a tier, not deleted** — and never smuggled back into the value (`电话 138…`)
+- [ ] **Side-by-side parameters each get their own chip**; no `·`/`|`/`/` chaining them into a sentence; drop unit words and connectives where possible
+- [ ] Important content visible above the fold; content floor not stripped to bare headings; note-like tiles on an **equal-width grid**, never ragged; **explanatory gray text moves into a ⓘ tooltip** (destructive consequences / input format / current status stay resident)
+- [ ] Tabs instead of routing; overlays are **popover / inside-window / drawer only**, each **declaring its scope** (scrim · inert · scroll-lock apply to that scope only, and the scrim covers exactly what is inert); exits = outside + Esc, plus × whenever it blocks; one layer per scope, z from one shared counter, keyboard to the top layer only; class toggling; **tab state has a single source**
+- [ ] **Baseline feedback present** (never gated): `:active` press · hover geometry frozen + `:focus-visible` ring · three-state fade · overlays paired and unmounted after exit
+- [ ] Anything that moves: one of four curves, **never `ease-in`**; <300ms with exit ≈ enter ×0.7; never `scale(0)`; only `transform`/`opacity`, **never `transition: all`**; **every animation interruptible** (reverse mid-flight from the presented value · no input lock · `@keyframes` only for endless loops · pending unmounts cancellable); `prefers-reduced-motion` degrades (gentler ≠ stripped)
+- [ ] **Polish motion only after pre-authorization or an explicit yes**, each spot through both gates; gesture physics always asked separately — stopping at the static build is a finished state
+- [ ] Contrast: body 4.5 / hero 3 / UI 3, **verified in both light and dark**
+- [ ] **No dead buttons** (every handler really works); **silent failure is banned**
+- [ ] **Rendered and looked at** — static frames + mid-frames + both themes. A percentage in `d`, a missing `fill` turning an SVG pure black, a morph degenerating mid-frame: all three pass syntax checks and **only eyes catch them**
+- [ ] **Minimal ≠ bare**: you delete noise, not information — density and completeness are not what gets cut
 
 ---
 
-参考实现：同目录 `Token.css`（独立用）· Morii `src/panel/shell/tokens.css`（应用真源）· 逐字片段库 `~/.claude/skills/morii-card/{SNIPPETS,CHARTS,COLLECTIONS}.md`。
+## File map
+
+| File | Loaded when | Owns it (**single source — never restated elsewhere**) |
+|---|---|---|
+| **`SKILL.md`** (this file) | always | output form · supreme law · workflow · iron checklist · routing |
+| `Token.css` | stage ① | the **values** of the tokens |
+| `FOUNDATION.md` | once after stage ① | color · type · spacing & separation · nested radius · visual centering · category marking (chip/tag, no bare dots, no `·` chaining) · icon usage · buttons · component states · text selection & cursor |
+| `LAYOUT.md` | stage ② | page skeletons · block segmentation · container atoms (**static structure**) |
+| `SHELL.md` | stage ② (frame / views / overlays) | app shell behavior · tabs · overlay contract + popover / inside-window / drawer · confirmation · toast · stepper · collections · density valve (**behavior**) |
+| `CHARTS.md` | stage ② (drawing graphics) | chart rules and hygiene |
+| `STATES.md` | stage ② (async / empty / failure / explanation) | three states · content density · ⓘ tooltip layer · failure notice wording |
+| `MOTION.md` | stage ④ (**once authorized**) | all polish-layer motion detail · motion personality. Baseline feedback is not here — it is in `FOUNDATION.md` §7 |
+| → `morii-icon` skill | stage ③ | **how an icon is drawn**, and icon motion |
+
+**Sanctioned local variables.** Every `var(--x)` in these docs resolves against `Token.css`, with exactly three deliberate exceptions that are written per-element or per-product rather than registered globally: `--i` (stagger index, stamped on each element at render time), and `--bar` / `--rail` (top-bar height and sidebar width, chosen once per product). Anything else that does not resolve is a bug.
+
+**Language policy for these docs:** rules and criteria are written in English (tighter, fewer tokens, steadier compliance). Chinese is kept deliberately in three places — **core vocabulary** (克制 · 层次 · 呼吸感), **Chinese UI examples** (`[Bug] [生产 38]`, 「暂无数据」, `● 运行中`), and **character-count thresholds** (≤12 字, ≤7 字 chip, ≤18 字 insight line), because those thresholds are calibrated in Chinese characters and stop being valid once translated. Keep it that way when editing.
