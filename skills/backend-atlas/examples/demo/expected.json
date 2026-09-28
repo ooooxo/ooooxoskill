@@ -1,0 +1,115 @@
+{
+  "server": {
+    "entries": {
+      "hosted": 1,
+      "http": 5,
+      "hub": 2,
+      "middleware": 4
+    },
+    "methods": 22,
+    "resources": [
+      "h:event",
+      "t:Interjection",
+      "t:LedgerEntry",
+      "t:Message",
+      "t:Note",
+      "t:Project",
+      "t:Turn",
+      "t:User",
+      "t:Wallet",
+      "x:ModelClient"
+    ],
+    "edges": 47
+  },
+  "client": {
+    "entries": [
+      "busEvent quick_sent",
+      "hubEvent event",
+      "hubEvent event#reply",
+      "hubEvent event#tool_start",
+      "hubEvent event#turn_ended",
+      "hubEvent event#turn_started",
+      "mount onMounted",
+      "tauri quick_send",
+      "ui @click=\"chat.open(p.id)\"",
+      "ui @click=\"newProject\"",
+      "ui @submit.prevent=\"send\"",
+      "ui @submit.prevent=\"send\"",
+      "ui @submit.prevent=\"submit\"",
+      "ui newProject",
+      "ui send",
+      "ui send",
+      "ui submit"
+    ],
+    "resources": [
+      "api:GET /api/projects",
+      "api:POST /api/auth/login",
+      "api:POST /api/auth/register",
+      "api:POST /api/projects",
+      "api:POST /api/projects/{}/messages",
+      "bus:quick_sent",
+      "hubInvoke:JoinProject",
+      "hubInvoke:LeaveProject",
+      "local:drafts",
+      "tauri:quick_send"
+    ]
+  },
+  "cross": {
+    "bus": 1,
+    "invoke": 3,
+    "push": 5,
+    "request": 6
+  },
+  "pushes": [
+    "bus quick_sent",
+    "push event",
+    "push event · reply",
+    "push event · tool_start",
+    "push event · turn_ended",
+    "push event · turn_started"
+  ],
+  "loops": [
+    "POST /api/auth/login · 入口 2",
+    "POST /api/auth/register · 入口 2",
+    "POST /api/projects · 入口 2",
+    "POST /api/projects/{id:guid}/messages · 入口 4"
+  ],
+  "unmatched": [],
+  "placement": {
+    "Agent/LeaseSweeper.cs": "D:agent",
+    "Agent/ModelClient.cs": "D:agent",
+    "Agent/Tools.cs": "D:agent",
+    "Agent/TurnHost.cs": "D:agent",
+    "Agent/TurnRunner.cs": "D:agent",
+    "Agent/TurnService.cs": "D:agent",
+    "Billing/WalletService.cs": "D:svc",
+    "Realtime/ProjectHub.cs": "D:hub",
+    "src-tauri/src/lib.rs": "C:rust",
+    "src/services/api.ts": "D:client.svc",
+    "src/services/http.ts": "D:client.svc",
+    "src/services/hub.ts": "D:client.svc",
+    "src/stores/chat.ts": "D:client.stores",
+    "src/views/ChatView.vue": "D:client.ui",
+    "src/views/LoginView.vue": "D:client.ui",
+    "src/views/QuickSend.vue": "D:client.ui"
+  },
+  "findings": {
+    "跨域直调": [],
+    "控制器直连外部": [],
+    "共享热点": [],
+    "前端调用没对上": [],
+    "多域共写": []
+  },
+  "flows": [
+    "Agent 轮次 · 已整理 · 29 节点",
+    "GET /api/projects · 草稿 · 1 节点",
+    "加入项目频道 · 草稿 · 1 节点",
+    "发消息 · 已整理 · 12 节点",
+    "新建项目 · 草稿 · 1 节点",
+    "每 15 秒扫一次 · 草稿 · 1 节点",
+    "注册 · 已整理 · 8 节点",
+    "登录 · 草稿 · 3 节点",
+    "离开项目频道 · 草稿 · 1 节点"
+  ],
+  "nodes": 47
+}

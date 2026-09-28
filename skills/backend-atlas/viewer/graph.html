@@ -1,0 +1,1643 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>系统图</title>
+<!--
+  干什么：backend-atlas 的系统图。默认只看业务域（每个域一种颜色），线只留跨域主干；卡一层层展开到功能 / 端点 / 表。
+         重点是「体检」：跨域直调、控制器直连外部的线着警示色，连共享层的线画淡；头部 / 浮岛的体检逐项点亮。
+         点一张卡 = 聚焦：画布只亮它那一串，右缘长出液态主抽屉讲它；点主抽屉里的一行 = 从那一行鼓出二级抽屉，
+         二级抽屉里再点就地换内容、「‹」退回。再点同一张卡 / 同一行、点 ×、点空白或 Esc 收起。
+         悬停一张卡 = 画布聚焦预览（只亮它那一跳，移开恢复），不弹抽屉。
+         二级抽屉挑一条业务循环时，画布按顺序点亮它走过的路。
+  怎么跑：viewer/build.ts 把 token、语义层与抽取数据内联进来生成成品 HTML，直接双击打开。
+         拖空白平移 · ⌘滚轮 / 捏合缩放 · 双击或「展开」一层层打开 · ⇧1 看全部 · ⌘F 找 · T 明暗 · Esc 解钉。
+         经 serve.ts 打开（http）时可编辑：双击空白新建节点，抽屉里连线 / 删除，全部读写 intent.json，agent 改文件画布 1 秒内跟上。
+  需要什么：由 build.ts 注入 token 与数据两处占位，模板本身不能单独打开。
+         液态抽屉：一滩液体随弹簧长出 / 收回，主抽屉与延伸抽屉之间由一截「颈」相连。
+-->
+<style>
+/*__TOKENS__*/
+</style>
+<style>
+/* ---- 语义色板：一个业务域一种颜色（参考卡片日历的实色卡），卡上的字恒为深墨 ---- */
+:root {
+  --paper: var(--bg-window);
+  --h-blue: #8fb4ff; --h-green: #86d9a8; --h-yellow: #f1dd78; --h-pink: #f5a0bd;
+  --h-orange: #f6b66e; --h-purple: #c2a6f6; --h-teal: #86d3d6; --h-gray: #b8bbc3;
+  --on-hue: #17171b;   /* 实色卡上的字：深墨，不用纯黑 */
+  --drop: 0 6px 16px color-mix(in srgb, #000 34%, transparent);   /* 抽屉投影：暗色 */
+  --rim: 0 0 0 1px color-mix(in srgb, #fff 5%, transparent);      /* 液体外沿：暗色 5% */
+  /* 线的色族（取卡片色板，与卡和谐）：请求类 蓝 · 推送类 粉 · 写表 绿（同 PostgreSQL 卡）· 出站 橙；调用 / 读 中性 */
+  --l-req: var(--h-blue); --l-push: var(--h-pink); --l-write: var(--h-green); --l-http: var(--h-orange);
+}
+[data-theme="light"] { --l-req: #3d6fd6; --l-push: #c94f7c; --l-write: #2e9a5f; --l-http: #c5741c; --drop: 0 6px 16px color-mix(in srgb, #000 13%, transparent); --rim: 0 0 0 1px var(--hairline); }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font); color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; cursor: default; overflow: hidden; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: default; }
+a { color: inherit; text-decoration: none; }
+input { -webkit-user-select: text; user-select: text; cursor: text; }
+.ic { flex: none; display: block; }
+.sel-text { -webkit-user-select: text; user-select: text; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ───── 画布 ───── */
+.bd { position: fixed; inset: 0; overflow: hidden; touch-action: none; outline: none; background: var(--paper); }
+.bd.is-panning { cursor: grabbing; }
+.bd-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.bd-links { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; }
+/* 展开 / 收起的形变：卡、框走 transform，线走 d；时长与脚本里 MORPH 一致 */
+:root { --morph: 280ms; }
+.eg { transition: opacity var(--t-med) var(--ease-out); }
+.eg .ln { transition: d var(--morph) var(--ease-in-out), opacity var(--t-fast) var(--ease-out), stroke var(--t-fast) var(--ease-hover); }
+.eg .pin { transition: cx var(--morph) var(--ease-in-out), cy var(--morph) var(--ease-in-out), opacity var(--t-fast) var(--ease-out); }
+.gone { opacity: 0 !important; pointer-events: none; }
+/* 线型 = 关系种类（虚实 / 粗细）：调用 虚线 · 请求 / 路由 实线 · 本机调用 / 连接 长虚线 · 推送 圆点串 · 写 粗实线 · 读 短虚线 ·
+   出站 点划线 · 广播 细点 · 磁盘 / 缓存 碎虚线。颜色 = 色族（m- 类设 --lc）：线、箭头、起点、流动的点、标签底色同一个色 */
+.m-n { --lc: var(--ink-4); } .m-s { --lc: var(--ink-2); } .m-req { --lc: var(--l-req); } .m-push { --lc: var(--l-push); }
+.m-write { --lc: var(--l-write); } .m-http { --lc: var(--l-http); } .m-l { --lc: var(--accent); } .m-w { --lc: var(--warn); }
+.ln { fill: none; stroke: var(--lc, var(--ink-4)); stroke-width: 1.6; stroke-linecap: round; stroke-dasharray: 6 5; pointer-events: none; opacity: 0.75; }
+.ln.k-request, .ln.k-route { stroke-width: 1.6; stroke-dasharray: none; }
+.ln.k-invoke, .ln.k-connect { stroke-width: 1.8; stroke-dasharray: 12 4; }
+.ln.k-push, .ln.k-pushes { stroke-width: 2.6; stroke-dasharray: 0.1 6; }
+.ln.k-writes, .ln.k-updates { stroke-width: 3; stroke-dasharray: none; }
+.ln.k-reads { stroke-width: 1.5; stroke-dasharray: 2 4; }
+.ln.k-http { stroke-width: 1.8; stroke-dasharray: 9 4 1 4; }
+.ln.k-bus, .ln.k-emits { stroke-width: 2; stroke-dasharray: 0.1 4.5; }
+.ln.k-io, .ln.k-cache { stroke-dasharray: 3 3; }
+.ln.strong, .ln.loop, .ln.warn { opacity: 1; }
+.ln.dim { opacity: 0.08; }
+.bd.hard .ln.dim, .bd.hard .pin.dim, .bd.hard .bd-lbl.dim { opacity: 0; }
+/* 共享层的线是预期的分层（谁都要用数据层），淡下去；体检命中的线（跨域直调、直连外部）着警示色，是图的重点 */
+.ln.base { opacity: 0.28; }
+/* 流动的点：聚焦 / 循环时沿调用方向走，看得出谁调谁；只在聚焦时动 */
+.bead { fill: none; stroke: var(--lc, var(--ink)); stroke-width: 4.4; stroke-linecap: round; stroke-dasharray: 0.1 26; opacity: 0; pointer-events: none; transition: d var(--morph) var(--ease-in-out), opacity var(--t-fast) var(--ease-out); }
+.eg.flow .bead { opacity: 1; animation: flow 1.2s linear infinite; }
+.eg.flow.m-l .bead { animation-duration: 0.9s; }
+.eg.flow.m-s .bead { --lc: var(--ink); }
+@keyframes flow { from { stroke-dashoffset: 26.1; } to { stroke-dashoffset: 0; } }
+.pin { fill: var(--lc, var(--ink-3)); }
+.pin.dim { opacity: 0.08; }
+.ah { fill: none; stroke: var(--lc, var(--ink-3)); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.bd-lbl { position: absolute; left: 0; top: 0; white-space: nowrap; pointer-events: none; font-size: 12px; font-weight: 650; padding: 3px 9px; border-radius: var(--r-pill); background: var(--panel-hi); color: var(--ink-2); box-shadow: 0 0 0 3px var(--paper); transition: opacity var(--t-fast) var(--ease-out), transform var(--morph) var(--ease-in-out); }
+.bd-lbl.loop { background: var(--accent-soft); color: var(--accent-ink); }
+.bd-lbl.tint { background: color-mix(in srgb, var(--lc) 24%, var(--panel-hi)); color: var(--ink); }
+.bd-lbl.dim { opacity: 0.12; }
+.bd-no { position: absolute; left: 0; top: 0; transition: opacity var(--t-fast) var(--ease-out), transform var(--morph) var(--ease-in-out); min-width: 24px; height: 24px; padding: 0 7px; border-radius: var(--r-pill); display: grid; place-items: center; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--accent); color: var(--on-accent, var(--bg-content)); box-shadow: 0 0 0 3px var(--paper); pointer-events: none; }
+
+/* ───── 卡：实色、深墨；左上图标、右上展开，底部一行元信息 + 粗体标题 ───── */
+.bd-node { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: opacity var(--t-fast) var(--ease-out), transform var(--morph) var(--ease-in-out); }
+.bd-nb { position: relative; height: 100%; padding: 16px 18px 17px; border-radius: 12px; background: color-mix(in srgb, var(--h, var(--h-gray)) var(--mix, 100%), var(--paper)); color: var(--on-hue); display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), 0 1px 2px color-mix(in srgb, #000 24%, transparent), 0 8px 20px color-mix(in srgb, #000 26%, transparent);
+  transition: box-shadow var(--t-fast) var(--ease-hover); }
+.bd-node:hover .bd-nb { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), 0 0 0 2px color-mix(in srgb, #fff 45%, transparent), 0 14px 30px color-mix(in srgb, #000 50%, transparent); }
+.lv2 { --mix: 86%; } .lv3 { --mix: 74%; } .lv4 { --mix: 64%; }
+.hue-blue { --h: var(--h-blue); } .hue-green { --h: var(--h-green); } .hue-yellow { --h: var(--h-yellow); } .hue-pink { --h: var(--h-pink); }
+.hue-orange { --h: var(--h-orange); } .hue-purple { --h: var(--h-purple); } .hue-teal { --h: var(--h-teal); } .hue-gray { --h: var(--h-gray); }
+.top { display: flex; align-items: center; gap: 8px; height: 24px; }
+.top .ic { color: color-mix(in srgb, var(--on-hue) 72%, transparent); }
+.xp { margin-left: auto; height: 24px; padding: 0 4px 0 9px; border-radius: 8px; background: color-mix(in srgb, var(--on-hue) 9%, transparent); display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 650; color: color-mix(in srgb, var(--on-hue) 78%, transparent); font-variant-numeric: tabular-nums; }
+.xp:hover { background: color-mix(in srgb, var(--on-hue) 16%, transparent); color: var(--on-hue); }
+.xp:active { transform: scale(var(--press)); }
+.vb { height: 20px; padding: 0 6px; border-radius: 6px; background: color-mix(in srgb, var(--on-hue) 12%, transparent); font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--on-hue); display: inline-flex; align-items: center; }
+.bot { margin-top: auto; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mt { font-size: 13px; font-weight: 650; color: color-mix(in srgb, var(--on-hue) 60%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt.m { font-family: var(--font-mono); font-weight: 450; font-size: 12.5px; }
+.ttl { font-size: 25px; font-weight: 700; letter-spacing: -0.5px; line-height: 30px; color: var(--on-hue); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.leaf .ttl { font-size: 19px; line-height: 24px; -webkit-line-clamp: 1; }
+.res .bd-nb { padding: 0 14px; flex-direction: row; align-items: center; gap: 10px; }
+.res .ttl { font-size: 15px; -webkit-line-clamp: 1; }
+.res .mt { margin-left: auto; }
+.bd-node.focus .bd-nb { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), 0 0 0 2.5px color-mix(in srgb, #fff 70%, transparent), 0 14px 30px color-mix(in srgb, #000 50%, transparent); }
+.bd-node.pinned .bd-nb { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), 0 0 0 3px var(--ink), 0 14px 30px color-mix(in srgb, #000 50%, transparent); }
+.bd-node.hot .bd-nb { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent), 0 0 0 3px var(--accent), 0 14px 30px color-mix(in srgb, #000 50%, transparent); }
+.bd-node.dim { opacity: 0.34; filter: saturate(0.3); }
+
+/* 框：泳道框 / 展开后的域框，虚线描边 */
+.bd-frame { position: absolute; left: 0; top: 0; transform-origin: 0 0; border-radius: 16px; background: color-mix(in srgb, var(--ink) 2.5%, transparent); border: 1px dashed var(--sep-strong); transition: opacity var(--t-med) var(--ease-out), transform var(--morph) var(--ease-in-out), width var(--morph) var(--ease-in-out), height var(--morph) var(--ease-in-out); }
+.bd-frame.lane { background: none; border-radius: 20px; }
+.bd-fh { position: absolute; left: 0; right: 0; top: 0; height: 48px; padding: 14px 18px; display: flex; gap: 10px; align-items: center; }
+.bd-fh b { font-size: 14px; font-weight: 650; color: var(--ink-2); white-space: nowrap; }
+.bd-fh em { font-style: normal; font-size: 12px; color: var(--ink-4); font-weight: 650; white-space: nowrap; }
+.bd-fh .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--h, var(--h-gray)); flex: none; }
+.bd-frame.lane > .bd-fh { height: 56px; padding: 18px 22px; }
+.bd-frame.lane > .bd-fh b { font-size: 18px; color: var(--ink); }
+.bd-mbtn { margin-left: auto; height: 26px; padding: 0 10px; border-radius: 9px; font-size: 12px; font-weight: 650; color: var(--ink-3); display: inline-flex; align-items: center; }
+.bd-mbtn:hover { background: var(--hover-2); color: var(--ink); }
+.bd-mbtn:active { transform: scale(var(--press)); }
+.bd.focusing .bd-frame:not(.lane) { opacity: 0.6; }
+
+/* ───── 上层：标题 · 浮岛 · 小地图 ───── */
+.hd { position: fixed; left: 24px; top: 18px; z-index: 3; display: flex; flex-direction: column; gap: 8px; pointer-events: none; transition: opacity var(--t-fast) var(--ease-out), transform var(--t-med) var(--ease-out); }
+/* 聚焦（悬停或点中）时左上角让位，不挡被点亮的卡；看体检项时留着，「正在看」芯片在这里 */
+body.focused .hd { opacity: 0; transform: translateY(-6px); }
+body.focused .hd .row0 { pointer-events: none; }
+.hd h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.4px; }
+.hd .row0 { display: flex; gap: 6px; align-items: center; pointer-events: auto; }
+.chip { height: 24px; padding: 0 9px; border-radius: var(--r-pill); background: var(--hover-2); font-size: 12px; font-weight: 650; color: var(--ink-2); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.chip.a { background: var(--accent-soft); color: var(--accent-ink); }
+.chip.m { font-family: var(--font-mono); font-weight: 450; }
+.chip b { color: var(--ink); font-variant-numeric: tabular-nums; }
+button.chip:hover { background: var(--hover); color: var(--ink); }
+.chip.w { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.chip.w b { color: var(--warn); }
+.chip.z { color: var(--ink-4); }
+/* 抽屉开着时浮岛与浮岛抽屉让到剩下的画布正中：--dw-w = 抽屉占的宽 */
+.bd-isl { position: fixed; z-index: 6; left: 50%; bottom: 18px; transform: translateX(calc(-50% - var(--dw-w, 0px) / 2)); transition: transform var(--t-med) var(--ease-in-out); display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 16px; background: var(--panel-hi); box-shadow: var(--drop), var(--rim); white-space: nowrap; }
+.bd-ib { height: 36px; min-width: 36px; padding: 0 12px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--ink-2); transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.bd-ib:hover { background: var(--hover); color: var(--ink); }
+.bd-ib:active { transform: scale(var(--press)); }
+.bd-ib.on { background: var(--hover-2); color: var(--ink); }
+.bd-sep { width: 1px; height: 18px; background: var(--sep-strong); margin: 0 4px; flex: none; }
+.seg { display: flex; gap: 2px; padding: 2px; border-radius: 12px; background: var(--hover); }
+.seg button { height: 32px; padding: 0 12px; border-radius: 10px; font-size: 12.5px; font-weight: 650; color: var(--ink-3); }
+.seg button.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm); }
+.seg button:active { transform: scale(var(--press)); }
+
+/* 浮岛往上弹的抽屉：普通圆角卡，不用液体 */
+.pop { position: fixed; z-index: 8; left: 50%; bottom: 72px; width: 420px; max-height: min(520px, calc(100% - 100px)); transform: translate(calc(-50% - var(--dw-w, 0px) / 2), 10px); display: flex; flex-direction: column; overflow: hidden; background: var(--panel-hi); border-radius: 16px; box-shadow: var(--drop), var(--rim);
+  opacity: 0; pointer-events: none; transition: opacity var(--t-fast) var(--ease-out), transform var(--t-med) var(--ease-out); }
+.pop.in { opacity: 1; pointer-events: auto; transform: translate(calc(-50% - var(--dw-w, 0px) / 2), 0); }
+
+/* ───── 液态抽屉：svg 画整滩液体，面的 DOM 摆在终态、逐帧 clip；影由投影板投 ───── */
+.dw { position: fixed; inset: 0; z-index: 7; pointer-events: none; }
+.dw > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.dw > svg path { fill: var(--panel-hi); }
+.plate { position: absolute; left: 0; top: 0; visibility: hidden; box-shadow: var(--drop), var(--rim); }
+.pane { position: absolute; top: 16px; bottom: 16px; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; opacity: 0; }
+.pane-m { right: 16px; width: 380px; }
+.pane-s { right: calc(16px + 380px + 14px); width: 360px; }
+.dw-in { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 抽屉开着换内容：新内容上浮 4px 淡入 */
+.dw-in > * { transition: opacity var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out); }
+.dw-in.swap > * { opacity: 0; transform: translateY(4px); transition: none; }
+/* ───── 抽屉里：头 → 一排数 → 分节列表。整行是点击目标，右侧 › 表示「点开往下一层」；数字只做原子，份量交给小条 / 小环 / 色点 ───── */
+.ph { flex: none; display: flex; align-items: flex-start; gap: 6px; padding: 16px 14px 10px 18px; }
+.ph .tt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.crumb { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
+.crumb > span { overflow: hidden; text-overflow: ellipsis; }
+.tile { flex: none; width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--h, var(--h-gray)); color: var(--on-hue); }
+.back { height: 24px; padding: 0 8px 0 4px; margin-left: -4px; border-radius: 8px; display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 650; color: var(--ink-2); }
+.back:hover { background: var(--hover); color: var(--ink); }
+.back .ic { transform: rotate(180deg); }
+.ph h3 { margin: 0; font-size: 21px; font-weight: 700; line-height: 1.25; letter-spacing: -0.3px; }
+.ph .rt { font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; color: var(--ink-3); word-break: break-all; }
+.px { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-3); }
+.px:hover { background: var(--hover); color: var(--ink); }
+.px:active, .fr:active, .back:active { transform: scale(var(--press)); }
+.pb { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 2px 14px 18px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; }
+.pb p { margin: 0; font-size: 13px; line-height: 1.7; color: var(--ink-2); }
+.pb p.dim { font-size: 12px; color: var(--ink-3); }
+.vbg { flex: none; min-width: 54px; height: 20px; padding: 0 6px; border-radius: 6px; background: var(--hover-2); font-family: var(--font-mono); font-size: 10.5px; font-weight: 700; color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; }
+.vbg.w { background: var(--accent-soft); color: var(--accent-ink); }
+.tag { height: 20px; padding: 0 7px; border-radius: var(--r-pill); background: var(--hover-2); font-size: 11px; font-weight: 650; color: var(--ink-2); display: inline-flex; align-items: center; white-space: nowrap; }
+.tag.w { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+/* 一排数：不装框，共用基线；循环带一只「有入口占比」小环 */
+.stats { display: flex; gap: 22px; padding: 0 4px; }
+.st { display: flex; flex-direction: column; gap: 1px; }
+.st b { display: flex; align-items: center; gap: 6px; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.st span { font-size: 11.5px; font-weight: 600; color: var(--ink-4); }
+.ring { flex: none; }
+.ring circle { fill: none; stroke-width: 3; }
+.insight { display: flex; gap: 9px; align-items: baseline; font-size: 13.5px; line-height: 1.65; font-weight: 600; color: var(--ink); }
+.insight::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); transform: translateY(-1px); }
+/* 分节：一行小标题 + 一块内嵌底，行与行之间只有发丝线 */
+.sec { display: flex; flex-direction: column; gap: 7px; }
+.cap { display: flex; align-items: center; gap: 6px; padding: 0 4px; font-size: 11.5px; font-weight: 700; color: var(--ink-3); }
+.cap em { margin-left: auto; font-style: normal; font-weight: 650; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.list { display: flex; flex-direction: column; border-radius: 14px; background: var(--hover); overflow: hidden; }
+.fr { position: relative; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 9px 10px 9px 12px; text-align: left; width: 100%; transition: background var(--t-fast) var(--ease-hover); }
+.fr + .fr::before { content: ""; position: absolute; left: 12px; right: 12px; top: 0; height: 1px; background: var(--hairline); }
+.fr:hover { background: var(--hover); }
+.fr.on { background: var(--hover-2); }
+.fr.on::after { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent); }
+.fr .sw { flex: none; width: 8px; height: 8px; border-radius: 2.5px; background: var(--h, var(--h-gray)); }
+.fr .bx { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fr .bx b { font-size: 13.5px; font-weight: 650; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr .bx i { font-style: normal; font-size: 11.5px; line-height: 1.5; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fr .bx i.m { font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); }
+.fr .bx .sum { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.fr .rt3 { flex: none; display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 650; color: var(--ink-4); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fr .rt3 .w { color: var(--warn); }
+.fr .chev { color: var(--ink-4); transition: color var(--t-fast) var(--ease-hover); }
+.fr:hover .chev, .fr.on .chev { color: var(--ink-2); }
+.fr.no b { color: var(--ink-3); font-weight: 600; }
+/* 份量小条：同一节里按最大值归一；色点：一个写入域一粒 */
+.bar { flex: none; width: 46px; height: 5px; border-radius: 3px; background: var(--hover-2); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 3px; background: var(--ink-3); }
+.bar.w > i { background: var(--warn); }
+.fr.on .bar > i { background: var(--accent); }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--h, var(--h-gray)); }
+.fx .dotw { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+/* 循环路径：一根竖脊串起编号点 */
+.path { position: relative; display: flex; flex-direction: column; }
+.path::before { content: ""; position: absolute; left: 23px; top: 20px; bottom: 20px; width: 2px; border-radius: 1px; background: var(--hover-2); }
+.step { position: relative; display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; padding: 8px 10px 8px 12px; border-radius: 12px; text-align: left; width: 100%; }
+.step:hover { background: var(--hover); }
+.step .no { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--on-accent, var(--bg-content)); font-size: 11px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 3px var(--panel-hi); }
+.step .sx { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 2px; }
+.step .sx b { font-size: 13px; font-weight: 650; color: var(--ink); }
+.step .sx span { font-size: 11.5px; line-height: 1.55; color: var(--ink-3); word-break: break-all; white-space: pre-line; }
+.phase { padding: 6px 12px 2px 46px; font-size: 11px; font-weight: 700; color: var(--ink-4); }
+.lcs { display: flex; flex-wrap: wrap; gap: 6px; }
+.act { flex: none; height: 34px; padding: 0 12px; border-radius: 11px; background: var(--hover-2); font-size: 13px; font-weight: 650; color: var(--ink); display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+.act:hover { background: var(--accent-soft); color: var(--accent-ink); }
+.act:active { transform: scale(var(--press)); }
+.more summary { list-style: none; font-size: 12px; font-weight: 650; color: var(--ink-3); padding: 2px; }
+.more summary::-webkit-details-marker { display: none; }
+.more summary::before { content: "▸ "; }
+.more[open] summary::before { content: "▾ "; }
+.more summary:hover { color: var(--ink); }
+.more > .list { margin-top: 6px; }
+div.fr:hover { background: none; }
+
+/* 浮岛弹层：同抽屉一套词汇——顶部检索 / 分类切换，下面分节列表 */
+.pop-h { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 4px; }
+.dq { height: 36px; border-radius: 11px; background: var(--hover); padding: 0 12px; font: inherit; font-size: 13px; color: var(--ink); border: 0; outline: 0; }
+.dl { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 8px 12px 14px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; }
+.dl .why, .pop-h .why { margin: 0; padding: 0 4px; font-size: 12px; line-height: 1.6; color: var(--ink-3); }
+.hseg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; border-radius: 13px; background: var(--hover); }
+.hseg button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 9px 8px; border-radius: 10px; text-align: left; min-width: 0; transition: background var(--t-fast) var(--ease-hover); }
+.hseg button:hover { background: var(--hover); }
+.hseg button.on { background: var(--panel); box-shadow: var(--shadow-sm); }
+.hseg button:active { transform: scale(var(--press)); }
+.hseg b { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+.hseg b.w { color: var(--ink); display: flex; align-items: center; gap: 6px; }
+.hseg b.w::after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.hseg span { font-size: 11px; font-weight: 650; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.clean { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 26px 0 18px; font-size: 13px; font-weight: 650; color: var(--ink-3); }
+.clean i { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--hover-2); color: var(--ink-2); }
+.cap .sw { width: 8px; height: 8px; border-radius: 2.5px; background: var(--h, var(--h-gray)); }
+.nb { height: 18px; min-width: 18px; padding: 0 5px; border-radius: var(--r-pill); background: var(--hover-2); font-size: 11px; font-weight: 700; color: var(--ink-3); display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }
+.nb.w { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.fr .tl { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--h, var(--h-gray)); color: var(--on-hue); }
+.pop { width: 440px; }
+.lg { flex: none; width: 64px; height: 14px; overflow: visible; }
+.fail { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); text-align: center; color: var(--ink-3); font-size: 13px; line-height: 1.6; }
+.fail b { display: block; color: var(--ink-2); font-size: 15px; }
+/* ───── 意图层：想要但代码里还没有的是虚线空心卡、虚线强调色的线；serve.ts 起的页才有新建浮层 ───── */
+.bd-node.plan .bd-nb { --on-hue: var(--ink); background: color-mix(in srgb, var(--h, var(--h-gray)) 14%, var(--paper)); border: 2px dashed color-mix(in srgb, var(--h, var(--h-gray)) 85%, transparent); }
+.ln.plan { stroke: var(--accent); stroke-width: 2.2; stroke-dasharray: 5 4; }
+.chip.err { color: var(--crit); }
+.bd.drawing .bd-node { cursor: crosshair; }
+.np { position: fixed; z-index: 9; left: 0; top: 0; width: 340px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--panel-hi); border-radius: 16px; box-shadow: var(--drop), var(--rim); }
+.np[hidden] { display: none; }
+.np .nh { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; color: var(--ink-2); }
+.np input, .np textarea { height: 36px; border-radius: 11px; background: var(--hover); padding: 0 12px; font: inherit; font-size: 13px; color: var(--ink); border: 0; outline: 0; }
+.np textarea { height: auto; padding: 9px 12px; line-height: 1.55; resize: none; -webkit-user-select: text; user-select: text; }
+.np .er { font-size: 12px; color: var(--crit); }
+@media (prefers-reduced-motion: reduce) { .eg.flow .bead { animation: none; opacity: 0; } .bd-node, .eg, .eg .ln, .eg .pin, .bd-lbl, .bd-no, .bd-frame { transition: opacity var(--t-fast) linear; } }
+</style>
+<style>
+/* ───── 流程页：业务循环「怎么跑」，盖在系统图上；问题页签选画法，右栏常驻「为什么停」 ───── */
+.fp { position: fixed; inset: 0; z-index: 10; background: var(--paper); display: flex; flex-direction: column; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity var(--t-med) var(--ease-out), transform var(--t-med) var(--ease-out); }
+.fp.in { opacity: 1; pointer-events: auto; transform: none; }
+/* 顶部只一行：返回 · 域 · 标题 · 标签 · 说明（截断，全文在悬停）｜ 问题页签 ｜ 镜头 */
+.fp-h { flex: none; display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 28px; min-width: 0; }
+.fp-h .crumb { flex: none; }
+.fp-h h2 { flex: none; margin: 0 2px 0 4px; font-size: 18px; font-weight: 700; letter-spacing: -0.2px; white-space: nowrap; }
+.fp-h .tag { flex: none; }
+.fp-st { flex: 1; min-width: 60px; margin: 0 6px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-h .vseg { flex: none; }
+.fp-h .fz { margin-left: 0; flex: none; }
+.fp-b { flex: 1; min-height: 0; overflow: auto; padding: 0 28px 28px; scrollbar-width: thin; }
+.fp .split > .map { overflow: hidden; height: calc(100vh - 84px); cursor: grab; touch-action: none; }
+.fp .split > .map.panning { cursor: grabbing; }
+/* 抓手只在空白处：节点上是默认光标（折叠 / ⌘ 打开源码都是点它），不继承画布的 grab */
+.fp .split > .map .nd { cursor: default; }
+.fp .split > .map > .cv { transition: none; }
+.fp .side { max-height: calc(100vh - 84px); overflow: auto; }
+.fz { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 11px; background: var(--hover); }
+.fz button { height: 26px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 650; color: var(--ink-3); }
+.fz button:hover { background: var(--hover-2); color: var(--ink); }
+.fz button:active { transform: scale(var(--press)); }
+.fz em { font-style: normal; min-width: 44px; text-align: center; font-size: 12px; font-weight: 650; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+/* 右栏顶部的 IBO：输入 → 经过 → 输出，三格竖排、箭头相连；下面接「为什么停」 */
+.ibo { display: flex; flex-direction: column; gap: 0; }
+.ibo .ib { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px 12px; border-radius: 12px; background: var(--hover); }
+.ibo .ibh { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.ibo .ibh i { flex: none; width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 800; color: var(--on-hue); background: var(--h-gray); }
+.ibo .ib-in .ibh i { background: var(--l-req); } .ibo .ib-out .ibh i { background: var(--l-write); }
+.ibo .ibh em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 600; color: var(--ink-4); }
+.ibo .ibr { display: grid; grid-template-columns: 34px 1fr; gap: 6px; align-items: start; }
+.ibo .ibr > b { padding-top: 2px; font-size: 11px; font-weight: 650; color: var(--ink-4); }
+.ibo .ibv { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.ibo .iba { height: 18px; display: grid; place-items: center; color: var(--ink-4); font-size: 12px; line-height: 1; }
+.ibo .ph-l { display: flex; flex-direction: column; gap: 2px; }
+.ibo .ph-l span { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); }
+.ibo .ph-l span i { flex: none; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 10px; font-weight: 700; background: var(--hover-2); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ibo .ph-l em { font-style: normal; font-size: 11px; color: var(--accent-ink); }
+.ibo .res { font-size: 12px; line-height: 1.5; color: var(--ink-2); flex-basis: 100%; }   /* 每条结果一行 */
+.ibo .lnk2 { height: 22px; padding: 0 8px; border-radius: var(--r-pill); box-shadow: inset 0 0 0 1.2px var(--accent); color: var(--accent-ink); font-size: 11.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 4px; }
+.ibo .lnk2:hover { background: var(--accent-soft); }
+.fp .side .cap.why-c { margin-top: 4px; }
+
+/* 抽屉里的「怎么跑」：一块强调色底，主按钮直达最值得看的那条 */
+.flowcta { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent); }
+.flowcta .fc-h { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; color: var(--ink); }
+.flowcta .fc-h .ic { color: var(--accent-ink); }
+.flowcta .fc-h em { margin-left: auto; font-style: normal; font-size: 11.5px; font-weight: 650; color: var(--ink-3); }
+.fc-main { height: 38px; padding: 0 14px; border-radius: 11px; background: var(--accent); color: var(--on-accent, #fff); font-size: 13px; font-weight: 650; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; transition: background var(--t-fast) var(--ease-hover); }
+.fc-main:hover { background: var(--accent-press, var(--accent)); }
+.fc-main:active { transform: scale(var(--press)); }
+.fc-main span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-main i { font-style: normal; font-size: 11.5px; font-weight: 450; opacity: 0.8; }
+.flowcta .fc-more { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.flowcta .fc-more button { height: 26px; padding: 0 9px; border-radius: 8px; font-size: 12px; font-weight: 600; color: var(--ink-2); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.flowcta .fc-more button:hover { color: var(--ink); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+</style>
+<style>/*__FLOWCSS__*/</style>
+</head>
+<body>
+<div class="bd" id="bd" tabindex="0" aria-label="系统图"><div class="bd-world" id="world"></div></div>
+<header class="hd" id="hd"></header>
+<div class="dw" id="dw">
+  <div class="plate" id="plM"></div><div class="plate" id="plS"></div>
+  <svg aria-hidden="true"><path id="liq"/></svg>
+  <section class="pane pane-s" id="pS" role="dialog" aria-label="延伸抽屉"><div class="dw-in" id="pSin"></div></section>
+  <section class="pane pane-m" id="pM" role="dialog" aria-label="检视"><div class="dw-in" id="pMin"></div></section>
+</div>
+<section class="pop" id="pop" aria-label="业务循环"></section>
+<section class="fp" id="fp" role="dialog" aria-label="流程"></section>
+<nav class="bd-isl" id="isl" aria-label="工具"></nav>
+<div class="np" id="np" hidden role="group" aria-label="新建节点"></div>
+<div class="fail" id="empty" hidden><b>空白画布</b>双击空白处写下第一个想法</div>
+
+<script>
+const D = /*__DATA__*/null;
+
+/* ================= 排版尺寸（改这里整张图跟着变） ================= */
+const W_DOM = 264, H_DOM = 156, H_GROUP = 136, W_LEAF = 248, H_EP = 108, H_FILE = 96, H_RES = 60;
+const GAP_Y = 22, GAP_X = 110, FR_PAD = 18, FR_HEAD = 50, LANE_PAD = 34, LANE_HEAD = 62, LANE_GAP = 140;   // 泳道间的缝要放得下请求、推送两条主干的标签
+const MAX_STACK = 5;    // 一列最多堆几块，超出折成并排子列
+const FRAME_ROWS = 4;   // 展开框里一列最多几张卡：多了就并排成网格
+const SEP = "\t";       // 边 key 分隔符：节点 id 里带 |，只能用 id 里不会出现的字符
+const KIND_NAME = { calls: "调用", reads: "读", writes: "写", pushes: "发推送", push: "推送", request: "请求", route: "路由", invoke: "本机调用", bus: "窗口广播", emits: "广播", http: "出站", io: "磁盘", cache: "缓存", connect: "连接" };
+// 线的色族：请求类 / 推送类 / 写 / 出站各一色，其余中性
+const FAM = (k) => ({ request: "req", route: "req", invoke: "req", connect: "req", push: "push", pushes: "push", bus: "push", emits: "push", writes: "write", updates: "write", http: "http" })[k] ?? "n";
+const PRIORITY = ["push", "pushes", "request", "route", "invoke", "connect", "http", "writes", "reads", "bus", "emits", "io", "cache", "calls"];
+
+/* ================= 索引 ================= */
+const byId = new Map(D.nodes.map((n) => [n.id, n]));
+const ic = (n, s = 16) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${D.icons[n] ?? ""}</svg>`;
+const esc = (s) => String(s ?? "").replace(/\*\*/g, "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const laneOf = (col) => D.lanes.find((l) => l.cols.includes(col));
+const vsc = (side, file, line) => file && D.roots?.[side] ? `vscode://file${D.roots[side]}/${file}:${line ?? 1}` : null;   // SHARE=1 出的图不带本机路径，就不给跳转
+const routeTail = (r) => r.replace(/\{(\w+)(:\w+)?\}/g, "{$1}");
+const ancestors = (id) => { const out = []; for (let n = byId.get(id); n?.parent; n = byId.get(n.parent)) out.unshift(n.parent); return out; };
+const domainOf = (id) => { let top = null; for (let n = byId.get(id); n; n = byId.get(n.parent)) if (n.kind === "domain") top = n.id; return top; };
+const hueOf = (id) => { for (let n = byId.get(id); n; n = byId.get(n.parent)) if (n.hue) return n.hue; return "gray"; };
+const depthOf = (id) => ancestors(id).length;
+const PIPE = D.pipeDom, HUB = D.hubDom;   // 认领了 S:pipe / S:hub 的域（build 算好）
+const canOpen = (n) => n.kids.length > 1 || n.kids.some((k) => byId.get(k).plan);   // 只有一个子项的展开了也只是把自己再画一遍，不给展开；里面有意图节点时例外，不然它藏在里面看不见
+const isDomCard = (n) => n.kind === "domain" || n.kids.length > 0;
+const isRes = (n) => !isDomCard(n) && (n.kind === "table" || n.kind === "event");
+const HAS_CLIENT = D.nodes.some((n) => n.id.startsWith("C:"));   // 没有客户端腿时，「入口」这件事整个不提
+const SHARED = D.shared ?? null;                                   // 共享层（服务与数据访问）：连它的线是预期分层，画淡
+const nearDom = (id) => { for (let n = byId.get(id); n; n = byId.get(n.parent)) if (n.kind === "domain") return n.id; return null; };
+// 一组路由去掉共同前缀（/api/v1/…），只留能区分彼此的尾巴
+const trimmer = (routes) => {
+  const segs = routes.map((r) => r.split("/"));
+  let k = 0;
+  while (segs.length && segs.every((x) => x.length > k + 1 && x[k] === segs[0][k])) k++;
+  return (r) => r.split("/").slice(k).join("/") || r;
+};
+const named = (l) => l.name !== `${l.verbs.join(",")} ${l.route}`;   // 语义层给过人话名
+const loopName = (l, short) => named(l) ? l.name : `${l.verbs.join(",")} ${routeTail(short(l.route))}`;
+// ---- 抽屉零件：分节 · 行 · 小条 · 小环 · 色点。整行是点击目标：data-side 往下一层开抽屉，data-go 在图上定位 ----
+// 表的读写：build 从每个端点沿调用链穿过共享 store 追到表，记下是哪些域的请求写 / 读到它
+const useOf = (t) => { const n = byId.get(t); return { w: new Set(n.writers ?? []), r: new Set(n.readers ?? []) }; };
+const FLAG_T = () => new Set((D.findings ?? []).find((f) => f.id === "write")?.items.flatMap((it) => it.nodes) ?? []);
+// 过半名字共有的驼峰结尾词（…Entity）去掉；只剩这个词的不去
+const suffixCut = (names) => {
+  const last = (x) => x.match(/[A-Z][a-z0-9]*$/)?.[0] ?? "";
+  const cnt = new Map(); for (const x of names) cnt.set(last(x), (cnt.get(last(x)) ?? 0) + 1);
+  const [suf, n] = [...cnt].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+  const on = suf && n >= names.length * 0.6 && names.length > 2;
+  return (x) => on && x.endsWith(suf) && x.length > suf.length ? x.slice(0, -suf.length) : x;
+};
+const tableTip = (k) => { const u = useOf(k); return `写：${[...u.w].map((d) => byId.get(d)?.label).join("、") || "无"}　读：${[...u.r].map((d) => byId.get(d)?.label).join("、") || "无"}`; };
+const unitOf = (n) => n.kids.some((x) => byId.get(x).kind === "endpoint") ? "端点" : n.kids.some((x) => byId.get(x).kind === "table") ? "表" : n.kids.every((x) => byId.get(x).kind === "group") ? "个功能" : "项";
+const within = (root, id) => id === root || ancestors(id).includes(root);
+const deep = (id) => { const out = []; const walk = (k) => { for (const c of byId.get(k)?.kids ?? []) { out.push(c); walk(c); } }; walk(id); return out; };
+const loopsIn = (id) => D.loops.filter((l) => within(id, l.endpoint));
+const isWrite = (verbs) => verbs.some((v) => v !== "GET" && v !== "HEAD");
+const leafSide = (k) => { const l = D.loops.find((x) => x.endpoint === k); return l ? `loop:${l.id}` : `leaf:${k}`; };
+const chev = () => `<span class="chev">${ic("chevRight", 14)}</span>`;
+const bar = (v, max, w) => `<span class="bar ${w ? "w" : ""}"><i style="width:${max ? Math.max(8, Math.round(v / max * 100)) : 0}%"></i></span>`;
+const ring = (part, all) => { const r = 6.5, c = 2 * Math.PI * r; return `<svg class="ring" width="18" height="18" role="img" aria-label="有入口 ${part} / ${all}"><circle cx="9" cy="9" r="${r}" style="stroke:var(--hover-2)"/><circle cx="9" cy="9" r="${r}" transform="rotate(-90 9 9)" style="stroke:var(--accent);stroke-linecap:round;stroke-dasharray:${(c * part / all).toFixed(1)} ${c.toFixed(1)}"/></svg>`; };
+const dots = (doms) => `<span class="dots">${doms.map((d) => `<i class="hue-${hueOf(d)}" title="${esc(byId.get(d)?.label ?? "")}"></i>`).join("")}</span>`;
+const sec = (title, n, body) => n ? `<section class="sec"><div class="cap">${title}<em>${n}</em></div><div class="list">${body}</div></section>` : "";
+const trigText = (l) => HAS_CLIENT ? (l.triggers.length ? `${l.triggers.length} 入口` : "无入口") : "";
+// 功能行：色块 + 名字 + 一句（语义层的说明，或组里循环的名字）+ 份量小条
+function fnRow(k, max) {
+  const c = byId.get(k), n = c.kids.length;
+  return `<button class="fr hue-${hueOf(k)}" data-side="${esc(n ? `group:${k}` : leafSide(k))}"><i class="sw"></i><span class="bx"><b>${esc(c.human ?? c.label)}</b>${c.desc ? `<i>${esc(c.desc)}</i>` : ""}</span><span class="rt3">${n ? `${n} ${unitOf(c)}` : ""}${n ? bar(n, max) : ""}</span>${chev()}</button>`;
+}
+// 端点行：动词 + 人话名 / 短路由 / 注释一句；右侧入口数（无入口的整行压暗）
+function epRow(k, short) {
+  const c = byId.get(k), l = D.loops.find((x) => x.endpoint === k), name = c.human ?? c.label;
+  const sum = c.summary && c.summary !== name ? c.summary : null;
+  return `<button class="fr ${HAS_CLIENT && l && !l.triggers.length ? "no" : ""}" data-side="${esc(leafSide(k))}" title="${esc(c.label + "　" + c.routes.join("　"))}"><span class="vbg ${isWrite(c.verbs) ? "w" : ""}">${c.verbs.join(",")}</span><span class="bx"><b>${esc(name)}</b><i class="m">${esc(routeTail(short(c.routes[0])))}</i>${sum ? `<i class="sum">${esc(sum)}</i>` : ""}</span><span class="rt3">${c.auth === "anonymous" ? `<span class="tag">匿名</span>` : ""}${l ? trigText(l) : ""}</span>${chev()}</button>`;
+}
+// 表行：一个写入域一粒色点；多域共写（体检命中）着警示色
+function tableRow(k, cut) {
+  const c = byId.get(k), w = [...useOf(k).w], hit = FLAG_T().has(k);
+  return `<button class="fr" data-side="leaf:${esc(k)}" title="${esc(tableTip(k))}"><span class="bx"><b>${esc(cut(c.label))}</b></span><span class="rt3">${w.length ? dots(w) : ""}<span class="${hit ? "w" : ""}">${w.length > 1 ? `${w.length} 域写` : w.length ? esc(byId.get(w[0])?.label ?? "") : "无端点写"}</span></span>${chev()}</button>`;
+}
+const fileRow = (k) => { const c = byId.get(k); return `<button class="fr" data-side="leaf:${esc(k)}"><span class="bx"><b>${esc(c.human ?? c.label)}</b>${c.file ? `<i class="m">${esc(c.file)}</i>` : ""}</span><span class="rt3">${c.usedBy?.length ? `${c.usedBy.length} 域用` : ""}</span>${chev()}</button>`; };
+const loopRow = (l) => `<button class="fr" data-side="loop:${esc(l.id)}"><span class="vbg ${isWrite(l.verbs) ? "w" : ""}">${l.verbs.join(",")}</span><span class="bx"><b>${esc(l.name)}</b>${l.story ? `<i>${esc(l.story)}</i>` : ""}</span><span class="rt3">${trigText(l)}</span>${chev()}</button>`;
+// 一组叶子按内容分节：端点（按资源排，同一资源的读写挨着）· 表 · 文件
+function leafSecs(ids) {
+  const of = (f) => ids.filter((k) => f(byId.get(k)));
+  const eps = of((c) => c.kind === "endpoint"), tbs = of((c) => c.kind === "table"), rest = of((c) => c.kind !== "endpoint" && c.kind !== "table");
+  const short = trimmer(eps.map((k) => byId.get(k).routes[0])), VO = ["GET", "POST", "PUT", "PATCH", "DELETE"];
+  eps.sort((a, b) => { const A = byId.get(a), B = byId.get(b), ra = short(A.routes[0]), rb = short(B.routes[0]);
+    return ra.split("/")[0].localeCompare(rb.split("/")[0]) || ra.length - rb.length || VO.indexOf(A.verbs[0]) - VO.indexOf(B.verbs[0]); });
+  const cut = suffixCut(D.nodes.filter((n) => n.kind === "table").map((n) => n.label));
+  tbs.sort((a, b) => byId.get(a).label.localeCompare(byId.get(b).label));
+  return sec("端点", eps.length, eps.map((k) => epRow(k, short)).join("")) + sec("表", tbs.length, tbs.map((k) => tableRow(k, cut)).join(""))
+    + sec(rest.every((k) => byId.get(k).file) ? "文件" : "其他", rest.length, rest.map(fileRow).join(""));
+}
+
+/* ================= 状态 =================
+   sel = 点中的卡（主抽屉讲它）；hover = 指针下的卡（只管画布聚焦，不开抽屉）；side = 二级抽屉讲什么 {kind: group|loop|leaf, id, from}，from 是上一层。
+   flag = 体检里挑中的一项：画布只亮它涉及的卡与它们之间的线。
+   循环只来自延伸抽屉：side 是一条循环时，画布按步骤点亮它 */
+const S = { open: new Set(), sel: null, hover: null, htab: null, side: null, edgeSel: null, flag: null, tx: 0, ty: 0, z: 1, pop: null, find: "", np: null, err: null, draw: false };   // draw = 画模式：单击不开抽屉，双击写想法、拖卡连线
+const loopOf = () => S.side?.kind === "loop" ? D.loops.find((l) => l.id === S.side.id) : null;
+
+/* ================= 意图层 =================
+   serve.ts 起的页（http）才可编辑：读写 intent.json，每秒拉一次接住 agent 改的文件。
+   意图节点对上真实节点（端点按 动词+路由，表 / 事件 / 域按名字）= 已实现，并进真卡；对不上的画成虚线卡。
+   意图连线两端都是真节点、且真图里两端子树之间已有同种的边 = 已实现，不再画 */
+const LIVE = location.protocol.startsWith("http");
+const BASE = { nodes: D.nodes, edges: D.edges };
+S.draw = LIVE && !BASE.nodes.length;   // 空白画布直接进「画」，有真图先「看」
+const PLAN_ICON = { idea: "info", domain: "grid", endpoint: "link", table: "layers", event: "bell", file: "fileText" };
+// 「想法」泳道：用户在泳道外随手建的想法放最左一列，归类后搬走
+if (!D.lanes.some((l) => l.id === "idea")) D.lanes.unshift({ id: "idea", name: "想法", cols: [-1] });
+const ROUTE_RE = /^(GET|POST|PUT|PATCH|DELETE) \/\S*$/;
+const laneCol = (lane) => { const l = D.lanes.find((x) => x.id === lane); if (!l) throw new Error(`没有这条泳道：${lane}`); return l.cols[Math.floor(l.cols.length / 2)]; };
+const normRoute = (r) => r.replace(/\{[^}]*\}/g, "{}").toLowerCase().replace(/\/$/, "");
+let ITXT = "", IVER = null, MET = 0;
+function realOf(x) {
+  if (x.kind === "endpoint") { const [v, p] = x.route.split(" "); return BASE.nodes.find((n) => n.kind === "endpoint" && n.verbs.includes(v) && n.routes.some((r) => normRoute(r) === normRoute(p)))?.id; }
+  if (x.kind === "table" || x.kind === "event" || x.kind === "domain") return BASE.nodes.find((n) => n.kind === x.kind && n.label === x.label)?.id;
+  return undefined;
+}
+// 真图 + 意图 → 新的 nodes / edges；引用对不上直接抛错（页面留着上一版，头部报错）
+function merge(I) {
+  const nodes = BASE.nodes.map((n) => ({ ...n, kids: [...n.kids], met: false }));
+  const at = new Map(nodes.map((n) => [n.id, n])), xOf = new Map(I.nodes.map((x) => [x.id, x])), real = new Map();
+  for (const x of I.nodes) {
+    if (!PLAN_ICON[x.kind]) throw new Error(`节点 ${x.id} 的 kind 不认识：${x.kind}`);
+    if (x.kind === "endpoint" && !ROUTE_RE.test(x.route ?? "")) throw new Error(`端点 ${x.id} 的 route 要写成「动词 /路径」：${x.route}`);
+    const r = realOf(x);
+    if (r) { real.set(x.id, r); at.get(r).met = true; }
+  }
+  const idOf = (id) => real.get(id) ?? id;
+  for (const x of I.nodes) if (!real.has(x.id)) {
+    const [v, p] = x.kind === "endpoint" ? x.route.split(" ") : [];
+    const n = { id: x.id, label: x.label, kind: x.kind, plan: true, kids: [], parent: x.parent ? idOf(x.parent) : null, desc: x.desc ?? null, icon: PLAN_ICON[x.kind], hue: x.hue ?? null, ...(p ? { verbs: [v], routes: [p] } : {}) };
+    nodes.push(n); at.set(n.id, n);
+  }
+  for (const n of nodes) if (n.plan && n.parent) {
+    const p = at.get(n.parent);
+    if (!p) throw new Error(`节点 ${n.id} 的父节点不存在：${n.parent}`);
+    p.kids.push(n.id);
+  }
+  const colOf = (n) => n.col ?? (n.parent ? colOf(at.get(n.parent)) : laneCol(xOf.get(n.id).lane ?? "idea"));
+  for (const n of nodes) { if (n.plan) n.col = colOf(n); if (n.kids.length) n.count = n.kids.length; }
+  const under = (id, top) => { for (let n = at.get(id); n; n = at.get(n.parent)) if (n.id === top) return true; return false; };
+  const edges = [...BASE.edges];
+  for (const e of I.edges) {
+    const a = idOf(e.from), b = idOf(e.to);
+    for (const id of [a, b]) if (!at.has(id)) throw new Error(`连线端点不存在：${id}`);
+    if (!KIND_NAME[e.k]) throw new Error(`连线种类不认识：${e.k}`);
+    if (!at.get(a).plan && !at.get(b).plan && BASE.edges.some((r) => r.k === e.k && under(r.a, a) && under(r.b, b))) continue;
+    edges.push({ a, b, k: e.k, n: 1, labels: e.label ? [e.label] : [], at: null, plan: true });
+  }
+  return { nodes, edges, met: real.size };
+}
+function applyIntent(txt) {
+  ITXT = txt;
+  let m;
+  try { m = merge(JSON.parse(txt)); S.err = null; }
+  catch (err) { S.err = `intent.json：${err.message}`; if (G) renderHead(); return; }
+  D.nodes = m.nodes; D.edges = m.edges; MET = m.met;
+  byId.clear(); for (const n of D.nodes) byId.set(n.id, n);
+  sibCache.clear();
+  for (const id of [...S.open]) if (!byId.has(id)) S.open.delete(id);
+  if (S.sel && !byId.has(S.sel)) Object.assign(S, { sel: null, side: null });
+  if (G) { layoutKey = "\u0001"; mainKey = ""; render(); }
+}
+async function pull() {
+  const r = await fetch("/intent", { cache: "no-store" });
+  if (!r.ok) throw new Error(`读 intent.json 失败 ${r.status}`);
+  IVER = r.headers.get("x-ver");
+  const t = await r.text();
+  if (t !== ITXT) applyIntent(t);
+}
+// 改意图：先拉最新再改再写；写时文件被 agent 改过（409）就重来，不覆盖别人的改动
+async function edit(fn) {
+  try {
+    for (let i = 0; i < 3; i++) {
+      await pull();
+      const next = JSON.parse(ITXT);
+      fn(next);
+      const body = JSON.stringify(next, null, 2) + "\n";
+      const r = await fetch("/intent", { method: "PUT", headers: { "x-ver": IVER }, body });
+      if (r.ok) { IVER = r.headers.get("x-ver"); applyIntent(body); return true; }
+      if (r.status !== 409) throw new Error(await r.text());
+    }
+    throw new Error("intent.json 一直在被改，没存上");
+  } catch (err) { S.err = err.message; renderHead(); return false; }
+}
+
+/* ================= 可见图 ================= */
+const vis = (id) => { for (const a of ancestors(id)) if (!(S.open.has(a) && canOpen(byId.get(a)))) return a; return id; };
+const isServer = (id) => laneOf(byId.get(id)?.col)?.id === "server";
+// 两个咽喉：HTTP 请求都先穿过管线，服务端推送都经过实时 Hub；收起时把线折过去，展开后按真实节点走
+const via = (x) => x && vis(x) === x ? x : null;
+
+function visibleEdges() {
+  const m = new Map();
+  const add = (a, b, k, n, labels, at, plan, f) => {
+    if (a === b) return;
+    const key = a + SEP + b;
+    const x = m.get(key) ?? m.set(key, { a, b, kinds: new Map(), labels: new Set(), at, plan: true, f: false }).get(key);
+    if (!plan) x.plan = false;
+    if (f) x.f = true;   // 聚合后只要有一根真线，就不算「想要」
+    x.kinds.set(k, (x.kinds.get(k) ?? 0) + n);
+    for (const l of labels) if (x.labels.size < 8) x.labels.add(l);
+  };
+  const pipe = via(PIPE), hub = via(HUB);
+  for (const e of D.edges) {
+    const a = vis(e.a), b = vis(e.b);
+    if (e.k === "request" && pipe && isServer(b) && b !== pipe && !isServer(a)) { add(a, pipe, "request", e.n, [], e.at, e.plan); add(pipe, b, "route", e.n, e.labels, e.at, e.plan); }
+    else if (e.k === "push" && hub && a !== hub && isServer(a)) { add(a, hub, "pushes", e.n, [], e.at, e.plan); add(hub, b, "push", e.n, e.labels, e.at, e.plan); }
+    else add(a, b, e.k, e.n, e.labels, e.at, e.plan, e.f);
+  }
+  for (const x of m.values()) {
+    x.k = PRIORITY.find((k) => x.kinds.has(k)) ?? "calls";
+    x.name = D.edgeLabels.find((l) => l.a === x.a && l.b === x.b)?.label ?? null;
+  }
+  return [...m.values()];
+}
+
+/* ================= 排版：递归块（展开的域是框，里面网格排子块），重心法排序，泳道框包列 ================= */
+const cardW = (n) => isDomCard(n) ? W_DOM : W_LEAF;
+const cardH = (n) => isDomCard(n) ? (n.parent ? H_GROUP : H_DOM) : isRes(n) ? H_RES : n.kind === "endpoint" ? H_EP : H_FILE;
+function layout(edges) {
+  const block = (n) => {
+    if (canOpen(n) && S.open.has(n.id) && !n.spread) {
+      const kids = n.kids.map((k) => block(byId.get(k)));
+      // 少的时候一列最多 FRAME_ROWS 张；多了按平方根排成近方形，不横着铺一长条
+      const ncol = Math.min(Math.ceil(kids.length / FRAME_ROWS), Math.ceil(Math.sqrt(kids.length))), per = Math.ceil(kids.length / ncol);
+      const cw = Math.max(...kids.map((k) => k.w));
+      const colsH = Array.from({ length: ncol }, (_, i) => kids.slice(i * per, (i + 1) * per).reduce((s, k) => s + k.h + GAP_Y, -GAP_Y));
+      return { n, open: true, kids, ncol, per, cw, w: ncol * cw + (ncol - 1) * GAP_Y + FR_PAD * 2, h: FR_HEAD + Math.max(...colsH) + FR_PAD };
+    }
+    return { n, open: false, kids: [], w: cardW(n), h: cardH(n) };
+  };
+  const tops = [], spreads = [];
+  for (const n of D.nodes.filter((x) => !x.parent)) {
+    if (n.spread && canOpen(n) && S.open.has(n.id)) { spreads.push(n); for (const k of n.kids) tops.push({ ...block(byId.get(k)), col: byId.get(k).col }); }
+    else tops.push({ ...block(n), col: n.col });
+  }
+  const nb = new Map();
+  for (const e of edges) { (nb.get(e.a) ?? nb.set(e.a, []).get(e.a)).push(e.b); (nb.get(e.b) ?? nb.set(e.b, []).get(e.b)).push(e.a); }
+  const visIds = (b) => b.open ? b.kids.flatMap(visIds) : [b.n.id];
+  const cols = [...new Set(tops.map((b) => b.col))].sort((a, b) => a - b);
+  const byCol = new Map(cols.map((c) => [c, tops.filter((b) => b.col === c)]));
+  const yOf = new Map(), rects = new Map(), frames = [];
+  const place = (b, x, y, dry) => {
+    if (!b.open) { if (dry) yOf.set(b.n.id, y + b.h / 2); else rects.set(b.n.id, { x, y, w: b.w, h: b.h, n: b.n }); return; }
+    if (!dry) frames.push({ n: b.n, x, y, w: b.w, h: b.h });
+    b.kids.forEach((k, i) => {
+      const c = Math.floor(i / b.per), r0 = c * b.per;
+      const iy = y + FR_HEAD + b.kids.slice(r0, i).reduce((s, q) => s + q.h + GAP_Y, 0);
+      place(k, x + FR_PAD + c * (b.cw + GAP_Y) + (b.cw - k.w) / 2, iy, dry);
+    });
+  };
+  const stackAll = () => { for (const c of cols) { let y = 0; for (const b of byCol.get(c)) { place(b, 0, y, true); y += b.h + GAP_Y * 1.5; } } };
+  const bary = (ids) => { const ys = ids.flatMap((id) => (nb.get(id) ?? []).map((x) => yOf.get(x))).filter((v) => v !== undefined); return ys.length ? ys.reduce((a, b) => a + b) / ys.length : null; };
+  const sortKids = (b) => { if (!b.open) return; b.kids.sort((x, y) => (bary(visIds(x)) ?? 1e9) - (bary(visIds(y)) ?? 1e9)); b.kids.forEach(sortKids); };
+  stackAll();
+  for (let s = 0; s < 6; s++) {
+    for (const c of cols) {
+      const list = byCol.get(c);
+      for (const b of list) { sortKids(b); b.key = bary(visIds(b)) ?? yOf.get(visIds(b)[0]) ?? 0; }
+      list.sort((x, y) => x.key - y.key);
+    }
+    stackAll();
+  }
+  const slots = [];
+  for (const c of cols) {
+    const list = byCol.get(c), k = Math.ceil(list.length / MAX_STACK), per = Math.ceil(list.length / k);
+    for (let i = 0; i < k; i++) slots.push({ col: c, list: list.slice(i * per, (i + 1) * per) });
+  }
+  let x = LANE_PAD;
+  slots.forEach((sl, i) => {
+    const prev = slots[i - 1];
+    if (prev) x += prev.col === sl.col ? GAP_X * 0.35 : GAP_X;
+    if (prev && laneOf(sl.col) !== laneOf(prev.col)) x += LANE_PAD * 2 + LANE_GAP;
+    sl.w = Math.max(...sl.list.map((b) => b.w)); sl.x = x; x += sl.w;
+    sl.h = sl.list.reduce((s, b) => s + b.h + GAP_Y * 1.5, -GAP_Y * 1.5);
+  });
+  const maxH = Math.max(...slots.map((s) => s.h));
+  for (const sl of slots) {
+    let y = LANE_HEAD + (maxH - sl.h) / 2;
+    for (const b of sl.list) { place(b, sl.x + (sl.w - b.w) / 2, y, false); y += b.h + GAP_Y * 1.5; }
+  }
+  const box = (rs, padX, padTop, padBot) => {
+    const x0 = Math.min(...rs.map((r) => r.x)) - padX, x1 = Math.max(...rs.map((r) => r.x + r.w)) + padX;
+    const y0 = Math.min(...rs.map((r) => r.y)) - padTop, y1 = Math.max(...rs.map((r) => r.y + r.h)) + padBot;
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  };
+  for (const n of spreads) {
+    const rs = [...rects.values(), ...frames].filter((r) => ancestors(r.n.id).includes(n.id));
+    if (rs.length) frames.push({ n, spread: true, ...box(rs, FR_PAD + 6, FR_HEAD + 6, FR_PAD + 6) });
+  }
+  const all = [...rects.values(), ...frames];
+  const lanes = D.lanes.map((l) => { const rs = all.filter((r) => l.cols.includes(r.n.col)); return rs.length ? { ...l, ...box(rs, LANE_PAD, LANE_HEAD, LANE_PAD) } : null; }).filter(Boolean);
+  return { rects, frames, lanes };
+}
+
+// 连线（画板 boardDoc.curve 的 S 形）：横向为主左右出、纵向为主上下出；同一条边上的多根线按对端位置排开接入点
+function routeEdges(edges, rects) {
+  const ctr = (r) => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+  const geo = new Map(), att = new Map();
+  for (const e of edges) {
+    const ra = rects.get(e.a), rb = rects.get(e.b);
+    const ca = ctr(ra), cb = ctr(rb), dx = cb.x - ca.x, dy = cb.y - ca.y;
+    const h = Math.abs(dx) >= Math.abs(dy) * 0.8;
+    const sa = h ? (dx >= 0 ? "r" : "l") : (dy > 0 ? "b" : "t"), sb = h ? (dx >= 0 ? "l" : "r") : (dy > 0 ? "t" : "b");
+    geo.set(e, { h, sa });
+    (att.get(e.a + SEP + sa) ?? att.set(e.a + SEP + sa, []).get(e.a + SEP + sa)).push({ e, end: "p", o: cb });
+    (att.get(e.b + SEP + sb) ?? att.set(e.b + SEP + sb, []).get(e.b + SEP + sb)).push({ e, end: "q", o: ca });
+  }
+  const pts = new Map();
+  for (const [key, list] of att) {
+    const [id, side] = key.split(SEP), r = rects.get(id), lr = side === "l" || side === "r";
+    list.sort((x, y) => lr ? x.o.y - y.o.y : x.o.x - y.o.x);
+    list.forEach((it, i) => {
+      const t = list.length === 1 ? 0.5 : 0.28 + 0.44 * i / (list.length - 1);
+      const P = side === "l" ? { x: r.x, y: r.y + r.h * t } : side === "r" ? { x: r.x + r.w, y: r.y + r.h * t } : side === "t" ? { x: r.x + r.w * t, y: r.y } : { x: r.x + r.w * t, y: r.y + r.h };
+      (pts.get(it.e) ?? pts.set(it.e, {}).get(it.e))[it.end] = P;
+    });
+  }
+  return new Map(edges.map((e) => {
+    const { h, sa } = geo.get(e), { p, q } = pts.get(e);
+    if (h) { const k = Math.max(40, Math.abs(q.x - p.x) * 0.45) * (sa === "r" ? 1 : -1); return [e, `M${p.x},${p.y} C${p.x + k},${p.y} ${q.x - k},${q.y} ${q.x},${q.y}`]; }
+    const k = Math.max(30, Math.abs(q.y - p.y) * 0.45) * (sa === "b" ? 1 : -1);
+    return [e, `M${p.x},${p.y} C${p.x},${p.y + k} ${q.x},${q.y - k} ${q.x},${q.y}`];
+  }));
+}
+
+// 标签放哪：沿三次曲线从中点往两头试，找第一个不压卡的点（把标签自身宽度算进去）
+function labelAt(d, rects, text = "") {
+  const half = Math.min(260, text.length * 7 + 20) / 2;
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = d.match(/-?[\d.]+/g).map(Number);
+  const pt = (t) => { const u = 1 - t; return { x: u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, y: u * u * u * y0 + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3 }; };
+  const hit = (p) => [...rects.values()].some((r) => p.x + half > r.x - 6 && p.x - half < r.x + r.w + 6 && p.y > r.y - 14 && p.y < r.y + r.h + 14);
+  for (const t of [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82, 0.12, 0.88, 0.07, 0.93]) { const p = pt(t); if (!hit(p)) return p; }
+  return pt(0.5);
+}
+
+/* ================= 高亮 ================= */
+// 循环：步骤映射到当前可见粒度；推送是分界，推送前后同一对卡各算一步
+function loopSteps(loop) {
+  const order = new Map();
+  const pipe = via(PIPE), hub = via(HUB);
+  let phase = 0;
+  const put = (a, b, k, label) => {
+    if (a === b) return;
+    const key = a + SEP + b + SEP + phase;
+    const s = order.get(key) ?? order.set(key, { no: order.size + 1, a, b, phase, kinds: new Map() }).get(key);
+    const ls = s.kinds.get(k) ?? s.kinds.set(k, new Set()).get(k);
+    if (label) ls.add(label);
+  };
+  for (const st of loop.steps) {
+    const a = vis(st.a), b = vis(st.b);
+    if (st.k === "request" && pipe && isServer(b) && b !== pipe && !isServer(a)) { put(a, pipe, "request", phase ? "回拉" : "HTTPS 请求"); put(pipe, b, "route", st.label); }
+    else if (st.k === "push" && hub && a !== hub && isServer(a)) { put(a, hub, "pushes"); put(hub, b, "push", st.label); }
+    else put(a, b, st.k, st.label);
+    if (st.k === "push") phase++;
+  }
+  return [...order.values()];
+}
+function highlight(edges) {
+  const loop = loopOf();
+  if (loop) {
+    const hot = new Map(), nodes = new Set();
+    for (const s of loopSteps(loop)) {
+      nodes.add(s.a); nodes.add(s.b);
+      const x = hot.get(s.a + SEP + s.b) ?? hot.set(s.a + SEP + s.b, { nos: [], first: s }).get(s.a + SEP + s.b);
+      x.nos.push(s.no);
+    }
+    return { nodes, edges: hot, loop: true };
+  }
+  if (S.flag) {
+    // 体检项：它点名的卡（展开成框的取框里的卡）+ 它们之间的线
+    const nodes = new Set(), hot = new Map();
+    for (const id of S.flag.nodes) { const v = vis(id); if (G.rects.has(v)) nodes.add(v); else for (const k of G.rects.keys()) if (ancestors(k).includes(v)) nodes.add(k); }
+    for (const e of edges) if (nodes.has(e.a) && nodes.has(e.b)) hot.set(e.a + SEP + e.b, {});
+    return { nodes, edges: hot, loop: false };
+  }
+  const f = S.hover ?? S.sel;
+  if (!f) return null;
+  // 聚焦 = 一跳：它直接连着谁。整条上下游一层层铺开只会把半张图点亮，没有重点；要看链路走业务循环
+  // 聚焦的卡已在图上展开成框：从框里每张可见的子卡出发走
+  const starts = G.rects.has(f) ? [f] : [...G.rects.keys()].filter((id) => ancestors(id).includes(f));
+  const nodes = new Set(starts), hot = new Map(), from = new Set(starts);
+  for (const e of edges) if (from.has(e.a) || from.has(e.b)) { hot.set(e.a + SEP + e.b, {}); nodes.add(e.a); nodes.add(e.b); }
+  return { nodes, edges: hot, loop: false };
+}
+const stepText = (s) => {
+  const say = { push: (l) => `推送 ${l.join("　")}`, pushes: () => "交给 Hub 推送", request: (l) => l[0] ?? "HTTPS 请求", route: (l) => l.join("　"),
+    writes: (l) => `写 ${l.join("、")}`, reads: (l) => `读 ${l.join("、")}`, invoke: (l) => `本机调用 ${l.join("、")}`, http: () => "出站请求", bus: () => "窗口广播", emits: () => "窗口广播" };
+  const parts = [...s.kinds].sort((a, b) => PRIORITY.indexOf(a[0]) - PRIORITY.indexOf(b[0])).map(([k, ls]) => say[k]?.([...ls]) ?? null).filter(Boolean);
+  return parts.join("\n") || "调用";
+};
+
+/* ================= 画布渲染 =================
+   卡、框、线、标签都按 id 常驻，重渲只改位置和类：悬停时变暗 / 点亮有过渡；
+   展开时子卡从父卡的位置飞出、框从父卡长开，收起时反过来飞回去再摘掉；线用 CSS d 跟着形变 */
+const MORPH = 280;   // 展开 / 收起时卡、框、线挪到新位置的时长（ms）
+const world = document.getElementById("world"), bd = document.getElementById("bd");
+world.innerHTML = `<div id="wF"></div><svg class="bd-links" id="wE" aria-hidden="true"><defs>${["n", "s", "req", "push", "write", "http", "l", "w"].map((k) => `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9" class="ah m-${k}"/></marker>`).join("")}</defs></svg><div id="wN"></div><div id="wL"></div>`;
+const wF = document.getElementById("wF"), wE = document.getElementById("wE"), wN = document.getElementById("wN"), wL = document.getElementById("wL");
+const EL = { card: new Map(), frame: new Map(), edge: new Map(), label: new Map() };
+let G = null, layoutKey = null;
+const box = (el, r, s = 1) => { el.style.transform = `translate(${r.x + r.w * (1 - s) / 2}px,${r.y + r.h * (1 - s) / 2}px) scale(${s})`; };
+const sized = (el, r) => { el.style.width = `${r.w}px`; el.style.height = `${r.h}px`; };
+// 键控：有就复用（正在退场的救回来），没有就造一个并记下「新来的」
+function keyed(map, key, make, parent) {
+  let el = map.get(key);
+  if (el?._gone) { clearTimeout(el._gone); el._gone = 0; el.classList.remove("gone"); }
+  if (!el) { el = make(); el._new = true; map.set(key, el); parent.appendChild(el); }
+  el._seen = true;
+  return el;
+}
+function sweep(map, exit) {
+  for (const [k, el] of map) {
+    if (el._seen) { el._seen = false; continue; }
+    if (el._gone) continue;
+    exit?.(el, k);
+    el.classList.add("gone");
+    el._gone = setTimeout(() => { el.remove(); map.delete(k); }, exit ? MORPH : 140);
+  }
+}
+function renderCanvas() {
+  const key = [...S.open].sort().join(SEP);
+  const moved = key !== layoutKey, first = layoutKey === null;
+  const old = G;
+  if (moved) { const edges = visibleEdges(); G = { ...layout(edges), edges }; layoutKey = key; }
+  const L = G, H = highlight(G.edges);
+  bd.classList.toggle("focusing", !!H);
+  // 完全聚焦（点中了卡 / 在看一条循环 / 一项体检）：无关的线直接藏掉；只是悬停预览别的卡时才压暗
+  bd.classList.toggle("hard", !!(loopOf() || S.flag || (S.sel && (!S.hover || S.hover === S.sel))));
+  document.body.classList.toggle("focused", !!(S.hover || S.sel) && !S.flag);
+  // 新出现的东西从哪里长出来：自己上一刻的卡 / 框，或最近一个上一刻可见的祖先
+  const from = (id) => { for (const x of [id, ...ancestors(id).reverse()]) { const r = old?.rects.get(x) ?? old?.frames.find((f) => f.n.id === x); if (r) return r; } return null; };
+  // 消失的东西回到哪里去：现在代表它的那张卡或那个框
+  const into = (id) => L.rects.get(vis(id)) ?? L.frames.find((f) => f.n.id === id || ancestors(id).includes(f.n.id));
+  const enter = [];
+
+  for (const l of L.lanes) {
+    const el = keyed(EL.frame, "lane:" + l.id, () => Object.assign(document.createElement("div"), { className: "bd-frame lane", innerHTML: `<div class="bd-fh"><b>${esc(l.name)}</b></div>` }), wF);
+    if (el._new) { box(el, l); sized(el, l); el._new = false; } else { box(el, l); sized(el, l); }
+  }
+  for (const f of L.frames.slice().sort((a, b) => (b.spread ? 1 : 0) - (a.spread ? 1 : 0))) {
+    const el = keyed(EL.frame, f.n.id, () => Object.assign(document.createElement("div"), { className: `bd-frame hue-${hueOf(f.n.id)}`,
+      innerHTML: `<div class="bd-fh"><i class="dot"></i><b>${esc(f.n.label)}</b>${f.n.route ? `<em style="font-family:var(--font-mono)">${esc(f.n.route)}</em>` : ""}<em>${f.n.count}</em><button class="bd-mbtn" data-exp="${esc(f.n.id)}">收起</button></div>` }), wF);
+    if (el._new && !first) { const r = from(f.n.id); if (r) { box(el, r); sized(el, r); el.style.opacity = "0"; enter.push(() => { el.style.opacity = ""; box(el, f); sized(el, f); }); } else { box(el, f); sized(el, f); } }
+    else { box(el, f); sized(el, f); }
+    el._new = false;
+  }
+  sweep(EL.frame, (el, k) => { const r = into(k); if (r) { box(el, r); sized(el, r); } });
+
+  for (const r of L.rects.values()) {
+    const n = r.n;
+    const el = keyed(EL.card, n.id, () => { const d = document.createElement("div"); d.dataset.node = n.id; d.setAttribute("role", "button"); d.setAttribute("aria-label", n.label); d.innerHTML = `<div class="bd-nb">${cardBody(n)}</div>`; sized(d, r); return d; }, wN);
+    el.className = cardCls(n, H);
+    if (el._new && !first) { const o = from(n.id); if (o) { box(el, { x: o.x + (o.w - r.w) / 2, y: o.y + (o.h - r.h) / 2, w: r.w, h: r.h }, 0.7); el.style.opacity = "0"; enter.push(() => { el.style.opacity = ""; box(el, r); }); } else box(el, r); }
+    else box(el, r);
+    el._new = false;
+  }
+  sweep(EL.card, (el, k) => { const t = into(k); if (t) { const w = parseFloat(el.style.width), h = parseFloat(el.style.height); box(el, { x: t.x + (t.w - w) / 2, y: t.y + (t.h - h) / 2, w, h }, 0.7); } });
+
+  const drawn = G.edges.filter((e) => {
+    const ra = L.rects.get(e.a), rb = L.rects.get(e.b);
+    if (!ra || !rb) return false;
+    return e.plan || e.f || H?.edges.has(e.a + SEP + e.b) || !(e.k === "calls" && Math.abs(ra.x - rb.x) < 1);   // 同列相邻卡的调用平时不画（想要的线、体检命中的线总画）
+  });
+  const route = routeEdges(drawn, L.rects);
+  const NS = "http://www.w3.org/2000/svg";
+  for (const e of drawn) {
+    const d = route.get(e), k = e.a + SEP + e.b, h = H?.edges.get(k);
+    const base = !e.f && SHARED && (domainOf(e.a) === SHARED || domainOf(e.b) === SHARED);
+    const nums = d.match(/-?[\d.]+/g).map(Number), fam = FAM(e.k), mark = h ? (H.loop ? "l" : e.f ? "w" : fam === "n" ? "s" : fam) : e.f ? "w" : fam;
+    const g = keyed(EL.edge, k, () => { const g = document.createElementNS(NS, "g"); g.classList.add("eg"); g.append(document.createElementNS(NS, "path"), document.createElementNS(NS, "circle"), document.createElementNS(NS, "path")); return g; }, wE);
+    const [ln, pin, bead] = g.children;
+    ln.setAttribute("d", d); ln.style.d = `path("${d}")`;
+    bead.setAttribute("d", d); bead.style.d = `path("${d}")`; bead.setAttribute("class", "bead");
+    g.setAttribute("class", `eg ${h ? "flow" : ""} m-${mark}`);
+    ln.setAttribute("class", `ln k-${e.k} m-${mark} ${h ? (H.loop ? "loop" : e.f ? "warn" : "strong") : H ? "dim" : e.f ? "warn" : base ? "base" : ""} ${e.plan ? "plan" : ""}`);
+    ln.setAttribute("marker-end", `url(#ah-${mark})`);
+    pin.setAttribute("r", "3"); pin.setAttribute("cx", nums[0]); pin.setAttribute("cy", nums[1]); pin.style.cx = `${nums[0]}px`; pin.style.cy = `${nums[1]}px`;
+    pin.setAttribute("class", `pin m-${mark} ${H && !h ? "dim" : ""}`);
+    if (g._new && !first) { g.style.opacity = "0"; enter.push(() => { g.style.transitionDelay = moved ? `${MORPH * 0.6}ms` : "0ms"; g.style.opacity = ""; }); }
+    g._new = false;
+
+    const name = e.name ?? (e.k === "push" ? [...new Set([...e.labels].map((l) => l.split(" ")[0]))].join("　") : null);
+    const txt = h?.nos ? stepText(h.first).replace(/\n/g, "　") : h ? (name ?? [...e.kinds].map(([kk, n]) => `${KIND_NAME[kk] ?? kk}${n > 1 ? " " + n : ""}`).join("　")) : name;
+    const at = labelAt(d, L.rects, txt ?? "");
+    const lab = (lk, cls, text, x, y) => {
+      const el = keyed(EL.label, lk, () => document.createElement("div"), wL);
+      el.className = cls; el.textContent = text;
+      el.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`;
+      if (el._new && !first) { el.style.opacity = "0"; enter.push(() => { el.style.transitionDelay = moved ? `${MORPH * 0.6}ms` : "0ms"; el.style.opacity = ""; }); }
+      el._new = false;
+    };
+    if (txt) lab(k, `bd-lbl ${h && H.loop ? "loop" : h && !["n", "s"].includes(mark) ? "tint m-" + mark : ""} ${H && !h ? "dim" : ""}`, txt.length > 34 ? txt.slice(0, 34) + "…" : txt, at.x, at.y + (h?.nos ? 24 : 0));
+    if (h?.nos) lab(k + SEP + "no", "bd-no", h.nos.join(" "), at.x, at.y);
+  }
+  sweep(EL.edge); sweep(EL.label);
+
+  // 起手态已写下：强制排一次版，再写终态，过渡才有起点
+  if (enter.length) { void world.offsetWidth; enter.forEach((f) => f()); }
+  if (moved) applyView();
+}
+function cardCls(n, H) {
+  const loop = loopOf(), lv = Math.min(4, depthOf(n.id) + 1);
+  return ["bd-node", isDomCard(n) ? "dom" : isRes(n) ? "res" : "leaf", `hue-${hueOf(n.id)}`, lv > 1 ? `lv${lv}` : "", n.plan ? "plan" : "",
+    S.sel === n.id ? "pinned" : S.hover === n.id ? "focus" : "", H && !H.nodes.has(n.id) ? "dim" : "", loop && n.id === vis(loop.endpoint) ? "hot" : ""].join(" ");
+}
+// 同组端点去掉共同路由前缀（/api/v1/admin/…），卡上只留区分彼此的部分
+const sibCache = new Map();
+const sibShort = (n) => sibCache.get(n.parent) ?? sibCache.set(n.parent, trimmer((byId.get(n.parent)?.kids ?? [n.id]).map((k) => byId.get(k)).filter((c) => c.kind === "endpoint").map((c) => c.routes[0]))).get(n.parent);
+function cardBody(n) {
+  if (isDomCard(n)) return `<div class="top">${ic(n.icon ?? "grid", 20)}${canOpen(n) ? `<button class="xp" data-exp="${esc(n.id)}" aria-label="展开 ${esc(n.label)}">${n.count}${ic("chevRight", 13)}</button>` : ""}</div>
+      <div class="bot"><span class="mt ${n.route ? "m" : ""}">${esc(n.route ?? (n.kids.length ? `${n.count} ${unitOf(n)}` : laneOf(n.col)?.name ?? ""))}</span><b class="ttl">${esc(n.label)}</b></div>`;
+  if (n.kind === "endpoint") return `<div class="top">${n.verbs.map((v) => `<span class="vb">${v}</span>`).join("")}</div>
+      <div class="bot"><span class="mt m">${esc(routeTail(sibShort(n)(n.routes[0])))}</span><b class="ttl">${esc(n.human ?? n.label)}</b></div>`;
+  if (isRes(n)) return `${ic(n.icon ?? "layers", 16)}<b class="ttl">${esc(n.label)}</b><span class="mt">${n.kind === "table" ? "表" : "事件"}</span>`;
+  return `<div class="top">${ic(n.icon ?? "fileText", 16)}</div><div class="bot">${n.file ? `<span class="mt m">${esc(n.file.split("/").slice(0, -1).join("/"))}</span>` : `<span class="mt">${esc(n.desc ?? "")}</span>`}<b class="ttl">${esc(n.label)}</b></div>`;
+}
+
+/* ================= 相机 ================= */
+function applyView() {
+  world.style.transform = `translate(${S.tx}px,${S.ty}px) scale(${S.z})`;
+}
+const bounds = (rs) => { const x0 = Math.min(...rs.map((r) => r.x)), y0 = Math.min(...rs.map((r) => r.y)); return { x: x0, y: y0, w: Math.max(...rs.map((r) => r.x + r.w)) - x0, h: Math.max(...rs.map((r) => r.y + r.h)) - y0 }; };
+// 看全部 / 看选中：右边两块抽屉占着的宽度让出来
+// 程序挪镜头（看全部 / 看循环 / 跟到展开的框）走一段过渡；拖拽和滚轮直接跟手
+let glideT = 0;
+function glide() {
+  world.style.transition = `transform ${MORPH}ms var(--ease-in-out)`;
+  clearTimeout(glideT); glideT = setTimeout(() => { world.style.transition = ""; }, MORPH);
+}
+function fit(rs, max = 1, anim = true) {
+  if (!rs.length) return;
+  if (anim) glide();
+  const right = S.sel ? 380 + 32 + (S.side ? 374 : 0) : 0, top = 110;
+  const b = bounds(rs), vw = innerWidth - right, vh = innerHeight - top - 84;
+  S.z = Math.min(max, (vw - 60) / b.w, (vh - 40) / b.h);
+  S.tx = (vw - b.w * S.z) / 2 - b.x * S.z;
+  S.ty = top + (vh - b.h * S.z) / 2 - b.y * S.z;
+  applyView();
+}
+const fitAll = (anim = true) => fit([...G.lanes], 1, anim);
+function zoomAt(f, cx = innerWidth / 2, cy = innerHeight / 2) {
+  const z = Math.min(2, Math.max(0.2, S.z * f));
+  S.tx = cx - (cx - S.tx) * (z / S.z); S.ty = cy - (cy - S.ty) * (z / S.z); S.z = z; applyView();
+}
+function panTo(id) {
+  const r = G.rects.get(vis(id)); if (!r) return;
+  glide();
+  S.tx = (innerWidth - 412) / 2 - (r.x + r.w / 2) * S.z; S.ty = innerHeight / 2 - (r.y + r.h / 2) * S.z; applyView();
+}
+
+/* ================= 上层：标题 · 浮岛 · 小地图 · 浮岛抽屉 ================= */
+function renderHead() {
+  const doms = D.nodes.filter((n) => n.kind === "domain" && !n.parent).length;
+  const eps = D.nodes.filter((n) => n.kind === "endpoint").length;
+  const r = D.revisions, plans = D.nodes.filter((n) => n.plan).length;
+  document.getElementById("hd").innerHTML = `<h1>${esc(D.title)}</h1><div class="row0">
+    <span class="chip"><b>${doms}</b> 个业务域</span><span class="chip"><b>${eps}</b> 个端点</span><span class="chip"><b>${D.loops.length}</b> 个业务循环</span>
+    ${r ? `<span class="chip m" title="服务端 ${esc(r.S.revision)}${r.S.dirtyFiles ? `，另有 ${r.S.dirtyFiles} 个未提交文件` : ""}">服务端 ${esc(r.S.revision.slice(0, 7))}</span>
+    ${HAS_CLIENT ? `<span class="chip m" title="客户端 ${esc(r.C.revision)}${r.C.dirtyFiles ? `，另有 ${r.C.dirtyFiles} 个未提交文件` : ""}">客户端 ${esc(r.C.revision.slice(0, 7))}</span>` : `<span class="chip z" title="客户端抽取为空：图里只有服务端">无客户端</span>`}` : ""}
+    ${plans || MET ? `<span class="chip a" title="虚线卡 = 意图里有、代码里还没有">想要 <b>${plans}</b></span><span class="chip" title="意图节点已对上真实代码">已实现 <b>${MET}</b></span>` : ""}
+    </div><div class="row0">${(D.findings ?? []).map((f, fi) => `<button class="chip ${f.items.length ? "w" : "z"}" data-pop="health" data-htab="${fi}" title="${esc(f.why)}">${esc(f.title)} <b>${f.items.length}</b></button>`).join("")}
+    ${S.flag ? `<button class="chip a" data-unflag title="Esc 也能清掉">正在看：${esc(S.flag.label)}　${ic("close", 12)}</button>` : ""}
+    ${S.draw ? `<span class="chip a">画：双击空白写想法 · 双击卡改 · 从卡拖到卡连线</span>` : ""}${S.err ? `<span class="chip err">${esc(S.err)}</span>` : ""}</div>`;
+  document.getElementById("empty").hidden = !(LIVE && !D.nodes.length);
+}
+function renderIsland() {
+  bd.classList.toggle("drawing", S.draw);
+  document.getElementById("isl").innerHTML = `${LIVE ? `
+    <div class="seg" role="radiogroup" aria-label="模式">${[["0", "看"], ["1", "画"]].map(([k, t]) => `<button class="${+S.draw === +k ? "on" : ""}" data-draw="${k}" role="radio" aria-checked="${+S.draw === +k}">${t}</button>`).join("")}</div>
+    <span class="bd-sep"></span>` : ""}
+    <button class="bd-ib ${S.pop === "loops" ? "on" : ""}" data-pop="loops">${ic("refresh", 16)}业务循环<span class="nb">${D.loops.length}</span></button>
+    <button class="bd-ib ${S.pop === "find" ? "on" : ""}" data-pop="find" aria-label="找" title="找  ⌘F">${ic("search", 16)}</button>
+    <button class="bd-ib ${S.pop === "legend" ? "on" : ""}" data-pop="legend" aria-label="图例" title="线条图例">${ic("link", 16)}</button>
+    <span class="bd-sep"></span>
+    <button class="bd-ib ${S.pop === "health" ? "on" : ""}" data-pop="health" title="体检：跨域直调、直连外部、共享热点、多域共写">${ic("pulse", 16)}体检${(() => { const n = (D.findings ?? []).reduce((a, f) => a + f.items.length, 0); return `<span class="nb ${n ? "w" : ""}">${n}</span>`; })()}</button>`;
+}
+function renderPop() {
+  const pop = document.getElementById("pop");
+  pop.classList.toggle("in", !!S.pop);
+  if (!S.pop) return;
+  const q = S.find.toLowerCase();
+  const search = (ph) => `<div class="pop-h"><input class="dq" id="dq" placeholder="${ph}" value="${esc(S.find)}"></div>`;
+  if (S.pop === "loops") {
+    // 按域分节；有客户端时有入口的在前，无入口的收进该域底下的折叠
+    const list = D.loops.filter((l) => !q || (l.name + l.route + l.triggers.map((t) => t.label).join()).toLowerCase().includes(q));
+    const by = new Map(); for (const l of list) (by.get(l.domain) ?? by.set(l.domain, []).get(l.domain)).push(l);
+    const live = (ls) => ls.filter((l) => l.triggers.length).length;   // 有入口的多的域排前，全无入口的沉底
+    const doms = [...by].sort((a, b) => live(b[1]) - live(a[1]));
+    const row = (l, short) => `<button class="fr ${HAS_CLIENT && !l.triggers.length ? "no" : ""}" data-openloop="${esc(l.id)}"><span class="vbg ${isWrite(l.verbs) ? "w" : ""}">${l.verbs.join(",")}</span><span class="bx"><b>${esc(loopName(l, short))}</b><i class="m">${esc(routeTail(short(l.route)))}</i></span><span class="rt3">${trigText(l)}</span>${chev()}</button>`;
+    const block = ([d, ls]) => { const short = trimmer(ls.map((l) => l.route)), yes = HAS_CLIENT ? ls.filter((l) => l.triggers.length) : ls, no = HAS_CLIENT ? ls.filter((l) => !l.triggers.length) : [];
+      return `<section class="sec hue-${hueOf(d)}"><div class="cap"><i class="sw"></i>${esc(byId.get(d)?.label ?? "")}<em>${ls.length}</em></div>${yes.length ? `<div class="list">${yes.map((l) => row(l, short)).join("")}</div>` : ""}${no.length ? `<details class="more" ${yes.length ? "" : "open"}><summary>无入口 ${no.length} 条</summary><div class="list">${no.map((l) => row(l, short)).join("")}</div></details>` : ""}</section>`; };
+    pop.innerHTML = search(`找循环：名字、路由${HAS_CLIENT ? "、按钮文字" : ""}`)
+      + `<div class="dl">${HAS_CLIENT ? "" : `<p class="why">客户端还没接入，循环只画服务端这半边：请求进来 → 写了哪些表、调了哪些外部。</p>`}${doms.map(block).join("") || `<div class="clean">没有匹配的循环</div>`}</div>`;
+  } else if (S.pop === "legend") {
+    // 图上实际出现的线型 + 线的几种状态；样本就是画布上同一个 class
+    const WHAT = { request: ["请求", "客户端发到服务端的 HTTP"], route: ["路由", "管线把请求交给控制器"], invoke: ["本机调用", "Tauri 命令 / Hub 方法"], connect: ["连接", "WebSocket 长连接"],
+      push: ["推送", "服务端经 Hub 推给接收端"], pushes: ["交给推送", "服务端把事件交给 Hub"], writes: ["写", "增删改一张表"], updates: ["改", "跟踪实体后 SaveChanges"], reads: ["读", "查询一张表"],
+      calls: ["调用", "同进程里的方法调用"], http: ["出站", "服务端对外发 HTTP"], bus: ["窗口广播", "本机窗口之间的总线"], emits: ["广播", "发到窗口总线"], io: ["磁盘", "读写本地文件"], cache: ["缓存", "进程内存缓存"] };
+    const kinds = Object.keys(WHAT).filter((k) => D.edges.some((e) => e.k === k));   // 按全图统计：展开后才出现的线型也列上
+    const sample = (cls, mark) => `<svg class="lg" role="img" aria-label="线型样本"><path class="ln ${cls}" d="M4,7 H56" marker-end="url(#ah-${mark ?? "n"})"/></svg>`;
+    const row = (svg, name, why) => `<div class="fr">${svg}<span class="bx"><b>${name}</b><i>${why}</i></span></div>`;
+    const flow = `<svg class="lg" role="img" aria-label="流动的点"><g class="eg flow m-req"><path class="ln k-request m-req strong" d="M4,7 H56"/><path class="bead" d="M4,7 H56"/></g></svg>`;
+    pop.innerHTML = `<div class="dl" style="padding-top:12px"><section class="sec"><div class="cap">线型 = 关系<em>${kinds.length}</em></div><div class="list">${kinds.map((k) => row(sample(`k-${k} m-${FAM(k)}`, FAM(k)), WHAT[k][0], WHAT[k][1])).join("")}</div></section>
+      <section class="sec"><div class="cap">状态</div><div class="list">${row(flow, "聚焦", "点亮的线上有点沿调用方向流动")}${row(sample("k-request m-l loop", "l"), "业务循环", "强调色，按步骤编号")}${row(sample("k-calls m-w warn", "w"), "体检命中", "警示色，跨域直调 / 直连外部")}${row(sample("k-calls m-n base"), "连共享层", "预期的分层，画淡")}${row(sample("k-calls m-l plan", "l"), "想要的线", "意图里有、代码里还没有")}</div></section></div>`;
+    return;
+  } else if (S.pop === "health") {
+    // 四类一排切换，一次只看一类：说明一句 + 命中项（小条 = 涉及几个域）；为 0 的是空态
+    const F = D.findings ?? [], cur = F[S.htab] ?? F[0];
+    const max = Math.max(1, ...cur.items.map((it) => it.n ?? 1));
+    const item = (it, ii) => `<button class="fr fx" data-flag="${F.indexOf(cur)}:${ii}"><i class="dotw"></i><span class="bx"><b>${esc(it.label)}</b><i>${esc(it.sub)}</i></span><span class="rt3">${it.misplaced ? `<span class="tag w">住错目录</span>` : ""}${bar(it.n ?? 1, max, true)}</span>${chev()}</button>`;
+    pop.innerHTML = `<div class="pop-h"><div class="hseg" role="tablist">${F.map((f, fi) => `<button class="${f === cur ? "on" : ""}" data-htab="${fi}" role="tab" aria-selected="${f === cur}"><b class="${f.items.length ? "w" : ""}">${f.items.length}</b><span>${esc(f.title)}</span></button>`).join("")}</div><p class="why">${esc(cur.why)}</p></div>
+      <div class="dl">${cur.items.length ? `<div class="list">${cur.items.map(item).join("")}</div>` : `<div class="clean"><i>${ic("check", 18)}</i>没有，干净</div>`}</div>`;
+    return;
+  } else {
+    const hits = q ? D.nodes.filter((n) => (n.label + (n.human ?? "") + (n.routes ?? []).join() + (n.file ?? "")).toLowerCase().includes(q)).slice(0, 60) : [];
+    const KIND = { domain: "域", group: "功能", endpoint: "端点", table: "表", event: "事件", file: "文件", internal: "文件", external: "外部" };
+    pop.innerHTML = search("找卡：域、功能、端点、文件、表")
+      + `<div class="dl">${hits.length ? `<div class="list">${hits.map((n) => `<button class="fr hue-${hueOf(n.id)}" data-go="${esc(n.id)}"><span class="tl">${ic(n.icon ?? "fileText", 14)}</span><span class="bx"><b>${esc(n.human ?? n.label)}</b><i>${esc(ancestors(n.id).map((a) => byId.get(a).human ?? byId.get(a).label).join(" / ") || laneOf(n.col)?.name || "")}</i></span><span class="rt3">${KIND[n.kind] ? `<span class="tag">${KIND[n.kind]}</span>` : ""}</span>${chev()}</button>`).join("")}</div>` : `<div class="clean">${q ? "没找到" : "输入就找"}</div>`}</div>`;
+  }
+  const dq = document.getElementById("dq");
+  if (dq && document.activeElement?.id !== "dq") { dq.focus(); dq.setSelectionRange(dq.value.length, dq.value.length); }
+}
+
+/*__FLOW__*/
+
+/* ================= 流程页：点「怎么跑」里的一条，整页讲这条流程怎么跑 =================
+   画法由流程形态自动选（有回环 → 环形跑道，跨 ≥3 个执行者 → 泳道，其余 → 逻辑树），问题页签可换；右栏常驻「为什么停」 */
+const FSPEC = new Map(), FVIEW = new Map();
+function flowSpec(f) {
+  if (FSPEC.has(f.id)) return FSPEC.get(f.id);
+  // 节点 id 带上流程前缀：量字缓存按 id 记，各条流程都从 1 编号会互相串尺寸
+  const uid = "f" + FSPEC.size; let n = 0;
+  const tag = (x) => { x.id = uid + "-" + (++n); x.key ??= x.at; x.kids ??= []; x.kids.forEach(tag); return x; };
+  const spec = { name: f.name, uid, tree: tag({ k: "root", t: f.name, l: f.lane, kids: structuredClone(f.tree) }) };
+  FLOW.prep(spec); FSPEC.set(f.id, spec);
+  // 自动草稿：第 3 层往下先折起来，只露骨架
+  if (f.source === "auto") FLOW.FOLD.set(spec.name, new Set(spec.all.filter((x) => x.depth >= 3 && x.kids.length).map((x) => x.id)));
+  return spec;
+}
+const flowsIn = (id) => D.flows.filter((f) => f.card && (f.card === id || ancestors(f.card).includes(id)))
+  .sort((a, b) => (a.source !== "sem") - (b.source !== "sem") || b.size - a.size);
+// 抽屉里的「怎么跑」：主按钮给最值得看的一条（整理过的优先，其次最大的），其余排在下面
+function flowRows(id) {
+  const fs = flowsIn(id), SHOW = 6;
+  if (!fs.length) return "";
+  const [top, ...rest] = fs, tag = (f) => f.source === "sem" ? "已整理" : "草稿";
+  return `<section class="flowcta"><div class="fc-h">${ic("refresh", 16)}业务逻辑怎么跑<em>${fs.length} 条流程</em></div>
+    <button class="fc-main" data-flow="${esc(top.id)}"><span>看「${esc(top.name)}」怎么跑</span><i>${tag(top)} · ${top.size} 个节点</i>${ic("chevRight", 14)}</button>
+    ${rest.length ? `<div class="fc-more">${rest.slice(0, SHOW).map((f) => `<button data-flow="${esc(f.id)}" title="${tag(f)} · ${f.size} 个节点">${esc(f.name)}</button>`).join("")}${rest.length > SHOW ? `<details class="more"><summary>其余 ${rest.length - SHOW} 条</summary><div class="fc-more">${rest.slice(SHOW).map((f) => `<button data-flow="${esc(f.id)}">${esc(f.name)}</button>`).join("")}</div></details>` : ""}</div>` : ""}</section>`;
+}
+// 当前流程的形态与选中的画法；草稿没分好阶段，跑道 / 泳道画出来是一团：先按逻辑树看，整理后才按形态选
+function flowNow() {
+  const f = D.flows.find((x) => x.id === S.flow), s = flowSpec(f), sh = FLOW.shape(s);
+  if (f.source === "auto") Object.assign(sh, { def: "tree", why: "自动草稿先按逻辑树看，深处已折叠；agent 整理后才按形态选跑道 / 泳道" });
+  const v = sh.views.filter((x) => x.k !== "out").find((x) => x.k === FVIEW.get(f.id)) ?? sh.views.find((x) => x.k === sh.def) ?? sh.views[0];
+  return { f, s, sh, v };
+}
+// IBO：输入了什么 → 经过什么 → 输出了什么；全部从流程树与代码汇总（build 的 flows.ts ibo()）
+function iboHtml(f) {
+  const x = f.ibo; if (!x) return "";
+  const chips = (list, cls) => list.map((t) => `<i class="rc ${cls}">${esc(t)}</i>`).join("");
+  const row = (label, body) => body ? `<div class="ibr"><b>${label}</b><span class="ibv">${body}</span></div>` : "";
+  const inB = row("入口", x.in.route ? chips([x.in.route], "f-q") : "") + row("前端", chips(x.in.trig, "")) + row("带着", chips(x.in.params, "")) + row("读", chips(x.in.reads, "f-r"));
+  const viaB = `<div class="ph-l">${x.via.phases.map((p, i) => `<span><i>${i + 1}</i>${esc(p.t)}${p.loop ? `<em>↺ 循环</em>` : ""}</span>`).join("")}</div>` + row("外部", chips(x.via.ext, "f-h")) + row("工具", chips(x.via.tools, ""));
+  const outB = row("写", chips(x.out.writes, "f-w")) + row("推送", chips(x.out.pushes, "f-p")) + row("结果", x.out.ok.map((t) => `<span class="res">${esc(t)}</span>`).join(""))
+    + row("转交", x.out.links.map((l) => `<button class="lnk2" data-flow="${esc(l.flow ?? "")}">${ic("share", 11)}${esc(l.t)}</button>`).join(""));
+  return `<section class="ibo"><div class="ib ib-in"><div class="ibh"><i>I</i>输入<em>什么进来</em></div>${inB || `<span class="res">无参数</span>`}</div><div class="iba">↓</div>
+    <div class="ib ib-br"><div class="ibh"><i>B</i>经过<em>靠什么完成</em></div>${viaB}</div><div class="iba">↓</div>
+    <div class="ib ib-out"><div class="ibh"><i>O</i>输出<em>最终产出</em></div>${outB}${x.out.stops ? `<span class="res" style="color:var(--ink-4)">另有 ${x.out.stops} 种情况会停下，见下方</span>` : ""}</div></section>`;
+}
+// 只重画画布（折叠 / 换画法）：顶栏、右栏、镜头都不动；已在的节点不重播入场，平滑挪到新位置，只有新出来的淡入
+function renderFlowMap() {
+  const map = fpMap(); if (!map) return;
+  const { s, v } = flowNow();
+  const pos = (n) => [parseFloat(n.style.left), parseFloat(n.style.top)];
+  const old = new Map([...map.querySelectorAll(".nd")].map((n) => [n.dataset.id, pos(n)]));
+  map.innerHTML = FLOW.safe(v.r, s);
+  if (old.size) {
+    for (const n of map.querySelectorAll(".nd")) {
+      const o = old.get(n.dataset.id); if (!o) continue;
+      n.style.animation = "none";
+      const [x, y] = pos(n), dx = o[0] - x, dy = o[1] - y;
+      if (!dx && !dy) continue;
+      n.style.transform = `translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => { n.style.transition = "transform var(--morph) var(--ease-in-out)"; n.style.transform = ""; }));
+      n.addEventListener("transitionend", () => { n.style.transition = ""; }, { once: true });
+    }
+    // 两端都是老节点的线：不重画描边动画，直接在新位置出现
+    for (const l of map.querySelectorAll(".lk, .foldn")) if (old.has(l.dataset.path?.split(" ").pop())) { l.style.animation = "none"; l.style.strokeDashoffset = "0"; }
+  }
+  if (!FCAM.has(camKey())) { const c = fitCam(); if (c) FCAM.set(camKey(), c); }
+  applyCam();
+}
+function renderFlow() {
+  const el = document.getElementById("fp");
+  el.classList.toggle("in", !!S.flow);
+  if (!S.flow) return;
+  const { f, s, sh, v } = flowNow();
+  const dom = f.dom && byId.get(f.dom);
+  el.innerHTML = `<header class="fp-h"><button class="back" data-flowclose title="回到系统图  Esc">${ic("chevRight", 14)}系统图</button>${dom ? `<span class="crumb hue-${hueOf(dom.id)}" title="${esc(dom.label)}"><span class="tile">${ic(dom.icon ?? "grid", 13)}</span></span>` : ""}
+    <h2>${esc(f.name)}</h2><span class="tag ${f.source === "sem" ? "" : "w"}" title="${f.source === "sem" ? "agent 按代码整理过，节点都锚在代码上" : "按代码控制流自动生成，还没整理：阶段与人话名由 agent 补"}">${f.source === "sem" ? "已整理" : "草稿"}</span><span class="tag">${f.size} 节点</span>
+    <span class="fp-st" title="${esc(f.story ?? "")}">${esc(f.story ?? "")}</span>
+    ${FLOW.seg("fp", s, sh, v, "out").replace('<i class="auto">', `<i class="auto" title="${esc(sh.why)}">`)}
+    <span class="fz"><button data-cam="fit" title="缩放到看得到全图">适应全图</button><button data-cam="1">100%</button><em id="fzv"></em></span></header>
+    <div class="fp-b"><div class="split"><div class="map" title="拖动平移 · ⌘ + 滚轮缩放 · 点节点折叠 · ⌘ 点节点打开源码">${FLOW.safe(v.r, s)}</div>${s.all.some((n) => n.k === "exit")
+      ? FLOW.outSide(s).replace('<aside class="side">', `<aside class="side">${iboHtml(f)}`).replace('<div class="cap">', '<div class="cap why-c">')
+      : `<aside class="side">${iboHtml(f)}</aside>`}</div></div>`;
+  if (!FCAM.has(camKey())) { const c = fitCam(); if (c) FCAM.set(camKey(), c); }
+  applyCam();
+}
+// 流程图的镜头：打开时缩到看得到全图（最小 0.5，再小字就读不了，剩下的拖着看）；拖空白平移，⌘ + 滚轮缩放，普通滚轮平移
+const FCAM = new Map();   // 流程 + 视图 → { k, x, y }
+const camKey = () => S.flow + "|" + (FVIEW.get(S.flow) ?? "auto");
+const fpMap = () => document.querySelector("#fp .split > .map");
+function fitCam() {
+  const map = fpMap(), cv = map?.querySelector(".cv"); if (!cv) return null;
+  const mw = map.clientWidth, mh = map.clientHeight, cw = cv.offsetWidth, ch = cv.offsetHeight;
+  const k = Math.max(0.5, Math.min(1, (mw - 32) / cw, (mh - 32) / ch));
+  return { k, x: Math.max(16, (mw - cw * k) / 2), y: Math.max(16, (mh - ch * k) / 2) };
+}
+function applyCam() {
+  const cv = fpMap()?.querySelector(".cv"), c = FCAM.get(camKey());
+  if (!cv || !c) return;
+  cv.style.transformOrigin = "0 0"; cv.style.transform = `translate(${c.x}px,${c.y}px) scale(${c.k})`;
+  const z = document.getElementById("fzv"); if (z) z.textContent = Math.round(c.k * 100) + "%";
+}
+function openFlow(id) { S.flow = id; S.pop = null; renderIsland(); renderPop(); renderFlow(); }
+function closeFlow() { S.flow = null; renderFlow(); }
+{
+  const fp = document.getElementById("fp");
+  fp.addEventListener("click", (e) => {
+    const cam = e.target.closest("[data-cam]");
+    if (cam) { FCAM.set(camKey(), cam.dataset.cam === "fit" ? fitCam() : { k: 1, x: 16, y: 16 }); return applyCam(); }
+    if (panMoved) return;   // 拖动平移松手不算点击
+    const nodeEl = e.target.closest("[data-id]");
+    const f = S.flow && D.flows.find((x) => x.id === S.flow);
+    if (!nodeEl || !f) return;
+    const s = flowSpec(f), n = s.all.find((x) => x.id === nodeEl.dataset.id);
+    if ((e.metaKey || e.ctrlKey) && n?.a) { const [file, line] = n.a.split(":"); location.href = vsc(n.side ?? "S", file, line); return; }
+    if (n?.k === "link" && n.flow && D.flows.some((x) => x.id === n.flow)) return openFlow(n.flow);   // 跳到另一条流程（交给后台 / 续跑）
+    if (!nodeEl.dataset.tog || !n?.kids.length) return;
+    const fo = FLOW.FOLD.get(s.name) ?? new Set(); FLOW.FOLD.set(s.name, fo);
+    fo.has(n.id) ? fo.delete(n.id) : fo.add(n.id); renderFlowMap();
+  });
+  let pan = null, panMoved = false;
+  fp.addEventListener("pointerdown", (e) => {
+    const map = e.target.closest(".split > .map"); panMoved = false;
+    if (!map || e.button !== 0 || e.target.closest(".nd")) return;
+    const c = FCAM.get(camKey()); if (!c) return;
+    pan = { x: e.clientX, y: e.clientY, cx: c.x, cy: c.y }; map.setPointerCapture(e.pointerId);
+  });
+  fp.addEventListener("pointermove", (e) => {
+    if (!pan) return;
+    const c = FCAM.get(camKey()), dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+    if (!panMoved && Math.hypot(dx, dy) < 4) return;
+    panMoved = true; fpMap().classList.add("panning");
+    c.x = pan.cx + dx; c.y = pan.cy + dy; applyCam();
+  });
+  fp.addEventListener("pointerup", () => { pan = null; fpMap()?.classList.remove("panning"); });
+  fp.addEventListener("wheel", (e) => {
+    const map = e.target.closest(".split > .map"), c = FCAM.get(camKey());
+    if (!map || !c) return;
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {   // 以指针为中心缩放
+      const r = map.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top, k = Math.min(2, Math.max(0.3, c.k * Math.exp(-e.deltaY * 0.01)));
+      c.x = mx - (mx - c.x) * (k / c.k); c.y = my - (my - c.y) * (k / c.k); c.k = k;
+    } else { c.x -= e.deltaX; c.y -= e.deltaY; }
+    applyCam();
+  }, { passive: false });
+  // 流程图不做悬停聚焦：整张图压暗再亮回来太闪；细节在悬停提示里
+}
+
+/* ================= 抽屉内容 =================
+   主抽屉讲点中的卡；主抽屉里点一行 = 从那一行鼓出二级抽屉。二级抽屉里再点一行就地换内容，头部「‹ 上一层」退回。
+   S.side = { kind: group | loop | leaf, id, from }，from 是上一层（链的根就是主抽屉里被点的那一行，颈接在它身上） */
+const pMin = document.getElementById("pMin"), pSin = document.getElementById("pSin");
+const skey = (x) => x ? x.kind + ":" + x.id : null;
+const rootOf = (x) => { while (x?.from) x = x.from; return x; };
+const chainKey = (x) => { const out = []; for (; x; x = x.from) out.push(skey(x)); return out.join(SEP); };
+let mainKey = "", sideKey = "";
+function renderPanels() {
+  const n = S.sel && byId.get(S.sel);
+  const root = skey(rootOf(S.side));
+  const mk = n ? [n.id, S.open.has(n.id), G.edges.length].join(SEP) : "";
+  if (n && mk !== mainKey) {
+    const st = pMin.querySelector(".pb")?.scrollTop ?? 0, same = mainKey.split(SEP)[0] === n.id;
+    pMin.innerHTML = mainHtml(n);
+    if (same) pMin.querySelector(".pb").scrollTop = st;
+    else if (g.v > 0.5) swap(pMin);   // 抽屉开着换了一张卡：新内容淡入，不硬切
+  }
+  if (n) { mainKey = mk; for (const el of pMin.querySelectorAll("[data-side]")) el.classList.toggle("on", el.dataset.side === root); }
+  const sk = chainKey(S.side);
+  if (S.side && sk !== sideKey) {
+    pSin.innerHTML = S.side.kind === "loop" ? loopHtml(D.loops.find((l) => l.id === S.side.id)) : S.side.kind === "group" ? groupHtml(byId.get(S.side.id)) : leafHtml(byId.get(S.side.id));
+    if (sideKey && gs.v > 0.5) swap(pSin);
+  }
+  sideKey = S.side ? sk : "";
+  liquidTo(!!n, !!S.side);
+}
+function swap(el) { el.classList.add("swap"); void el.offsetWidth; el.classList.remove("swap"); }
+
+// 头：面包屑（泳道 / 祖先，前面一枚域色小块）或「‹ 上一层」· 标题 · 路由；右上角展开到图上、关闭
+const crumbOf = (n) => `<div class="crumb hue-${hueOf(n.id)}"><span class="tile">${ic(n.icon ?? "grid", 13)}</span><span>${esc([laneOf(n.col)?.name ?? "", ...ancestors(n.id).map((a) => byId.get(a).human ?? byId.get(a).label)].filter(Boolean).join(" / "))}</span></div>`;
+const backOf = () => { const f = S.side?.from; if (!f) return null; const t = f.kind === "loop" ? D.loops.find((l) => l.id === f.id)?.name : byId.get(f.id)?.human ?? byId.get(f.id)?.label;
+  return `<div class="crumb"><button class="back" data-back>${ic("chevRight", 14)}${esc(t ?? "上一层")}</button></div>`; };
+const head = ({ top, title, rt, close, expand }) => `<div class="ph"><div class="tt">${top}<h3 class="sel-text">${esc(title)}</h3>${rt ? `<div class="rt sel-text">${rt}</div>` : ""}</div>
+  ${expand ? `<button class="px" data-exp-panel="${esc(expand)}" aria-label="在图上展开" title="在图上展开">${ic("expand", 16)}</button>` : ""}<button class="px" data-close="${close}" aria-label="关闭" title="关闭  Esc">${ic("close", 16)}</button></div>`;
+const rtOf = (n) => n.routes ? `${n.human ? esc(n.label) + "<br>" : ""}${n.routes.map(esc).join("<br>")}` : n.route ? esc(n.route) : "";
+
+// 一排数：端点 / 循环（小环 = 有入口的占比）/ 写到几张表；存储域换成 表 / 多域共写
+function statsHtml(id) {
+  const leaves = deep(id).map((k) => byId.get(k)).filter((c) => !c.kids.length);
+  const cnt = (f) => leaves.filter(f).length, ls = loopsIn(id), trig = ls.filter((l) => l.triggers.length).length;
+  const tbs = cnt((c) => c.kind === "table"), eps = cnt((c) => c.kind === "endpoint");
+  const wr = new Set(D.edges.filter((e) => e.k === "writes" && within(id, e.a)).map((e) => e.b)).size;
+  const items = [eps && ["端点", eps], ls.length && ["循环", ls.length, HAS_CLIENT ? ring(trig, ls.length) : "", HAS_CLIENT ? `${trig} 个有入口` : ""], wr && ["写到表", wr],
+    tbs && ["表", tbs], tbs && ["多域共写", cnt((c) => c.kind === "table" && FLAG_T().has(c.id))], !eps && !tbs && ["项", leaves.length]].filter((x) => x && x[1]).slice(0, 3);
+  return items.length && !(items.length === 1 && items[0][0] === "项") ? `<div class="stats">${items.map(([l, v, g, sub]) => `<div class="st"><b>${v}${g ?? ""}</b><span>${l}${sub ? ` · ${sub}` : ""}</span></div>`).join("")}</div>` : "";
+}
+// 体检：这张卡（含框里的子卡）被点名的项；点一项 = 画布只亮它
+function findingsHtml(id) {
+  const rows = [];
+  (D.findings ?? []).forEach((f, fi) => f.items.forEach((it, ii) => {
+    if (it.nodes.some((x) => within(id, x))) rows.push(`<button class="fr fx" data-flag="${fi}:${ii}" title="${esc(f.why)}"><i class="dotw"></i><span class="bx"><b>${esc(it.label)}</b><i>${esc(f.title)} · ${esc(it.sub)}</i></span>${chev()}</button>`);
+  }));
+  const SHOW = 3;
+  return rows.length ? `<section class="sec"><div class="cap">体检<em>${rows.length}</em></div><div class="list">${rows.slice(0, SHOW).join("")}</div>${rows.length > SHOW ? `<details class="more"><summary>其余 ${rows.length - SHOW} 项</summary><div class="list">${rows.slice(SHOW).join("")}</div></details>` : ""}</section>` : "";
+}
+// 依赖只讲到域：往外调谁、谁调进来，小条是调用根数；体检命中的着警示色。细到卡请在图上展开
+function depsHtml(n) {
+  const own = nearDom(n.id) ?? n.id, inN = (id) => within(n.id, id);
+  const group = (list, pick) => { const by = new Map();
+    for (const e of list) { const d = nearDom(pick(e)) ?? pick(e), x = by.get(d) ?? by.set(d, { n: 0, f: false }).get(d); x.n += [...e.kinds.values()].reduce((a, b) => a + b, 0); x.f ||= !!e.f; }
+    return [...by].sort((a, b) => +b[1].f - +a[1].f || b[1].n - a[1].n); };
+  const out = group(G.edges.filter((e) => inN(e.a) && !inN(e.b)), (e) => e.b), inc = group(G.edges.filter((e) => inN(e.b) && !inN(e.a)), (e) => e.a);
+  const max = Math.max(1, ...[...out, ...inc].map(([, x]) => x.n));
+  const row = ([d, x]) => `<button class="fr hue-${hueOf(d)}" data-go="${esc(d)}" title="${x.f ? "含体检命中的调用 · " : ""}点一下在图上定位"><i class="sw"></i><span class="bx"><b>${d === own ? "本域内" : esc(byId.get(d)?.label ?? d)}</b></span><span class="rt3"><span class="${x.f ? "w" : ""}">${x.n}</span>${bar(x.n, max, x.f)}</span></button>`;
+  return sec("它依赖", out.length, out.map(row).join("")) + sec("依赖它", inc.length, inc.map(row).join(""));
+}
+// 单张叶子（端点 / 表 / 文件 / 出站）：标签 · 注释 · 读写方 · 源码
+function leafBody(c) {
+  const side = c.side ?? (laneOf(c.col)?.id === "client" ? "C" : "S"), href = c.file && vsc(side, c.file, c.line);
+  const tags = [c.auth === "anonymous" && "匿名", c.auth === "jwt" && "JWT", c.rateLimit && `限流 ${c.rateLimit}`].filter(Boolean);
+  const domRow = (d) => `<button class="fr hue-${hueOf(d)}" data-go="${esc(d)}"><i class="sw"></i><span class="bx"><b>${esc(byId.get(d)?.label ?? d)}</b></span>${chev()}</button>`;
+  const plain = (t, mono) => `<div class="fr"><span class="bx"><${mono ? "i class=\"m\"" : "b"}>${esc(t)}</${mono ? "i" : "b"}></span></div>`;
+  let x = "";
+  if (c.kind === "table") { const u = useOf(c.id); x = sec(`写入方${FLAG_T().has(c.id) ? ` <span class="tag w">多域共写</span>` : ""}`, u.w.size, [...u.w].map(domRow).join("")) + sec("读取方", u.r.size, [...u.r].map(domRow).join("")); }
+  if (c.usedBy?.length) x += sec("被这些域用", c.usedBy.length, c.usedBy.map((d) => plain(d)).join(""));
+  if (c.callers?.length) x += sec("发起方", c.callers.length, c.callers.map((d) => plain(d, true)).join("")) + `<p class="dim">目标地址来自运行时配置，静态抽取拿不到，这里只列发起方。</p>`;
+  return `${tags.length ? `<div class="tags">${tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}${c.summary ? `<p class="sel-text">${esc(c.summary)}</p>` : ""}${x}
+    ${href ? sec("源码", 1, `<a class="fr" href="${href}" title="在编辑器打开"><span class="bx"><i class="m">${esc(c.file)}${c.line ? ":" + c.line : ""}</i></span>${chev()}</a>`) : ""}`;
+}
+
+// 子项：叶子按内容分节（端点 / 表 / 文件），带子项的列成功能行；混着的（域里几个端点 + 一个「内部实现」组）两样都列，多的在前
+function kidsBody(ids) {
+  const groups = ids.filter((k) => byId.get(k).kids.length), leaves = ids.filter((k) => !byId.get(k).kids.length);
+  const max = Math.max(0, ...groups.map((k) => byId.get(k).kids.length));
+  const g = sec(leaves.length ? "分组" : "功能", groups.length, groups.map((k) => fnRow(k, max)).join("")), l = leafSecs(leaves);
+  return groups.length >= leaves.length ? g + l : l + g;
+}
+// 主抽屉：有子项的卡 = 一排数 + 功能（或直接按内容分节的叶子）；叶子卡 = 详情 + 它的业务循环。其后体检、依赖
+function mainHtml(n) {
+  const tags = n.plan ? `<div class="tags"><span class="tag w">想要 · 还没实现</span></div>` : n.met ? `<div class="tags"><span class="tag">意图已实现</span></div>` : "";
+  const body = n.kids.length
+    ? statsHtml(n.id) + flowRows(n.id) + kidsBody(n.kids)
+    : flowRows(n.id) + leafBody(n) + sec("业务循环", loopsIn(n.id).length, loopsIn(n.id).map(loopRow).join(""));
+  return head({ top: crumbOf(n), title: n.human ?? n.label, rt: rtOf(n), close: "main", expand: canOpen(n) && !S.open.has(n.id) ? n.id : null })
+    + `<div class="pb">${tags}${n.desc ? `<p class="sel-text">${esc(n.desc)}</p>` : ""}${body}${findingsHtml(n.id)}${depsHtml(n)}</div>`;
+}
+// 二级抽屉（一）：一个功能组——一排数 + 按内容分节的叶子（组里还有组时列成功能行）
+function groupHtml(c) {
+  return head({ top: backOf() ?? crumbOf(c), title: c.human ?? c.label, rt: c.desc ? esc(c.desc) : "", close: "side" })
+    + `<div class="pb">${statsHtml(c.id)}${kidsBody(c.kids)}</div>`;
+}
+// 二级抽屉（二）：单张叶子
+function leafHtml(c) {
+  const ls = loopsIn(c.id);
+  return head({ top: backOf() ?? crumbOf(c), title: c.human ?? c.label, rt: rtOf(c), close: "side" })
+    + `<div class="pb">${leafBody(c)}${sec("业务循环", ls.length, ls.map(loopRow).join(""))}<button class="act" data-go="${esc(c.id)}">${ic("search", 14)}在图上定位</button></div>`;
+}
+// 二级抽屉（三）：一条业务循环——故事一句 · 从哪触发 · 怎么走（竖脊串起步骤，画布同时按步骤点亮）
+function loopHtml(l) {
+  const steps = loopSteps(l), T = l.triggers, SHOW = 5;
+  const trig = (t) => `<a class="fr" href="${vsc("C", t.file, t.line)}" title="在编辑器打开"><span class="bx"><b>${esc(t.label)}</b><i class="m">${esc(t.file)}:${t.line}</i></span>${chev()}</a>`;
+  const trigSec = !HAS_CLIENT ? "" : T.length
+    ? `<section class="sec"><div class="cap">从哪触发<em>${T.length}</em></div><div class="list">${T.slice(0, SHOW).map(trig).join("")}</div>${T.length > SHOW ? `<details class="more"><summary>其余 ${T.length - SHOW} 处</summary><div class="list">${T.slice(SHOW).map(trig).join("")}</div></details>` : ""}</section>`
+    : `<p class="dim">客户端目前没有入口走到这里。</p>`;
+  const path = steps.map((s, i) => `${i && s.phase !== steps[i - 1].phase ? `<div class="phase">${s.phase === 1 ? "推送之后，接收端这边" : "再次推送之后"}</div>` : ""}<button class="step" data-step="${esc(s.a + SEP + s.b)}"><span class="no">${s.no}</span><span class="sx"><b>${esc(byId.get(s.a).human ?? byId.get(s.a).label)} → ${esc(byId.get(s.b).human ?? byId.get(s.b).label)}</b><span>${esc(stepText(s))}</span></span></button>`).join("");
+  return head({ top: backOf() ?? crumbOf(byId.get(l.endpoint)), title: l.name, rt: `${esc(l.verbs.join(","))}　${esc(routeTail(l.route))}`, close: "side" })
+    + `<div class="pb">${l.story ? `<div class="insight sel-text">${esc(l.story)}</div>` : ""}${(() => { const f = D.flows.find((x) => x.loop === l.id); return f ? `<button class="fc-main" data-flow="${esc(f.id)}"><span>看它怎么跑</span><i>${f.source === "sem" ? "已整理" : "草稿"} · ${f.size} 个节点</i>${ic("chevRight", 14)}</button>` : ""; })()}${trigSec}
+      <section class="sec"><div class="cap">怎么走<em>${steps.length} 步</em></div><div class="path">${path}</div></section>
+      <p class="dim">在图上展开卡片，步骤会细到功能、端点和表。</p></div>`;
+}
+
+/* ================= 液态抽屉（几何与弹簧） ================= */
+const MAIN_OPEN = [230, 0.55], MAIN_SHUT = [840, 1], SIDE_OPEN = [260, 0.6], SIDE_SHUT = [1040, 1];
+const LEAD_K = 420, TRAIL_K = 160, NECK_ZETA = 0.82;   // 颈换位置：领头的边硬、先到，尾边软、后跟
+const OVERSHOOT = 1.15, SLIVER = 6, R = 16, NECK_F = 7;
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const spring = (v = 0) => ({ v, vel: 0 });
+const stepS = (s, t, k, z, dt) => { s.vel += (k * (t - s.v) - 2 * Math.sqrt(k) * z * s.vel) * dt; s.v += s.vel * dt; };
+const near = (s, t) => Math.abs(s.v - t) < 0.002 && Math.abs(s.vel) < 0.02;
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const r2 = (v) => Math.round(v * 100) / 100;
+// 圆角矩形，顺时针（与颈同绕向，nonzero 下叠处才是并集，反了会抵消成洞）
+function rrect(x, y, w, h, r) {
+  w = Math.max(w, 0.2); h = Math.max(h, 0.2); r = clamp(r, 0, Math.min(w / 2, h / 2));
+  return `M${r2(x + r)},${r2(y)} H${r2(x + w - r)} A${r2(r)} ${r2(r)} 0 0 1 ${r2(x + w)},${r2(y + r)} V${r2(y + h - r)} A${r2(r)} ${r2(r)} 0 0 1 ${r2(x + w - r)},${r2(y + h)} H${r2(x + r)} A${r2(r)} ${r2(r)} 0 0 1 ${r2(x)},${r2(y + h - r)} V${r2(y + r)} A${r2(r)} ${r2(r)} 0 0 1 ${r2(x + r)},${r2(y)} Z`;
+}
+// 两块面之间的一截颈：两端凹角按墙上还剩多少直边收小；贴近某块的圆角时把那个角垫成直角
+function joint({ a, b, t, h, A, B, F, CR }) {
+  const room = (S2) => clamp(Math.min(F, t - S2.y, S2.y + S2.h - (t + h)), 0, F);
+  const [L, Rw, SL, SR] = a < b ? [a, b, A, B] : [b, a, B, A];
+  const fl = room(SL), fr = room(SR);
+  let d = `M${r2(L)},${r2(t - fl)}` + (fl > 0 ? ` A${r2(fl)} ${r2(fl)} 0 0 0 ${r2(L + fl)},${r2(t)}` : ` L${r2(L)},${r2(t)}`) + ` H${r2(Rw - fr)}`;
+  d += fr > 0 ? ` A${r2(fr)} ${r2(fr)} 0 0 0 ${r2(Rw)},${r2(t - fr)}` : ` L${r2(Rw)},${r2(t)}`;
+  d += ` V${r2(t + h + fr)}` + (fr > 0 ? ` A${r2(fr)} ${r2(fr)} 0 0 0 ${r2(Rw - fr)},${r2(t + h)}` : "") + ` H${r2(L + fl)}`;
+  d += (fl > 0 ? ` A${r2(fl)} ${r2(fl)} 0 0 0 ${r2(L)},${r2(t + h + fl)}` : ` L${r2(L)},${r2(t + h)}`) + " Z";
+  const square = (wx, S2, right) => {
+    const cw = Math.min(CR, S2.w), x0 = right ? wx - 1 : wx - cw, x1 = right ? wx + cw : wx + 1, f = room(S2);
+    let o = "";
+    if (t - f < S2.y + CR) o += ` M${r2(x0)},${r2(S2.y)} H${r2(x1)} V${r2(S2.y + CR)} H${r2(x0)} Z`;
+    if (t + h + f > S2.y + S2.h - CR) o += ` M${r2(x0)},${r2(S2.y + S2.h - CR)} H${r2(x1)} V${r2(S2.y + S2.h)} H${r2(x0)} Z`;
+    return o;
+  };
+  return d + square(L, SL, false) + square(Rw, SR, true);
+}
+const soften = (v, end, room) => v <= end || room <= 0 ? Math.min(v, end + Math.max(0, room)) : end + room * Math.tanh((v - end) / room);
+const pM = document.getElementById("pM"), pS = document.getElementById("pS"), liq = document.getElementById("liq");
+const plM = document.getElementById("plM"), plS = document.getElementById("plS");
+const g = spring(0), gs = spring(0), nt = spring(0), nb = spring(0);
+let gTo = 0, gsTo = 0, raf = 0, last = 0, neckInit = false;
+const boxOf = (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+// 颈接在哪：主抽屉里开出延伸抽屉的那一块（按 data-side 找回来，重渲之后照样找得到）
+function span() {
+  const Mf = boxOf(pM);
+  const blk = S.side && pMin.querySelector(`[data-side="${CSS.escape(skey(rootOf(S.side)))}"]`);
+  if (!blk) return { t: Mf.y + 80, h: 60 };
+  const r = blk.getBoundingClientRect();
+  const t = clamp(r.top, Mf.y + R, Mf.y + Mf.h - R - 40);
+  return { t, h: clamp(r.height, 36, Mf.y + Mf.h - R - t) };
+}
+function fitPane(el, fr, cur, p, content) {
+  if (!cur) { el.style.opacity = "0"; el.style.pointerEvents = "none"; return; }
+  const r = Math.min(R, cur.w / 2, cur.h / 2);
+  const t = Math.max(0, cur.y - fr.y), b = Math.max(0, fr.y + fr.h - (cur.y + cur.h));
+  const l = Math.max(0, cur.x - fr.x), rt = Math.max(0, fr.x + fr.w - (cur.x + cur.w));
+  el.style.clipPath = `inset(${t}px ${rt}px ${b}px ${l}px round ${r}px)`;
+  el.style.opacity = "1";
+  el.firstElementChild.style.opacity = String(content);
+  el.style.pointerEvents = p > 0.3 ? "auto" : "none";
+}
+function plate(el, b) {
+  if (!b) { el.style.visibility = "hidden"; return; }
+  el.style.visibility = "visible";
+  el.style.transform = `translate(${b.x}px, ${b.y}px)`;
+  el.style.width = `${b.w}px`; el.style.height = `${b.h}px`;
+  el.style.borderRadius = `${Math.min(R, b.w / 2, b.h / 2)}px`;
+}
+function drawLiquid() {
+  const Mf = boxOf(pM), Sf = boxOf(pS);
+  const p = g.v, q = gs.v;
+  let M = null, Sx = null;
+  // 主面：卡片墙没有来源（液桥会横穿同排别的卡），满高、从右缘往左长，宽带过冲压进右缘那道缝
+  if (p > 0.004) { const w = soften(lerp(SLIVER, Mf.w, clamp(p, 0, OVERSHOOT)), Mf.w, 14); M = { x: Mf.x + Mf.w - w, y: Mf.y, w, h: Mf.h }; }
+  // 延伸抽屉：右缘钉在颈那一侧，从颈那么高、6px 宽的一条鼓出来，再满高铺开
+  if (M && q > 0.004) {
+    const w = lerp(SLIVER, Sf.w, clamp(q, 0, OVERSHOOT)), ec = clamp(q);
+    Sx = { x: Sf.x + Sf.w - w, y: lerp(nt.v, Sf.y, ec), w, h: lerp(nb.v - nt.v, Sf.h, ec) };
+  }
+  let d = M ? rrect(M.x, M.y, M.w, M.h, R) : "";
+  if (M && Sx) {
+    d += rrect(Sx.x, Sx.y, Sx.w, Sx.h, R);
+    d += joint({ a: Sx.x + Sx.w, b: M.x, t: nt.v, h: nb.v - nt.v, A: { y: Sx.y, h: Sx.h, w: Sx.w }, B: { y: M.y, h: M.h, w: M.w }, F: NECK_F, CR: R });
+  }
+  liq.setAttribute("d", d);
+  liq.style.opacity = String(clamp(p * 8));   // 液体几乎一开就在，只在最后一刻淡掉
+  fitPane(pM, Mf, M, p, clamp((p - 0.1) / 0.3));
+  fitPane(pS, Sf, Sx, q, clamp((q - 0.1) / 0.3));
+  plate(plM, M); plate(plS, Sx);
+}
+function frame(now) {
+  raf = 0;
+  const dt = Math.min(1 / 30, Math.max(0, (now - last) / 1000));
+  last = now;
+  const sp = span();
+  if (!neckInit) { nt.v = sp.t; nb.v = sp.t + sp.h; neckInit = true; }
+  const down = sp.t > nt.v;
+  stepS(nt, sp.t, down ? TRAIL_K : LEAD_K, NECK_ZETA, dt);
+  stepS(nb, sp.t + sp.h, down ? LEAD_K : TRAIL_K, NECK_ZETA, dt);
+  stepS(g, gTo, ...(gTo > g.v ? MAIN_OPEN : MAIN_SHUT), dt);
+  stepS(gs, gsTo, ...(gsTo > gs.v ? SIDE_OPEN : SIDE_SHUT), dt);
+  const busy = !near(g, gTo) || !near(gs, gsTo) || Math.abs(nt.v - sp.t) + Math.abs(nb.v - sp.t - sp.h) > 0.3 || Math.abs(nt.vel) + Math.abs(nb.vel) > 0.3;
+  if (busy) raf = requestAnimationFrame(frame);
+  else { g.v = gTo; g.vel = 0; gs.v = gsTo; gs.vel = 0; if (!gsTo) neckInit = false; }
+  drawLiquid();
+}
+function liquidTo(main, side) {
+  const nextSide = main && side ? 1 : 0;
+  if (nextSide && !gsTo) neckInit = false;   // 新开的延伸抽屉：颈从这一次的来源块起步，不从上一次的位置流过来
+  gTo = main ? 1 : 0; gsTo = nextSide;
+  document.body.style.setProperty("--dw-w", `${main ? 396 + (nextSide ? 374 : 0) : 0}px`);
+  if (reduced) { g.v = gTo; gs.v = gsTo; }
+  drawLiquid();   // 同一批次里写下起手态，浏览器还没画 —— 第一帧不闪整面
+  if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
+}
+
+/* ================= 一次渲染全部 ================= */
+function render() { renderCanvas(); renderHead(); renderIsland(); renderPop(); renderPanels(); }
+
+/* ================= 聚焦：只认点击 ================= */
+function focusCard(id) {
+  if (S.sel !== id) S.side = null;
+  S.sel = id; S.edgeSel = null;
+  render();
+}
+function blurCard() { S.sel = null; S.side = null; render(); }
+// 主抽屉里点一行：开二级抽屉，再点同一行收起；二级抽屉里点一行：就地换成下一层，记住上一层
+function focusSide(v, nested) {
+  const [kind, ...rest] = v.split(":"), id = rest.join(":");
+  if (!nested && skey(rootOf(S.side)) === v) S.side = null;
+  else S.side = { kind, id, from: nested ? S.side : null };
+  render();
+  if (S.side?.kind === "loop") fitLoop();
+}
+// 悬停：进卡立刻聚焦预览；离开稍等再收，卡与卡之间的缝不闪
+const HOVER_OUT = 200;
+let hoverT = 0;
+const setHover = (id) => { if (S.hover !== id) { S.hover = id; renderCanvas(); } };
+bd.addEventListener("pointermove", (e) => {
+  if (drag || S.draw) return;
+  const id = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-node]")?.dataset.node ?? null;
+  clearTimeout(hoverT);
+  if (id) setHover(id); else if (S.hover) hoverT = setTimeout(() => setHover(null), HOVER_OUT);
+});
+bd.addEventListener("pointerleave", () => { clearTimeout(hoverT); setHover(null); });
+function fitLoop() { if (loopOf()) fit([...highlight(G.edges).nodes].map((n) => G.rects.get(n)).filter(Boolean), 1); }
+
+/* ================= 动作 ================= */
+function toggleOpen(id) {
+  if (!canOpen(byId.get(id))) return;
+  if (S.open.has(id)) { S.open.delete(id); for (const x of [...S.open]) if (ancestors(x).includes(id)) S.open.delete(x); }
+  else { S.open.add(id); for (const a of ancestors(id)) S.open.add(a); }
+  if (S.sel && vis(S.sel) !== S.sel) S.sel = vis(S.sel);
+  render();
+  // 展开了：镜头跟到新框，放得下就不缩
+  const f = S.open.has(id) && G.frames.find((x) => x.n.id === id);
+  if (f) fit([f], S.z);
+}
+function go(id) {
+  S.draw = false;   // 找 / 跳转是「看」的动作
+  for (const a of ancestors(id)) S.open.add(a);
+  S.pop = null; S.side = null;
+  focusCard(vis(id)); panTo(id);
+}
+// 浮岛里挑一条循环：聚焦它所在的卡，二级抽屉讲这条循环；卡是收着的域时，上一层记成主抽屉里装着它的那一行
+function openLoop(lid) {
+  const l = D.loops.find((x) => x.id === lid), sel = vis(l.endpoint);
+  const chain = [...ancestors(l.endpoint), l.endpoint], child = chain[chain.indexOf(sel) + 1];
+  S.pop = null; S.draw = false; S.sel = sel;
+  S.side = { kind: "loop", id: lid, from: child && child !== l.endpoint && byId.get(child).kids.length ? { kind: "group", id: child, from: null } : null };
+  render(); fitLoop();
+}
+
+// 体检里挑一项：把它点名的卡都露出来（展开祖先），画布只亮这些，镜头框住
+function showFlag(it) {
+  Object.assign(S, { pop: null, draw: false, sel: null, side: null, flag: it });
+  for (const id of it.nodes) for (const a of ancestors(id)) S.open.add(a);
+  render();
+  fit([...highlight(G.edges).nodes].map((id) => G.rects.get(id)).filter(Boolean), 1);
+}
+
+/* ================= 画模式：写想法 · 改想法 · 拖卡连线 =================
+   用户只表达想法（名字 + 介绍），建出来一律 kind: idea；位置就是唯一的结构信息 ——
+   落在展开的框里 = 属于那个域，落在某条泳道里 = 那一端，都不在 = 最左的「想法」泳道。
+   归成域 / 端点 / 表 / 事件是 agent 和用户商量后改文件的事，这里不问 */
+const np = document.getElementById("np");
+const KIND_CN = { idea: "想法", domain: "域", endpoint: "端点", table: "表", event: "事件", file: "模块" };
+function newAt(cx, cy) {
+  const wx = (cx - S.tx) / S.z, wy = (cy - S.ty) / S.z;
+  const inR = (r) => wx >= r.x && wx <= r.x + r.w && wy >= r.y && wy <= r.y + r.h;
+  const f = G.frames.filter(inR).sort((a, b) => a.w * a.h - b.w * b.h)[0];
+  openNp({ x: cx, y: cy, parent: f?.n.id ?? null, lane: G.lanes.find(inR)?.id ?? "idea" });
+}
+// 双击想法卡：就地改名字 / 介绍，往里加、删除也在这里
+function editAt(cx, cy, id) {
+  const x = JSON.parse(ITXT).nodes.find((n) => n.id === id);
+  openNp({ x: cx, y: cy, edit: id, kind: x.kind, label: x.label, desc: x.desc ?? "" });
+}
+function openNp(s) {
+  S.np = { err: "", ...s };
+  np.innerHTML = "";
+  renderNp(true);
+}
+function renderNp(focus) {
+  np.hidden = !S.np;
+  if (!S.np) return;
+  const s = S.np, p = s.parent && byId.get(s.parent);
+  const val = (k) => esc(np.querySelector(`[data-f=${k}]`)?.value ?? s[k] ?? "");
+  const head = s.edit ? `${ic("info", 14)}改${KIND_CN[s.kind]}${s.kind !== "idea" ? `<span class="chip a" title="agent 归类后的种类">已归类</span>` : ""}`
+    : `${ic("plus", 14)}写到<span class="chip">${esc(p ? p.human ?? p.label : D.lanes.find((l) => l.id === s.lane).name)}</span>`;
+  np.innerHTML = `<div class="nh">${head}</div>
+    <input data-f="label" autocomplete="off" spellcheck="false" placeholder="名字" value="${val("label")}">
+    <textarea data-f="desc" autocomplete="off" spellcheck="false" rows="3" placeholder="介绍：想要它干什么（可空）">${val("desc")}</textarea>
+    ${s.err ? `<div class="er">${esc(s.err)}</div>` : ""}
+    <div class="lcs"><button class="act" data-np-ok>${ic(s.edit ? "info" : "plus", 14)}${s.edit ? "保存" : "写下"}　⏎</button>${s.edit ? `<button class="act" data-np-sub>${ic("plus", 14)}往里加</button><button class="act" data-np-del>${ic("close", 14)}删除</button>` : ""}</div>`;
+  const r = np.getBoundingClientRect();
+  np.style.transform = `translate(${clamp(s.x - 20, 12, innerWidth - r.width - 12)}px,${clamp(s.y + 12, 12, innerHeight - r.height - 12)}px)`;
+  if (focus) np.querySelector("[data-f=label]").focus();
+}
+function closeNp() { S.np = null; renderNp(); }
+function reveal(id) { for (const a of ancestors(id)) S.open.add(a); render(); panTo(id); }
+async function submitNp() {
+  const s = S.np, v = (k) => np.querySelector(`[data-f=${k}]`).value.trim();
+  const label = v("label"), desc = v("desc");
+  if (!label) { s.err = "要个名字"; return renderNp(); }
+  closeNp();
+  if (s.edit) return edit((I) => { const x = I.nodes.find((n) => n.id === s.edit); x.label = label; if (desc) x.desc = desc; else delete x.desc; });
+  const x = { id: "i:" + Date.now().toString(36), kind: "idea", label, ...(s.parent ? { parent: s.parent } : { lane: s.lane }), ...(desc ? { desc } : {}) };
+  if (await edit((I) => I.nodes.push(x)) && byId.has(x.id)) reveal(x.id);
+}
+// 连线种类按两端推：指向表 = 写，指向事件 = 推送，客户端到服务端 = 请求，其余 = 调用；要别的种类让 agent 改文件
+function linkKind(a, b) {
+  const B = byId.get(b), la = laneOf(byId.get(a).col)?.id, lb = laneOf(B.col)?.id;
+  return B.kind === "table" ? "writes" : B.kind === "event" ? "push" : la === "client" && lb === "server" ? "request" : "calls";
+}
+function linkTo(a, b) { if (a !== b) edit((I) => I.edges.push({ from: a, to: b, k: linkKind(a, b) })); }
+function delNode(id) {
+  closeNp();
+  edit((I) => {
+    const gone = new Set([id]);
+    for (let grew = true; grew;) { grew = false; for (const x of I.nodes) if (x.parent && gone.has(x.parent) && !gone.has(x.id)) { gone.add(x.id); grew = true; } }
+    I.nodes = I.nodes.filter((x) => !gone.has(x.id));
+    I.edges = I.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to));
+  });
+}
+// 拖卡连线时的临时线：从起点卡中心到指针
+let tmpLn = null;
+function tmpLine(d) {
+  if (!d) return tmpLn?.remove();
+  tmpLn ??= document.createElementNS("http://www.w3.org/2000/svg", "path");
+  tmpLn.setAttribute("class", "ln plan");
+  tmpLn.setAttribute("d", d);
+  wE.appendChild(tmpLn);
+}
+np.addEventListener("click", (e) => {
+  const t = e.target.closest("button");
+  if (!t) return;
+  const s = S.np;
+  if ("npOk" in t.dataset) submitNp();
+  else if ("npSub" in t.dataset) openNp({ x: s.x, y: s.y, parent: s.edit });
+  else if ("npDel" in t.dataset) delNode(s.edit);
+});
+np.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submitNp(); } });   // ⇧⏎ 介绍里换行；输入法选字的回车不算
+
+/* ================= 输入 ================= */
+let drag = null, moved = false;
+bd.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0) return;
+  if (S.np) closeNp();
+  world.style.transition = "";
+  const from = S.draw && !e.target.closest("[data-exp]") ? e.target.closest("[data-node]")?.dataset.node : null;
+  drag = { x: e.clientX, y: e.clientY, tx: S.tx, ty: S.ty, from }; moved = false; bd.setPointerCapture(e.pointerId);
+});
+bd.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!moved && Math.hypot(dx, dy) < 4) return;
+  moved = true;
+  if (drag.from) {
+    const r = G.rects.get(drag.from), x0 = r.x + r.w / 2, y0 = r.y + r.h / 2, x1 = (e.clientX - S.tx) / S.z, y1 = (e.clientY - S.ty) / S.z;
+    return tmpLine(`M${x0},${y0} L${x1},${y1}`);
+  }
+  bd.classList.add("is-panning"); S.tx = drag.tx + dx; S.ty = drag.ty + dy; applyView();
+});
+bd.addEventListener("pointerup", (e) => {
+  bd.classList.remove("is-panning");
+  const wasDrag = moved, from = drag?.from; drag = null;
+  if (from && wasDrag) {
+    tmpLine(null);
+    const to = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-node]")?.dataset.node;
+    if (to) linkTo(from, to);
+    return;
+  }
+  if (wasDrag) return;
+  const t = document.elementFromPoint(e.clientX, e.clientY);
+  const exp = t?.closest("[data-exp]");
+  if (exp) return toggleOpen(exp.dataset.exp);
+  const node = t?.closest("[data-node]");
+  if (S.draw) return;   // 画模式单击不开抽屉
+  if (node) { const id = node.dataset.node; return S.sel === id ? blurCard() : focusCard(id); }
+  if (S.sel || S.pop) { S.pop = null; blurCard(); }
+  else if (S.flag) { S.flag = null; render(); }
+});
+bd.addEventListener("dblclick", (e) => {
+  const t = document.elementFromPoint(e.clientX, e.clientY);   // pointerdown 抓了指针，e.target 恒为画布：按坐标取真正点到的元素
+  const node = t?.closest("[data-node]");
+  if (!node) { if (S.draw && !t?.closest("[data-exp]")) newAt(e.clientX, e.clientY); return; }
+  const n = byId.get(node.dataset.node);
+  if (S.draw && n.plan) return editAt(e.clientX, e.clientY, n.id);
+  if (canOpen(n)) toggleOpen(n.id); else if (n.parent && canOpen(byId.get(n.parent))) toggleOpen(n.parent);
+});
+bd.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  world.style.transition = "";
+  if (e.ctrlKey || e.metaKey) zoomAt(Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+  else { S.tx -= e.deltaX; S.ty -= e.deltaY; applyView(); }
+}, { passive: false });
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-pop],[data-flag],[data-unflag],[data-close],[data-go],[data-openloop],[data-side],[data-step],[data-exp-panel],[data-draw],[data-back],[data-htab],[data-flow],[data-flowclose],[data-view]");
+  if (!t || bd.contains(t)) return;
+  const d = t.dataset;
+  if (d.flow) return openFlow(d.flow);
+  if ("flowclose" in d) return closeFlow();
+  if (d.view && t.closest("#fp")) {
+    FVIEW.set(S.flow, d.view);
+    for (const b of document.querySelectorAll("#fp .vseg button")) { const on = b.dataset.view === d.view; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); }
+    const map = fpMap(); if (map) map.innerHTML = "";   // 换画法不做位移过渡：节点不是同一种摆法
+    return renderFlowMap();
+  }
+  if (d.draw) { S.draw = d.draw === "1"; closeNp(); return blurCard(); }
+  if (d.htab && !d.pop) { S.htab = +d.htab; return renderPop(); }
+  if (d.pop) { const tab = d.htab ? +d.htab : null; S.pop = S.pop === d.pop && (tab === null || tab === S.htab) ? null : d.pop; S.htab = tab ?? S.htab ?? Math.max(0, (D.findings ?? []).findIndex((f) => f.items.length)); S.find = ""; return render(); }
+  if (d.flag) { const [fi, ii] = d.flag.split(":").map(Number); return showFlag(D.findings[fi].items[ii]); }
+  if ("unflag" in d) { S.flag = null; return render(); }
+  if (d.close === "main") return blurCard();
+  if (d.close === "side") { S.side = null; return render(); }
+  if ("back" in d) { S.side = S.side?.from ?? null; return render(); }
+  if (d.expPanel) return toggleOpen(d.expPanel);
+  if (d.openloop) return openLoop(d.openloop);
+  if (d.side) return focusSide(d.side, pS.contains(t));
+  if (d.go) return go(d.go);
+  if (d.step) { const [a, b] = d.step.split(SEP); return fit([G.rects.get(a), G.rects.get(b)].filter(Boolean), 1); }
+});
+document.addEventListener("input", (e) => { if (e.target.id === "dq") { S.find = e.target.value; renderPop(); } });
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && S.np) return closeNp();
+  if (e.target.matches?.("input, textarea") && e.key !== "Escape") return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") { e.preventDefault(); S.pop = "find"; S.find = ""; return render(); }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "Escape" && S.flow) return closeFlow();
+  if (S.flow) return;   // 流程页开着：画布快捷键不响应
+  if (e.key === "Escape") { if (S.pop) { S.pop = null; return render(); } if (S.flag) { S.flag = null; return render(); } if (S.side) { S.side = S.side.from ?? null; return render(); } if (S.sel) return blurCard(); return; }
+  if (e.key === "!" || (e.shiftKey && e.code === "Digit1")) return fitAll();
+  if (e.key === "+" || e.key === "=") return zoomAt(1.25);
+  if (e.key === "-") return zoomAt(0.8);
+  if (e.key.toLowerCase() === "t") { const h = document.documentElement; h.dataset.theme = h.dataset.theme === "light" ? "dark" : "light"; localStorage.setItem("atlas.theme", h.dataset.theme); }
+});
+addEventListener("resize", () => drawLiquid());
+
+document.documentElement.dataset.theme = localStorage.getItem("atlas.theme") ?? "dark";   // 默认黑底；T 可临时切亮
+(async () => {
+  try {
+    if (LIVE) {
+      await pull();
+      setInterval(() => pull().then(() => { if (S.err?.startsWith("连不上")) { S.err = null; renderHead(); } }, (err) => { S.err = `连不上 serve.ts：${err.message}`; renderHead(); }), 1000);
+    }
+    render(); fitAll(false);
+  } catch (err) {
+    console.error(err);
+    document.body.insertAdjacentHTML("beforeend", `<div class="fail"><b>图没画出来</b>数据或排版出错，重新生成一次试试。<span title="${esc(err.message)}"> ⓘ</span></div>`);
+  }
+})();
+</script>
+</body>
+</html>

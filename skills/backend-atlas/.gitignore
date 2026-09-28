@@ -1,0 +1,17 @@
+# 产物与中间件
+node_modules/
+extractor/bin/
+extractor/obj/
+out/
+examples/**/node_modules/
+examples/**/bin/
+examples/**/obj/
+
+# 本机项目的语义层 / 意图文件：推荐放在各自项目仓库里；放在这里的只在本机用，不发布
+semantics/
+intent/
+
+# 建在私有项目真数据上的实验页
+docs/lab/atlas-data.js
+docs/lab/main-view.html
+docs/lab/build.ts

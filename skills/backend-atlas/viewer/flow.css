@@ -1,0 +1,139 @@
+/* 流程页样式：从 docs/lab/loop-mindmap.html 抽出，统一加 .fp 前缀，不碰 atlas 其它部分 */
+/* ================= 被比较的东西：导图的原子 ================= */
+.fp .ph0 { --h: var(--h-blue); } .ph1 { --h: var(--h-purple); } .ph2 { --h: var(--h-pink); } .ph3 { --h: var(--h-orange); }
+.fp .ph4 { --h: var(--h-teal); } .ph5 { --h: var(--h-green); } .ph6 { --h: var(--h-yellow); }
+.fp .nd { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 10px; height: var(--nh, 28px); border-radius: 10px; background: var(--panel-hi, var(--panel)); box-shadow: 0 1px 2px color-mix(in srgb, #000 22%, transparent); white-space: nowrap; overflow: hidden;
+  transition: opacity var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-hover); animation: rise 0.42s var(--ez) both; animation-delay: calc(var(--d, 0) * 55ms); }
+.fp .nd > .l1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fp .nd b { font-size: 13px; font-weight: 650; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.fp .nd .nt { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+.fp .nd .rs { display: flex; gap: 4px; }
+.fp .rc { height: 17px; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 500; font-style: normal; display: inline-flex; align-items: center; color: var(--ink-2); background: var(--hover-2); }
+.fp .rc.f-w { background: color-mix(in srgb, var(--l-write) 20%, transparent); }
+.fp .rc.f-p { background: color-mix(in srgb, var(--l-push) 20%, transparent); }
+.fp .rc.f-h { background: color-mix(in srgb, var(--l-http) 22%, transparent); }
+.fp .rc.f-q { background: color-mix(in srgb, var(--l-req) 20%, transparent); }
+.fp .nd.k-root { --nh: 38px; padding: 0 14px; background: var(--ink); border-radius: 12px; }
+.fp .nd.k-root b { font-size: 16px; font-weight: 700; color: var(--bg-content); }
+.fp .nd.k-phase { --nh: 32px; background: color-mix(in srgb, var(--h) 22%, var(--panel-hi, var(--panel))); }
+.fp .nd.k-phase b { font-size: 13.5px; font-weight: 700; }
+.fp .nd .sw { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--h); }
+.fp .nd .lp { flex: none; height: 18px; padding: 0 6px; border-radius: var(--r-pill); font-size: 11px; font-weight: 650; font-style: normal; color: var(--ink-2); background: color-mix(in srgb, var(--h) 30%, transparent); display: inline-flex; align-items: center; }
+.fp .nd.k-guard b::before { content: ""; }
+.fp .nd.k-branch { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--h, var(--ink-3)) 70%, transparent); }
+.fp .nd.k-case { --nh: 24px; background: none; box-shadow: none; padding: 0 6px; }
+.fp .nd.k-case b { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.fp .nd.k-tool { --nh: 24px; background: var(--hover); box-shadow: none; }
+.fp .nd.k-tool b { font-family: var(--font-mono); font-size: 11.5px; font-weight: 450; color: var(--ink-2); }
+.fp .nd.k-tool .l1 span { font-size: 11.5px; color: var(--ink-3); }
+.fp .nd.k-exit, .fp .nd.k-back, .fp .nd.k-link { --nh: 26px; border-radius: var(--r-pill); box-shadow: none; }
+.fp .nd.k-exit .l1 span, .fp .nd.k-back .l1 span { font-size: 12px; color: var(--ink-3); }
+.fp .nd.k-exit b { font-size: 12.5px; }
+.fp .nd .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.fp .t-ok { --tone: var(--h-green); } .t-wait { --tone: var(--accent); } .t-warn { --tone: var(--warn); } .t-fail { --tone: var(--crit); } .t-stop { --tone: var(--ink-3); }
+[data-theme="light"] .fp .t-ok { --tone: var(--l-write); }
+.fp .nd.k-exit { background: color-mix(in srgb, var(--tone) 16%, var(--panel-hi, var(--panel))); }
+.fp .nd.k-back { background: var(--accent-soft); }
+.fp .nd.k-back b, .fp .nd.k-back .ic { color: var(--accent-ink); }
+.fp .nd.k-link { background: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.fp .nd.k-link b, .fp .nd.k-link .ic { color: var(--accent-ink); }
+.fp .foldn { position: absolute; height: 18px; min-width: 24px; padding: 0 6px; border-radius: var(--r-pill); background: var(--hover-2); font-size: 10.5px; font-weight: 700; color: var(--ink-3); display: grid; place-items: center; pointer-events: none; font-variant-numeric: tabular-nums; transition: opacity var(--t-fast) var(--ease-out); }
+.fp .nd.can:hover { box-shadow: 0 0 0 1.5px var(--ink-3); }
+.fp .nd.can:active { transform: scale(var(--press)); }
+/* 连线：导图枝用阶段色；draw-in 一次 */
+.fp .lk { fill: none; stroke: color-mix(in srgb, var(--h, var(--ink-3)) 80%, transparent); stroke-width: 1.8; stroke-linecap: round; transition: opacity var(--t-fast) var(--ease-out);
+  stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 0.6s var(--ez) forwards; animation-delay: calc(var(--d, 0) * 55ms); }
+.fp .lk.thin { stroke-width: 1.2; stroke: var(--ink-4); }
+[data-theme="light"] .fp .lk { stroke: color-mix(in srgb, var(--h, var(--ink-3)) 55%, var(--ink)); }   /* 亮底上粉彩线太淡：往墨色里混 */
+[data-theme="light"] .fp .lk.thin { stroke: var(--ink-4); }
+.fp .lk.back { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-dashoffset: 0; animation: fade 0.5s var(--ez) both; }
+.fp .lk.main { stroke-width: 6; }
+.fp .lk.rail { stroke: var(--ink-4); stroke-width: 1.6; stroke-dasharray: 3 4; stroke-dashoffset: 0; animation: fade 0.5s var(--ez) both; }
+.fp .ah { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fp .ahn { fill: none; stroke: var(--ink-3); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fp .stn { fill: var(--bg-window); stroke: var(--ink); stroke-width: 2.4; }
+.fp .stn.x { stroke: var(--accent); stroke-width: 2.4; }
+.fp .bead { fill: var(--accent); }
+.fp .lanebg { fill: color-mix(in srgb, var(--ink) 3%, transparent); }
+.fp .lanebg.o { fill: none; }
+.fp .lanet { fill: var(--ink-4); font: 650 11.5px var(--font); }
+.fp .pht { font: 700 11.5px var(--font); fill: var(--ink-3); }
+.fp .hint { position: absolute; font-size: 12px; color: var(--ink-4); }
+.fp .cv.hov .nd:not(.on), .fp .cv.hov .lk:not(.on) { opacity: 0.18; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 第二轮：按情况展示的外壳 */
+.fp .vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fp .vseg { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--hover); }
+.fp .vseg button { height: 30px; padding: 0 12px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--ink-3); transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.fp .vseg button span { font-size: 11.5px; font-weight: 450; color: var(--ink-4); }
+.fp .vseg button:hover { color: var(--ink); }
+.fp .vseg button:active { transform: scale(var(--press)); }
+.fp .vseg button.on { background: var(--panel-hi, var(--panel)); color: var(--ink); box-shadow: var(--shadow-sm); }
+.fp .auto { height: 18px; padding: 0 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-ink); font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; }
+.fp .why2 { font-size: 12px; color: var(--ink-4); }
+.fp .split { display: flex; gap: 14px; align-items: flex-start; }
+.fp .split > .map { flex: 1; min-width: 0; }
+.fp .side { flex: none; width: 320px; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.fp .side > .cap { display: flex; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.fp .side > .cap em { margin-left: auto; font-style: normal; color: var(--ink-4); }
+.fp .og { display: flex; flex-direction: column; gap: 2px; border-radius: 12px; background: var(--hover); padding: 4px 0; animation: rise 0.42s var(--ez) both; }
+.fp .og .gh { display: flex; align-items: center; gap: 7px; padding: 6px 12px 4px; font-size: 13px; font-weight: 700; }
+.fp .og .gh .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.fp .og .gh em { margin-left: auto; font-style: normal; font-size: 11.5px; color: var(--ink-4); }
+.fp .og .gr { display: flex; flex-direction: column; gap: 1px; padding: 5px 12px 5px 27px; }
+.fp .og .gr b { font-size: 12.5px; font-weight: 600; }
+.fp .og .gr i { font-style: normal; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-4); }
+.fp .thumbs { display: flex; gap: 10px; }
+.fp .th { flex: none; display: flex; flex-direction: column; gap: 6px; width: 184px; text-align: left; }
+.fp .th .box { position: relative; width: 184px; height: 104px; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--ink) 3%, transparent); box-shadow: inset 0 0 0 1px var(--hairline); transition: box-shadow var(--t-fast) var(--ease-hover); }
+.fp .th .box .cv { position: absolute; left: 50%; top: 50%; pointer-events: none; }
+.fp .th .box .cv *, .fp .th .box .board, .fp .th .box .board * { animation: none !important; stroke-dashoffset: 0 !important; }
+.fp .th:hover .box { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.fp .th.on .box { box-shadow: inset 0 0 0 2px var(--accent); }
+.fp .th:active { transform: scale(var(--press)); }
+.fp .th .tl { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; padding-left: 2px; }
+.fp .th .tl span { font-weight: 450; color: var(--ink-4); }
+.fp .stack { display: flex; flex-direction: column; gap: 8px; }
+.fp .stack details { border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.fp .stack summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 16px; font-size: 14px; font-weight: 700; }
+.fp .stack summary::-webkit-details-marker { display: none; }
+.fp .stack summary::before { content: "▸"; color: var(--ink-4); font-size: 11px; transition: transform var(--t-fast) var(--ease-out); }
+.fp .stack details[open] > summary::before { transform: rotate(90deg); }
+.fp .stack summary span { font-size: 12.5px; font-weight: 450; color: var(--ink-3); }
+.fp .stack summary:hover { background: var(--hover); border-radius: var(--r-lg); }
+.fp .stack details > .map { background: none; }
+/* 改过的泳道：列 = 一段连续由同一执行者做的步骤，循环段套一条带子 */
+.fp .band { fill: color-mix(in srgb, var(--h) 9%, transparent); stroke: color-mix(in srgb, var(--h) 45%, transparent); stroke-width: 1.2; stroke-dasharray: 4 4; }
+.fp .bandt { font: 700 12px var(--font); fill: var(--ink-2); }
+
+
+/* 第二轮：按情况展示的外壳 */
+.fp .vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fp .vseg { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--hover); }
+.fp .vseg button { height: 30px; padding: 0 12px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--ink-3); transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.fp .vseg button span { font-size: 11.5px; font-weight: 450; color: var(--ink-4); }
+.fp .vseg button:hover { color: var(--ink); }
+.fp .vseg button:active { transform: scale(var(--press)); }
+.fp .vseg button.on { background: var(--panel-hi, var(--panel)); color: var(--ink); box-shadow: var(--shadow-sm); }
+.fp .auto { height: 18px; padding: 0 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-ink); font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; }
+.fp .why2 { font-size: 12px; color: var(--ink-4); }
+.fp .split { display: flex; gap: 14px; align-items: flex-start; }
+.fp .split > .map { flex: 1; min-width: 0; }
+.fp .side { flex: none; width: 320px; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.fp .side > .cap { display: flex; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.fp .side > .cap em { margin-left: auto; font-style: normal; color: var(--ink-4); }
+.fp .og { display: flex; flex-direction: column; gap: 2px; border-radius: 12px; background: var(--hover); padding: 4px 0; animation: rise 0.42s var(--ez) both; }
+.fp .og .gh { display: flex; align-items: center; gap: 7px; padding: 6px 12px 4px; font-size: 13px; font-weight: 700; }
+.fp .og .gh .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.fp .og .gh em { margin-left: auto; font-style: normal; font-size: 11.5px; color: var(--ink-4); }
+.fp .og .gr { display: flex; flex-direction: column; gap: 1px; padding: 5px 12px 5px 27px; }
+.fp .og .gr b { font-size: 12.5px; font-weight: 600; }
+.fp .og .gr i { font-style: normal; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-4); }
+/* 容器：对照页里这两条写在实验台外壳那段，这里补上——没有它，流程图既裁不住也会错位 */
+.fp .map { position: relative; border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); scrollbar-width: thin; }
+.fp .cv { position: relative; transform-origin: 0 0; }
+.fp .cv > svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.fp .hint { position: absolute; font-size: 12px; color: var(--ink-4); }

@@ -1,0 +1,163 @@
+{
+  "title": "Api 系统图",
+  "subtitle": "语义层骨架：按控制器分域，改名字、合并域、写循环故事后重跑",
+  "lanes": [
+    {
+      "id": "client",
+      "name": "客户端",
+      "cols": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "server",
+      "name": "服务端",
+      "cols": [
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "store",
+      "name": "存储与外部",
+      "cols": [
+        7
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "id": "client",
+      "name": "前端",
+      "col": 1,
+      "icon": "laptop",
+      "hue": "blue",
+      "spread": true,
+      "children": [
+        {
+          "id": "client.ui",
+          "name": "界面",
+          "col": 0,
+          "icon": "board",
+          "hue": "blue",
+          "match": [
+            "C:ui:*"
+          ]
+        },
+        {
+          "id": "client.svc",
+          "name": "请求与推送",
+          "col": 2,
+          "icon": "share",
+          "hue": "blue",
+          "match": [
+            "C:svc"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hub",
+      "name": "实时",
+      "col": 4,
+      "icon": "bell",
+      "hue": "yellow",
+      "match": [
+        "S:hub"
+      ]
+    },
+    {
+      "id": "program",
+      "name": "Program",
+      "col": 5,
+      "icon": "cloud",
+      "hue": "purple",
+      "match": [
+        "S:c:Program"
+      ]
+    },
+    {
+      "id": "projects",
+      "name": "Projects",
+      "col": 5,
+      "icon": "cloud",
+      "hue": "pink",
+      "match": [
+        "S:c:Projects"
+      ]
+    },
+    {
+      "id": "tags",
+      "name": "Tags",
+      "col": 5,
+      "icon": "cloud",
+      "hue": "blue",
+      "match": [
+        "S:c:Tags"
+      ]
+    },
+    {
+      "id": "todoendpoints",
+      "name": "TodoEndpoints",
+      "col": 5,
+      "icon": "cloud",
+      "hue": "teal",
+      "match": [
+        "S:c:TodoEndpoints"
+      ]
+    },
+    {
+      "id": "svc",
+      "name": "服务",
+      "col": 6,
+      "icon": "grid",
+      "hue": "gray",
+      "match": [
+        "S:svc",
+        "S:bg"
+      ]
+    },
+    {
+      "id": "db",
+      "name": "数据库",
+      "col": 7,
+      "icon": "layers",
+      "hue": "green",
+      "match": [
+        "S:pg"
+      ]
+    }
+  ],
+  "groups": {},
+  "loops": {
+    "POST /api/todos": [
+      "POST /api/todos",
+      ""
+    ],
+    "PUT /api/todos/{id:int}": [
+      "PUT /api/todos/{id:int}",
+      ""
+    ],
+    "DELETE /api/todos/{id:int}": [
+      "DELETE /api/todos/{id:int}",
+      ""
+    ],
+    "POST /api/Projects/{id:int}/archive": [
+      "POST /api/Projects/{id:int}/archive",
+      ""
+    ],
+    "DELETE /api/Projects/{id:int}": [
+      "DELETE /api/Projects/{id:int}",
+      ""
+    ],
+    "POST /api/Tags": [
+      "POST /api/Tags",
+      ""
+    ]
+  },
+  "edgeLabels": []
+}

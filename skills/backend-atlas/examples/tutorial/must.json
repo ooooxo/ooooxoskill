@@ -1,0 +1,62 @@
+{
+  "$comment": "人工标注：一张正确的系统图必须有的事实（不是快照）。每行一条，test/examples.ts 从 system.json 算出事实集逐条核对；以 ! 开头 = 必须没有。",
+  "facts": [
+    "entry http GET /api/health",
+    "entry http GET /api/todos",
+    "entry http GET /api/todos/{id:int}",
+    "entry http POST /api/todos",
+    "entry http PUT /api/todos/{id:int}",
+    "entry http DELETE /api/todos/{id:int}",
+    "entry http GET /api/Tags",
+    "entry http POST /api/Tags",
+    "entry http GET /api/Projects",
+    "entry http DELETE /api/Projects/{id:int}",
+    "entry http POST /api/Projects/{id:int}/archive",
+    "entry hub /hubs/chat SendMessage",
+    "entry hosted CleanupWorker",
+    "!entry http GET /api/CrudBase",
+    "!entry http DELETE /{id:int}",
+
+    "auth GET /api/todos jwt",
+    "auth DELETE /api/todos/{id:int} jwt",
+    "auth GET /api/health none",
+    "auth POST /api/Tags jwt",
+    "auth POST /api/Projects/{id:int}/archive jwt",
+
+    "writes POST /api/todos Todo",
+    "writes POST /api/todos AuditLog",
+    "writes DELETE /api/todos/{id:int} Todo",
+    "writes POST /api/Tags Tag",
+    "writes POST /api/Projects/{id:int}/archive AuditLog",
+    "writes POST /api/Projects/{id:int}/archive Project",
+    "writes hosted CleanupWorker Todo",
+
+    "pushes POST /api/todos TodoChanged",
+    "pushes PUT /api/todos/{id:int} TodoChanged",
+    "pushes hub SendMessage ReceiveMessage",
+
+    "request GET /api/todos",
+    "request POST /api/todos",
+    "request PUT /api/todos/{id:int}",
+    "request DELETE /api/todos/{id:int}",
+    "request GET /api/Tags",
+    "request POST /api/Tags",
+    "request GET /api/Projects",
+    "request DELETE /api/Projects/{id:int}",
+    "request POST /api/Projects/{id:int}/archive",
+    "request GET /api/health",
+    "invoke SendMessage",
+    "push TodoChanged",
+    "push ReceiveMessage",
+    "!hubEvent update",
+
+    "trigger POST /api/todos",
+    "trigger PUT /api/todos/{id:int}",
+    "trigger DELETE /api/todos/{id:int}",
+    "trigger POST /api/Tags",
+    "trigger DELETE /api/Projects/{id:int}",
+    "trigger POST /api/Projects/{id:int}/archive",
+
+    "unmatched 0"
+  ]
+}

@@ -1,0 +1,865 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>对照版 · 业务循环画成思维导图</title>
+<!--
+  干什么：业务循环「怎么跑」的多档画法对照。第 0 档 = 现状（atlas 抽屉里的「怎么走」列表 / Agent 轮次只有文件清单），
+         1–7 档是七种导图画法；三条真样本上下排列（稀 注册 · 中 发消息 · 满 Agent 轮次）。
+         已经定下、每一档都遵守的：同一棵流程树（节点名、读写、推送、结局、行号全部照 examples/demo 真代码抄）·
+         读写 / 推送 / 出站的颜色沿用 atlas 线的色族（写 绿 · 推送 粉 · 出站 橙 · 请求 蓝）· 结局五种语气（完成 / 等用户 / 限额 / 失败 / 停止）。
+         第一轮定下（2026-09-28）：要 逻辑树 · 泳道（要改）· 环形跑道 · 结局倒推 四种，「按情况展示」——默认视图由流程形态决定：
+         有回环 → 环形跑道；跨 ≥3 个执行者 → 泳道；其余 → 逻辑树；结局 ≥3 个时提供「为什么停」。第二轮比的是「按情况」怎么落地 + 泳道改法。
+  怎么跑：/usr/bin/open 这个文件。R 换轮次 · 数字切档 · C 与现状来回对照 · P 重播动效 · T 明暗；悬停节点 = 亮它的来路与去路；逻辑树里点节点折叠。
+  需要什么：同目录 Token.css（atlas 的 token 源）；图标由 bun 从 viewer/icons.ts 抽一次内联进 ICON，不手画。
+-->
+<link rel="stylesheet" href="./Token.css">
+<style>
+/* ---- 可调参数 ---------------------------------------------------------- */
+:root {
+  --h-blue: #8fb4ff; --h-green: #86d9a8; --h-yellow: #f1dd78; --h-pink: #f5a0bd;
+  --h-orange: #f6b66e; --h-purple: #c2a6f6; --h-teal: #86d3d6; --h-gray: #b8bbc3;   /* 与 atlas 卡片同一色板 */
+  --l-req: var(--h-blue); --l-push: var(--h-pink); --l-write: var(--h-green); --l-http: var(--h-orange);
+  --on-hue: #17171b;
+}
+[data-theme="light"] { --l-req: #3d6fd6; --l-push: #c94f7c; --l-write: #2e9a5f; --l-http: #c5741c; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: var(--font); background: var(--bg-window); color: var(--ink); display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; cursor: default; }
+button { font: inherit; color: inherit; cursor: default; background: none; border: 0; padding: 0; }
+.ic { flex: none; display: block; }
+
+/* ================= 实验台自己的一条 ================= */
+.lab { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 16px 28px 12px; }
+.lab-top { display: flex; align-items: center; gap: 18px; }
+.lab h1 { margin: 0; font-size: var(--fs-title); font-weight: 650; white-space: nowrap; }
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pick button { height: 28px; padding: 0 10px; border-radius: var(--r-xs); font-size: var(--fs-label); color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px; transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.pick button b { font-family: var(--font-mono); font-weight: 450; color: var(--ink-4); }
+.pick button:hover { background: var(--hover); color: var(--ink-2); }
+.pick button:active { transform: scale(var(--press)); }
+.pick button[aria-pressed="true"] { color: var(--ink); font-weight: 650; background: var(--hover); }
+.pick button[aria-pressed="true"] b { color: var(--accent); }
+.lab-sp { flex: 1; }
+.keys { font-size: var(--fs-cap); color: var(--ink-4); white-space: nowrap; }
+.keys kbd { font-family: var(--font-mono); padding: 0 4px; border-radius: 4px; background: var(--hover-2); color: var(--ink-3); }
+.lab-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 22px; }
+.thesis { font-size: var(--fs-sub); font-weight: 650; margin-right: 6px; }
+.part { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-xs); background: var(--hover-2); font-size: var(--fs-cap); color: var(--ink-2); }
+.part i { font-style: normal; color: var(--ink-4); }
+.cost { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-cap); color: var(--warn); }
+
+.stage { flex: 1; min-height: 0; overflow: auto; padding: 4px 28px 40px; display: flex; flex-direction: column; gap: 34px; scrollbar-width: thin; }
+.blk { flex: none; display: flex; flex-direction: column; gap: 12px; }
+.bh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-left: 2px; }
+.bh .from { font-size: var(--fs-cap); font-weight: 700; color: var(--ink-4); }
+.bh b { font-size: 18px; font-weight: 700; }
+.bh .rt { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+.bh .st { font-size: 13px; color: var(--ink-3); }
+.map { position: relative; overflow-x: auto; overflow-y: hidden; border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); scrollbar-width: thin; }
+.cv { position: relative; transform-origin: 0 0; }
+.cv > svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+
+/* ================= 被比较的东西：导图的原子 ================= */
+.ph0 { --h: var(--h-blue); } .ph1 { --h: var(--h-purple); } .ph2 { --h: var(--h-pink); } .ph3 { --h: var(--h-orange); }
+.ph4 { --h: var(--h-teal); } .ph5 { --h: var(--h-green); } .ph6 { --h: var(--h-yellow); }
+.nd { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 10px; height: var(--nh, 28px); border-radius: 10px; background: var(--panel-hi, var(--panel)); box-shadow: 0 1px 2px color-mix(in srgb, #000 22%, transparent); white-space: nowrap; overflow: hidden;
+  transition: opacity var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-hover); animation: rise 0.42s var(--ez) both; animation-delay: calc(var(--d, 0) * 55ms); }
+.nd > .l1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nd b { font-size: 13px; font-weight: 650; color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+.nd .nt { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; }
+.nd .rs { display: flex; gap: 4px; }
+.rc { height: 17px; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 500; font-style: normal; display: inline-flex; align-items: center; color: var(--ink-2); background: var(--hover-2); }
+.rc.f-w { background: color-mix(in srgb, var(--l-write) 20%, transparent); }
+.rc.f-p { background: color-mix(in srgb, var(--l-push) 20%, transparent); }
+.rc.f-h { background: color-mix(in srgb, var(--l-http) 22%, transparent); }
+.rc.f-q { background: color-mix(in srgb, var(--l-req) 20%, transparent); }
+.nd.k-root { --nh: 38px; padding: 0 14px; background: var(--ink); border-radius: 12px; }
+.nd.k-root b { font-size: 16px; font-weight: 700; color: var(--bg-content); }
+.nd.k-phase { --nh: 32px; background: color-mix(in srgb, var(--h) 22%, var(--panel-hi, var(--panel))); }
+.nd.k-phase b { font-size: 13.5px; font-weight: 700; }
+.nd .sw { flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--h); }
+.nd .lp { flex: none; height: 18px; padding: 0 6px; border-radius: var(--r-pill); font-size: 11px; font-weight: 650; font-style: normal; color: var(--ink-2); background: color-mix(in srgb, var(--h) 30%, transparent); display: inline-flex; align-items: center; }
+.nd.k-guard b::before { content: ""; }
+.nd.k-branch { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--h, var(--ink-3)) 70%, transparent); }
+.nd.k-case { --nh: 24px; background: none; box-shadow: none; padding: 0 6px; }
+.nd.k-case b { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.nd.k-tool { --nh: 24px; background: var(--hover); box-shadow: none; }
+.nd.k-tool b { font-family: var(--font-mono); font-size: 11.5px; font-weight: 450; color: var(--ink-2); }
+.nd.k-tool .l1 span { font-size: 11.5px; color: var(--ink-3); }
+.nd.k-exit, .nd.k-back, .nd.k-link { --nh: 26px; border-radius: var(--r-pill); box-shadow: none; }
+.nd.k-exit .l1 span, .nd.k-back .l1 span { font-size: 12px; color: var(--ink-3); }
+.nd.k-exit b { font-size: 12.5px; }
+.nd .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.t-ok { --tone: var(--h-green); } .t-wait { --tone: var(--accent); } .t-warn { --tone: var(--warn); } .t-fail { --tone: var(--crit); } .t-stop { --tone: var(--ink-3); }
+[data-theme="light"] .t-ok { --tone: var(--l-write); }
+.nd.k-exit { background: color-mix(in srgb, var(--tone) 16%, var(--panel-hi, var(--panel))); }
+.nd.k-back { background: var(--accent-soft); }
+.nd.k-back b, .nd.k-back .ic { color: var(--accent-ink); }
+.nd.k-link { background: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.nd.k-link b, .nd.k-link .ic { color: var(--accent-ink); }
+.foldn { position: absolute; height: 18px; min-width: 24px; padding: 0 6px; border-radius: var(--r-pill); background: var(--hover-2); font-size: 10.5px; font-weight: 700; color: var(--ink-3); display: grid; place-items: center; pointer-events: none; font-variant-numeric: tabular-nums; transition: opacity var(--t-fast) var(--ease-out); }
+.nd.can:hover { box-shadow: 0 0 0 1.5px var(--ink-3); }
+.nd.can:active { transform: scale(var(--press)); }
+/* 连线：导图枝用阶段色；draw-in 一次 */
+.lk { fill: none; stroke: color-mix(in srgb, var(--h, var(--ink-3)) 80%, transparent); stroke-width: 1.8; stroke-linecap: round; transition: opacity var(--t-fast) var(--ease-out);
+  stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 0.6s var(--ez) forwards; animation-delay: calc(var(--d, 0) * 55ms); }
+.lk.thin { stroke-width: 1.2; stroke: var(--ink-4); }
+[data-theme="light"] .lk { stroke: color-mix(in srgb, var(--h, var(--ink-3)) 55%, var(--ink)); }   /* 亮底上粉彩线太淡：往墨色里混 */
+[data-theme="light"] .lk.thin { stroke: var(--ink-4); }
+.lk.back { stroke: var(--accent); stroke-width: 1.6; stroke-dasharray: 5 4; stroke-dashoffset: 0; animation: fade 0.5s var(--ez) both; }
+.lk.main { stroke-width: 6; }
+.lk.rail { stroke: var(--ink-4); stroke-width: 1.6; stroke-dasharray: 3 4; stroke-dashoffset: 0; animation: fade 0.5s var(--ez) both; }
+.ah { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ahn { fill: none; stroke: var(--ink-3); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.stn { fill: var(--bg-window); stroke: var(--ink); stroke-width: 2.4; }
+.stn.x { stroke: var(--accent); stroke-width: 2.4; }
+.bead { fill: var(--accent); }
+.lanebg { fill: color-mix(in srgb, var(--ink) 3%, transparent); }
+.lanebg.o { fill: none; }
+.lanet { fill: var(--ink-4); font: 650 11.5px var(--font); }
+.pht { font: 700 11.5px var(--font); fill: var(--ink-3); }
+.hint { position: absolute; font-size: 12px; color: var(--ink-4); }
+.cv.hov .nd:not(.on), .cv.hov .lk:not(.on) { opacity: 0.18; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 第二轮：按情况展示的外壳 */
+.vbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.vseg { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--hover); }
+.vseg button { height: 30px; padding: 0 12px; border-radius: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--ink-3); transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.vseg button span { font-size: 11.5px; font-weight: 450; color: var(--ink-4); }
+.vseg button:hover { color: var(--ink); }
+.vseg button:active { transform: scale(var(--press)); }
+.vseg button.on { background: var(--panel-hi, var(--panel)); color: var(--ink); box-shadow: var(--shadow-sm); }
+.auto { height: 18px; padding: 0 6px; border-radius: var(--r-pill); background: var(--accent-soft); color: var(--accent-ink); font-size: 10.5px; font-weight: 700; display: inline-flex; align-items: center; }
+.why2 { font-size: 12px; color: var(--ink-4); }
+.split { display: flex; gap: 14px; align-items: flex-start; }
+.split > .map { flex: 1; min-width: 0; }
+.side { flex: none; width: 320px; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.side > .cap { display: flex; font-size: 12px; font-weight: 700; color: var(--ink-3); }
+.side > .cap em { margin-left: auto; font-style: normal; color: var(--ink-4); }
+.og { display: flex; flex-direction: column; gap: 2px; border-radius: 12px; background: var(--hover); padding: 4px 0; animation: rise 0.42s var(--ez) both; }
+.og .gh { display: flex; align-items: center; gap: 7px; padding: 6px 12px 4px; font-size: 13px; font-weight: 700; }
+.og .gh .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.og .gh em { margin-left: auto; font-style: normal; font-size: 11.5px; color: var(--ink-4); }
+.og .gr { display: flex; flex-direction: column; gap: 1px; padding: 5px 12px 5px 27px; }
+.og .gr b { font-size: 12.5px; font-weight: 600; }
+.og .gr i { font-style: normal; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-4); }
+.thumbs { display: flex; gap: 10px; }
+.th { flex: none; display: flex; flex-direction: column; gap: 6px; width: 184px; text-align: left; }
+.th .box { position: relative; width: 184px; height: 104px; border-radius: 12px; overflow: hidden; background: color-mix(in srgb, var(--ink) 3%, transparent); box-shadow: inset 0 0 0 1px var(--hairline); transition: box-shadow var(--t-fast) var(--ease-hover); }
+.th .box .cv { position: absolute; left: 50%; top: 50%; pointer-events: none; }
+.th .box .cv *, .th .box .board, .th .box .board * { animation: none !important; stroke-dashoffset: 0 !important; }
+.th:hover .box { box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.th.on .box { box-shadow: inset 0 0 0 2px var(--accent); }
+.th:active { transform: scale(var(--press)); }
+.th .tl { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; padding-left: 2px; }
+.th .tl span { font-weight: 450; color: var(--ink-4); }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.stack details { border-radius: var(--r-lg); background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
+.stack summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 12px 16px; font-size: 14px; font-weight: 700; }
+.stack summary::-webkit-details-marker { display: none; }
+.stack summary::before { content: "▸"; color: var(--ink-4); font-size: 11px; transition: transform var(--t-fast) var(--ease-out); }
+.stack details[open] > summary::before { transform: rotate(90deg); }
+.stack summary span { font-size: 12.5px; font-weight: 450; color: var(--ink-3); }
+.stack summary:hover { background: var(--hover); border-radius: var(--r-lg); }
+.stack details > .map { background: none; }
+/* 改过的泳道：列 = 一段连续由同一执行者做的步骤，循环段套一条带子 */
+.band { fill: color-mix(in srgb, var(--h) 9%, transparent); stroke: color-mix(in srgb, var(--h) 45%, transparent); stroke-width: 1.2; stroke-dasharray: 4 4; }
+.bandt { font: 700 12px var(--font); fill: var(--ink-2); }
+
+/* 第 7 档：阶段卡片板 */
+.board { display: flex; gap: 14px; padding: 18px; align-items: flex-start; }
+.pc { flex: none; width: 272px; display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--h) 9%, var(--panel-hi, var(--panel))); animation: rise 0.42s var(--ez) both; animation-delay: calc(var(--d, 0) * 70ms); }
+.pc.loop { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--h) 70%, transparent); }
+.pc > .hd { display: flex; align-items: center; gap: 8px; padding: 2px 2px 8px; }
+.pc > .hd b { font-size: 14px; font-weight: 700; }
+.pc > .hd .sw { width: 10px; height: 10px; border-radius: 3px; background: var(--h); }
+.pc > .hd .lp { margin-left: auto; height: 20px; padding: 0 7px; border-radius: var(--r-pill); font-size: 11px; font-weight: 650; color: var(--ink-2); background: color-mix(in srgb, var(--h) 28%, transparent); display: inline-flex; align-items: center; gap: 4px; }
+.it { display: flex; flex-direction: column; gap: 5px; padding: 8px 8px; border-radius: 10px; }
+.it + .it { box-shadow: 0 -1px 0 var(--hairline); border-radius: 0; }
+.it .l1 { display: flex; align-items: baseline; gap: 6px; }
+.it .l1 b { font-size: 13px; font-weight: 650; }
+.it .l1 .an { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-4); }
+.it .nt { font-size: 11.5px; color: var(--ink-3); }
+.it .row { display: flex; flex-wrap: wrap; gap: 4px; }
+.it .cs { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 2px 12px; }
+.it .cs > i { font-style: normal; font-size: 11.5px; font-weight: 650; color: var(--ink-3); }
+.pill { height: 22px; padding: 0 8px; border-radius: var(--r-pill); font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); background: var(--hover); white-space: nowrap; }
+.pill.k-exit { background: color-mix(in srgb, var(--tone) 16%, transparent); }
+.pill.k-exit b { font-weight: 650; color: var(--ink); }
+.pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone); }
+.pill.k-back { background: var(--accent-soft); color: var(--accent-ink); }
+.pill.k-link { background: none; box-shadow: inset 0 0 0 1.5px var(--accent); color: var(--accent-ink); }
+.pill.k-tool { font-family: var(--font-mono); }
+
+/* 第 0 档：照 atlas 抽屉抄 */
+.dw0 { width: 380px; margin: 18px; padding: 16px 14px 18px 18px; border-radius: 16px; background: var(--panel-hi, var(--panel)); display: flex; flex-direction: column; gap: 14px; }
+.dw0 .crumb { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.dw0 .tile { width: 22px; height: 22px; border-radius: 7px; display: grid; place-items: center; background: var(--h-pink); color: var(--on-hue); }
+.dw0 h3 { margin: -4px 0 0; font-size: 21px; font-weight: 700; }
+.dw0 .rt { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-3); margin-top: -8px; }
+.dw0 .insight { display: flex; gap: 9px; align-items: baseline; font-size: 13.5px; line-height: 1.65; font-weight: 600; }
+.dw0 .insight::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.dw0 .cap { display: flex; font-size: 11.5px; font-weight: 700; color: var(--ink-3); padding: 0 4px; }
+.dw0 .cap em { margin-left: auto; font-style: normal; color: var(--ink-4); }
+.dw0 .list { display: flex; flex-direction: column; border-radius: 14px; background: var(--hover); }
+.dw0 .fr { display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; }
+.dw0 .fr + .fr { box-shadow: 0 -1px 0 var(--hairline); }
+.dw0 .fr b { font-size: 13.5px; font-weight: 650; }
+.dw0 .fr i { font-style: normal; font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); }
+.dw0 .stp { display: grid; grid-template-columns: 24px 1fr; gap: 10px; padding: 6px 4px; }
+.dw0 .stp .no { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: var(--bg-content); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.dw0 .stp b { font-size: 13px; font-weight: 650; }
+.dw0 .stp span { display: block; font-size: 11.5px; line-height: 1.55; color: var(--ink-3); white-space: pre-line; }
+.dw0 .stats { display: flex; gap: 22px; padding: 0 4px; }
+.dw0 .stats b { display: block; font-size: 20px; font-weight: 700; }
+.dw0 .stats span { font-size: 11.5px; color: var(--ink-4); }
+@media (prefers-reduced-motion: reduce) { .nd, .pc, .lk { animation: none; stroke-dashoffset: 0; } .bead { display: none; } }
+</style>
+</head>
+<body>
+
+<header class="lab">
+  <div class="lab-top">
+    <h1>业务循环 · 思维导图 · 对照版</h1>
+    <div class="pick" id="pick"></div>
+    <span class="lab-sp"></span>
+    <span class="keys"><kbd>R</kbd> 轮次 <kbd>数字</kbd> 切档 <kbd>C</kbd> 对照现状 <kbd>P</kbd> 重播 <kbd>T</kbd> 明暗</span>
+  </div>
+  <div class="lab-note" id="note"></div>
+</header>
+
+<main class="stage" id="stage"></main>
+
+<script type="module">
+/* ---- 图标：从 viewer/icons.ts 抽一次贴进来 ---- */
+const ICON = {"link":"<path d=\"M10.3 13.7a3.9 3.9 0 0 0 5.5 0l2.8-2.8a3.9 3.9 0 0 0-5.5-5.5l-.9.9M13.7 10.3a3.9 3.9 0 0 0-5.5 0l-2.8 2.8a3.9 3.9 0 0 0 5.5 5.5l.9-.9\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>","refresh":"<path d=\"M19 12a7 7 0 1 1-2.1-5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M20.6 3.4v5.6c0 .6-.5 1.1-1.1 1.1h-5.6c-1 0-1.5-1.2-.8-1.9l5.6-5.6c.7-.7 1.9-.2 1.9.8Z\"/>","share":"<circle cx=\"17.4\" cy=\"5.8\" r=\"3.2\"/><circle cx=\"6.6\" cy=\"12\" r=\"3.2\"/><circle cx=\"17.4\" cy=\"18.2\" r=\"3.2\"/><path d=\"M17.4 5.8 6.6 12l10.8 6.2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>"};
+const ic = (n, s = 14) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ICON[n] ?? ""}</svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ================= 流程树：每档都画这同一棵 =================
+   k：root 根 · phase 阶段 · step 一步 · guard 护栏（带出口）· branch 分岔 · case 分岔的一支（main = 主路继续）·
+      exit 结局（tone：ok 完成 / wait 等用户 / warn 限额 / fail 失败 / stop 停止）· back 回到某一步 · link 跳到另一条循环 · tool 工具 · side 并行旁路
+   r：读写推送（w 写 · r 读 · p 推送 · h 出站 · q 请求），a：代码锚点，l：执行者（ui 前端 · svc 请求处理 · bg 后台轮次 · model 模型 · tool 工具） */
+let _id = 0;
+const N = (k, t, o = {}, kids = []) => ({ id: "n" + (++_id), k, t, ...o, kids });
+const P = (t, o, kids) => N("phase", t, o, kids), S = (t, o = {}, kids = []) => N(o.k ?? "step", t, o, kids);
+const G = (t, o, kids) => N("guard", t, o, kids), Br = (t, o, kids) => N("branch", t, o, kids), C = (t, o, kids) => N("case", t, o, kids);
+const X = (t, why, tone) => N("exit", t, { why, tone }), B = (t, to) => N("back", t, { to }), L = (t) => N("link", t), T = (t, why) => N("tool", t, { why });
+
+const SPECS = [
+  { from: "稀", note: "线性、只有校验出口", name: "注册", rt: "POST /api/auth/register", story: "邮箱 + 密码建账号，送 100 积分",
+    tree: N("root", "注册", { l: "svc" }, [
+      P("触发", { l: "ui" }, [S("登录页点「注册」", { a: "LoginView.vue:2", l: "ui", r: ["q:POST /api/auth/register"] })]),
+      P("校验", {}, [
+        G("邮箱格式对吗？", { a: "AuthController.cs:18" }, [X("400", "邮箱格式不正确", "fail")]),
+        G("密码够长吗？", { a: "AuthController.cs:19" }, [X("400", "密码至少 8 位", "fail")]),
+        G("邮箱注册过吗？", { a: "AuthController.cs:20", r: ["r:User"] }, [X("409", "该邮箱已注册", "fail")]),
+      ]),
+      P("建账号", {}, [
+        S("写账号", { a: "AuthController.cs:23", r: ["w:User"] }),
+        S("送注册积分", { a: "AuthController.cs:25", r: ["w:Wallet", "w:LedgerEntry"] }, [X("200", "返回账号 id", "ok")]),
+      ]),
+    ]),
+    cur: { kind: "loop", trig: [["submit", "src/views/LoginView.vue:23"], ['@submit.prevent="submit"', "src/views/LoginView.vue:2"]],
+      steps: [["前端 → HTTP 管线", "HTTPS 请求"], ["HTTP 管线 → 账号", "POST /api/auth/register"], ["账号 → 数据库", "写 User\n读 User"], ["账号 → 服务层", "调用"], ["服务层 → 数据库", "写 Wallet、LedgerEntry"]] } },
+
+  { from: "中", note: "有分岔、交给后台", name: "发消息", rt: "POST /api/projects/{id}/messages", story: "空闲时起一个轮次交给后台跑，进行中则记成插话；立即返回",
+    tree: N("root", "发消息", { l: "svc" }, [
+      P("触发", { l: "ui" }, [S("对话框回车", { a: "ChatView.vue:8", l: "ui", r: ["q:POST …/messages"] })]),
+      P("校验", {}, [
+        G("什么都没说？", { a: "TurnService.cs:17" }, [X("400", "说点什么吧", "fail")]),
+        S("找运行中的轮次", { key: "lock", a: "TurnService.cs:18", r: ["r:Turn"] }),
+      ]),
+      P("分岔", {}, [
+        Br("有轮次在跑吗？", { a: "TurnService.cs:19" }, [
+          C("在跑，租约有效", {}, [S("记成插话", { a: "TurnService.cs:21", r: ["w:Interjection"] }, [X("返回「插话」", "模型下一步会看到", "wait")])]),
+          C("没有 / 租约已过期", { main: true }, [S("过期的先标中断", { a: "TurnService.cs:25", r: ["w:Turn"] })]),
+        ]),
+      ]),
+      P("起轮次", {}, [
+        G("同时在跑的太多？", { a: "TurnService.cs:26" }, [X("429", "同时进行的任务太多了", "fail")]),
+        S("建轮次 · 记用户消息", { a: "TurnService.cs:30", r: ["w:Turn", "w:Message"] }),
+      ]),
+      P("交给后台", { l: "bg" }, [
+        S("TurnHost.Start", { a: "TurnService.cs:33", l: "bg", note: "请求立即返回，轮次在后台跑" }, [L("Agent 轮次"), X("返回「新轮次」", "立即返回", "ok")]),
+      ]),
+    ]),
+    cur: { kind: "loop", trig: [["send", "src/views/ChatView.vue:31"], ['@submit.prevent="send"', "src/views/ChatView.vue:8"]],
+      steps: [["前端 → HTTP 管线", "HTTPS 请求"], ["HTTP 管线 → 项目与对话", "POST /api/projects/{id:guid}/messages"], ["项目与对话 → Agent 轮次", "调用"], ["Agent 轮次 → 数据库", "写 Interjection、Turn、Message\n读 Turn"]] } },
+
+  { from: "满", note: "主循环 + 护栏 + 工具 + 四种结局", name: "Agent 轮次", rt: "TurnHost → TurnRunner.Run（后台）", story: "发消息只起轮次就返回；轮次在后台一步步跑：取插话 → 扣费 → 调模型 → 执行工具 → 再调模型，直到出结局",
+    tree: N("root", "Agent 轮次", { l: "bg" }, [
+      P("起跑", {}, [
+        S("后台起跑", { a: "TurnHost.cs:9", note: "独立作用域" }),
+        S("广播开始", { a: "TurnRunner.cs:21", r: ["p:turn_started"] }),
+      ]),
+      P("每一步", { loop: "最多 20 次" }, [
+        G("调用满 20 次？", { a: "TurnRunner.cs:41" }, [X("限额", "调用满 20 次", "warn")]),
+        S("取插话", { key: "drain", a: "TurnRunner.cs:42", r: ["w:Message", "p:interjection_applied"] }),
+        S("扣本次调用费", { a: "TurnRunner.cs:44", r: ["w:Wallet", "w:LedgerEntry"] }, [X("402", "积分不足", "fail")]),
+        S("调模型", { a: "TurnRunner.cs:47", l: "model", r: ["h:ModelClient"], note: "带最近 40 条对话" }),
+        S("落回复并推送", { a: "TurnRunner.cs:48", r: ["w:Message", "p:reply"] }),
+        Br("模型要调工具吗？", { a: "TurnRunner.cs:52" }, [
+          C("不调", {}, [X("完成", "模型给出了回答", "ok")]),
+          C("调了工具", { main: true }, []),
+        ]),
+      ]),
+      P("执行工具", { inLoop: true, l: "tool" }, [
+        G("要问用户？", { a: "TurnRunner.cs:79" }, [X("等用户", "模型调了 ask_user", "wait")]),
+        S("逐个执行", { a: "TurnRunner.cs:77", r: ["p:tool_start", "p:tool_done", "w:Message"] }, [T("search_notes", "搜笔记"), T("write_note", "写一条笔记")]),
+        B("下一步", "drain"),
+      ]),
+      P("收尾", { l: "bg" }, [
+        S("落结局并广播", { a: "TurnRunner.cs:31", r: ["w:Turn", "p:turn_ended"] }),
+      ]),
+    ]),
+    cur: { kind: "files", stats: [["4", "写到表"], ["6", "项"]],
+      files: [["LeaseSweeper", "Agent/LeaseSweeper.cs"], ["TurnService", "Agent/TurnService.cs"], ["TurnHost", "Agent/TurnHost.cs"], ["TurnRunner", "Agent/TurnRunner.cs"], ["ModelClient", "Agent/ModelClient.cs"], ["Tools", "Agent/Tools.cs"]] } },
+];
+
+/* ---- 树的派生：父、深度、路径（悬停亮来路去路用）、阶段序号、读写解析 ---- */
+const RW = { w: ["写", "w"], r: ["读", "r"], p: ["推", "p"], h: ["调", "h"], q: ["", "q"] };
+function prep(s) {
+  const byKey = new Map();
+  const walk = (n, parent, depth, ph) => {
+    n.parent = parent; n.depth = depth; n.ph = n.k === "phase" ? parent.kids.indexOf(n) : ph;
+    n.path = parent ? parent.path + " " + n.id : n.id;
+    n.lane = n.l ?? (n.k === "phase" ? null : null);
+    n.res = (n.r ?? []).map((x) => { const [k, ...v] = x.split(":"); return { f: RW[k][1], label: (RW[k][0] ? RW[k][0] + " " : "") + v.join(":") }; });
+    if (n.key) byKey.set(n.key, n);
+    n.kids.forEach((k) => walk(k, n, depth + 1, n.ph));
+  };
+  walk(s.tree, null, 0, null);
+  const all = []; const col = (n) => { all.push(n); n.kids.forEach(col); }; col(s.tree);
+  for (const n of all) if (n.k === "back") n.target = byKey.get(n.to);
+  s.all = all;
+}
+SPECS.forEach(prep);
+const phaseOf = (n) => { for (let x = n; x; x = x.parent) if (x.k === "phase") return x; return null; };
+const laneOf = (n, root) => { for (let x = n; x; x = x.parent) if (x.l) return x.l; return root.l ?? "svc"; };
+
+/* ---- 量字：节点宽按真字宽算，连线才对得上边 ---- */
+const cx = document.createElement("canvas").getContext("2d");
+const FONT = getComputedStyle(document.body).fontFamily, MONO = getComputedStyle(document.documentElement).getPropertyValue("--font-mono") || "monospace";
+const tw = (s, px, wt, mono) => { cx.font = `${wt} ${px}px ${mono ? MONO : FONT}`; return cx.measureText(s).width; };
+const SZ = new Map();
+function size(n, full = true) {
+  const key = n.id + full; if (SZ.has(key)) return SZ.get(key);
+  let w, h;
+  if (n.k === "root") { w = tw(n.t, 16, 700) + 30; h = 38; }
+  else if (n.k === "exit") { w = 14 + tw(n.t, 12.5, 650) + (n.why && full ? 6 + tw(n.why, 12, 400) : 0) + 22; h = 26; }
+  else if (n.k === "case") { w = tw(n.t, 12, 600) + 14; h = 24; }
+  else if (n.k === "back" || n.k === "link") { w = 18 + tw(n.t, 12.5, 650) + 22; h = 26; }
+  else if (n.k === "tool") { w = tw(n.t, 11.5, 450, true) + (n.why && full ? 6 + tw(n.why, 11.5, 400) : 0) + 22; h = 24; }
+  else if (n.k === "phase") { w = 17 + tw(n.t, 13.5, 700) + (n.loop && full ? 6 + tw("↺ " + n.loop, 11, 650) + 12 : 0) + 22; h = 32; }
+  else {
+    const lw = tw(n.t, 13, 650);
+    const cw = full && n.res.length ? n.res.reduce((a, c) => a + tw(c.label, 11, 500) + 12, 0) + (n.res.length - 1) * 4 : 0;
+    const nw = full && n.note ? tw(n.note, 11.5, 400) : 0;
+    w = Math.max(lw, cw, nw) + 22; h = 28 + (cw ? 20 : 0) + (nw ? 16 : 0);
+  }
+  const r = { w: Math.ceil(w) + 8, h }; SZ.set(key, r); return r;   // canvas 量字比 DOM 渲染略窄，留 8px 余量防截断
+}
+
+/* ---- 节点：同一个原子，各档只换摆放 ---- */
+function inner(n, full) {
+  const phase = n.k === "phase";
+  if (n.k === "exit") return `<div class="l1"><i class="dot"></i><b>${esc(n.t)}</b>${full && n.why ? `<span>${esc(n.why)}</span>` : ""}</div>`;
+  if (n.k === "back") return `<div class="l1">${ic("refresh", 12)}<b>${esc(n.t)}</b></div>`;
+  if (n.k === "link") return `<div class="l1">${ic("share", 12)}<b>${esc(n.t)}</b></div>`;
+  if (n.k === "tool") return `<div class="l1"><b>${esc(n.t)}</b>${full && n.why ? `<span>${esc(n.why)}</span>` : ""}</div>`;
+  if (phase) return `<div class="l1"><i class="sw"></i><b>${esc(n.t)}</b>${full && n.loop ? `<em class="lp">↺ ${esc(n.loop)}</em>` : ""}</div>`;
+  return `<div class="l1"><b>${esc(n.t)}</b></div>${full && n.res.length ? `<div class="rs">${n.res.map((c) => `<i class="rc f-${c.f}">${esc(c.label)}</i>`).join("")}</div>` : ""}${full && n.note ? `<span class="nt">${esc(n.note)}</span>` : ""}`;
+}
+const nd = (n, x, y, full = true, extra = "") => {
+  const s = size(n, full);
+  return `<div class="nd k-${n.k} ${n.tone ? "t-" + n.tone : ""} ${n.ph != null ? "ph" + n.ph : ""} ${extra}" data-id="${n.id}" data-path="${n.path}" title="${esc([n.t, n.why, n.res?.map((c) => c.label).join("  "), n.note, n.a].filter(Boolean).join("\n"))}"
+    style="left:${Math.round(x)}px;top:${Math.round(y)}px;width:${s.w}px;--nh:${s.h}px;--d:${Math.min(n.depth, 7)}">${inner(n, full)}</div>`;
+};
+const lk = (n, d, cls = "", from = n) => `<path class="lk ${cls} ${n.ph != null ? "ph" + n.ph : ""}" data-path="${n.path}" pathLength="1" d="${d}" style="--d:${Math.min(from.depth, 7)}"/>`;
+const curveH = (x1, y1, x2, y2) => { const m = (x1 + x2) / 2; return `M${x1},${y1} C${m},${y1} ${m},${y2} ${x2},${y2}`; };
+const ARROW = `<defs><marker id="ma" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ah" d="M1,1 L9,5 L1,9"/></marker><marker id="mn" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path class="ahn" d="M1,1 L9,5 L1,9"/></marker></defs>`;
+const canvas = (w, h, svg, html, extra = "") => `<div class="cv" style="width:${Math.ceil(w)}px;height:${Math.ceil(h)}px" ${extra}><svg width="${Math.ceil(w)}" height="${Math.ceil(h)}">${ARROW}${svg}</svg>${html}</div>`;
+
+/* ---- 主干 + 支线：把树摊成一条执行顺序（地铁 / 环 / 泳道共用） ----
+   station：主路上的一步；spurs：它的出口 / 旁支（分岔的非主路、工具、结局）；backs：回到前面某一步 */
+function line(root) {
+  const st = [], backs = [];
+  const nested = (n, from) => { const w = (x) => { if (x.k === "back") backs.push({ from, n: x }); x.kids.forEach(w); }; w(n); };
+  const walk = (kids) => {
+    for (const c of kids) {
+      if (c.k === "back") { backs.push({ from: st.length - 1, n: c }); continue; }
+      if (c.k === "exit" || c.k === "link") { st.at(-1)?.spurs.push(c); continue; }
+      const s = { n: c, spurs: [] }; st.push(s);
+      if (c.k === "branch") {
+        for (const cs of c.kids) if (!cs.main) { s.spurs.push(cs); nested(cs, st.length - 1); }
+        const m = c.kids.find((x) => x.main); if (m) walk(m.kids);
+        continue;
+      }
+      for (const k of c.kids) { if (k.k === "back") backs.push({ from: st.length - 1, n: k }); else { s.spurs.push(k); nested(k, st.length - 1); } }
+    }
+  };
+  for (const p of root.kids) walk(p.kids);
+  for (const b of backs) b.to = st.findIndex((s) => s.n === b.n.target);
+  return { st, backs };
+}
+// 支线里的子树摊平成一串（带缩进层级）
+const flat = (n, lv = 0, out = []) => { out.push({ n, lv }); for (const k of n.kids) flat(k, lv + 1, out); return out; };
+
+/* ================= 各档的摆法 ================= */
+
+// 1 放射导图：根在中心，阶段是一级枝，按叶子数分角度
+function radial(spec) {
+  const root = spec.tree, leaves = (n) => n.kids.length ? n.kids.reduce((a, k) => a + leaves(k), 0) + 0.6 : 1;   // 有子项的多占 0.6 份角度，枝与枝之间留缝
+  const maxD = Math.max(...spec.all.map((n) => n.depth)), L = leaves(root);
+  const step = Math.max(185, (L * 40) / (2 * Math.PI * maxD) * 1.15);
+  const pos = new Map();
+  const place = (n, a0, a1) => {
+    const th = (a0 + a1) / 2, r = n.depth * step;
+    pos.set(n.id, { x: Math.cos(th) * r, y: Math.sin(th) * r, th });
+    let a = a0; for (const k of n.kids) { const span = (a1 - a0) * leaves(k) / leaves(n); place(k, a, a + span); a += span; }
+  };
+  place(root, -Math.PI / 2, Math.PI * 1.5);
+  const pad = 40; let minX = 0, maxX = 0, minY = 0, maxY = 0;
+  for (const n of spec.all) { const p = pos.get(n.id), s = size(n, false); minX = Math.min(minX, p.x - s.w / 2); maxX = Math.max(maxX, p.x + s.w / 2); minY = Math.min(minY, p.y - s.h / 2); maxY = Math.max(maxY, p.y + s.h / 2); }
+  const ox = -minX + pad, oy = -minY + pad;
+  let svg = "", html = "";
+  for (const n of spec.all) {
+    const p = pos.get(n.id), s = size(n, false);
+    if (n.parent) {
+      const q = pos.get(n.parent.id), rp = n.parent.depth * step, rc = n.depth * step, mid = (rp + rc) / 2;
+      const c1 = [Math.cos(q.th) * mid, Math.sin(q.th) * mid], c2 = [Math.cos(p.th) * mid, Math.sin(p.th) * mid];
+      svg += lk(n, `M${q.x + ox},${q.y + oy} C${c1[0] + ox},${c1[1] + oy} ${c2[0] + ox},${c2[1] + oy} ${p.x + ox},${p.y + oy}`, n.depth > 2 ? "thin" : "", n.parent);
+    }
+    html += nd(n, p.x + ox - s.w / 2, p.y + oy - s.h / 2, false);
+  }
+  return canvas(maxX - minX + pad * 2, maxY - minY + pad * 2, svg, html);
+}
+
+// 2 逻辑树（向右）：从上到下就是执行先后；点有子项的节点折叠；回到某一步画成右侧虚线折返
+const FOLD = new Map();   // spec 名 → 折叠的节点 id
+function tidy(root, all, { gapX = 40, gapY = 9, fold = new Set(), full = true } = {}) {
+  const pos = new Map(); let y = 16;
+  const place = (n, x) => {
+    const s = size(n, full), kids = fold.has(n.id) ? [] : n.kids;
+    if (!kids.length) { pos.set(n.id, { x, y: y + s.h / 2, s }); y += s.h + gapY; return; }
+    const top = y; kids.forEach((k) => place(k, x + s.w + gapX));
+    const a = pos.get(kids[0].id).y, b = pos.get(kids.at(-1).id).y;
+    let cy = (a + b) / 2; if (cy - s.h / 2 < top) cy = top + s.h / 2;
+    y = Math.max(y, cy + s.h / 2 + gapY);   // 节点比子项高时，把下一个兄弟推下去
+    pos.set(n.id, { x, y: cy, s });
+  };
+  place(root, 16);
+  return pos;
+}
+function logic(spec) {
+  const fold = FOLD.get(spec.name) ?? new Set(); FOLD.set(spec.name, fold);
+  const pos = tidy(spec.tree, spec.all, { fold });
+  let svg = "", html = "", W = 0, H = 0;
+  const shown = spec.all.filter((n) => pos.has(n.id));
+  for (const n of shown) {
+    const p = pos.get(n.id);
+    if (n.parent && pos.has(n.parent.id)) { const q = pos.get(n.parent.id); svg += lk(n, curveH(q.x + q.s.w, q.y, p.x, p.y), n.depth > 2 ? "thin" : "", n.parent); }
+    const hidden = fold.has(n.id) ? deepCount(n) : 0;
+    html += nd(n, p.x, p.y - p.s.h / 2, true, (n.kids.length ? "can " : "") + (hidden ? "fold" : "")).replace('class="nd', `data-fold="${hidden}" data-tog="${n.id}" class="nd`);
+    // 折起的数量画在节点外侧：节点宽按文字量出来，里面没有它的位置
+    if (hidden) html += `<span class="foldn" data-path="${n.path}" style="left:${Math.round(p.x + p.s.w + 5)}px;top:${Math.round(p.y - 9)}px">+${hidden}</span>`;
+    W = Math.max(W, p.x + p.s.w + (hidden ? 26 : 0)); H = Math.max(H, p.y + p.s.h / 2);
+  }
+  for (const n of shown) if (n.k === "back" && n.target && pos.has(n.target.id)) {
+    const p = pos.get(n.id), t = pos.get(n.target.id), x = Math.max(p.x + p.s.w, t.x + t.s.w) + 26;
+    svg += `<path class="lk back" data-path="${n.path}" d="M${p.x + p.s.w},${p.y} C${x},${p.y} ${x},${t.y} ${t.x + t.s.w + 4},${t.y}" marker-end="url(#ma)"/>`;
+    W = Math.max(W, x + 10);
+  }
+  return canvas(W + 24, H + 24, svg, html);
+}
+const deepCount = (n) => n.kids.reduce((a, k) => a + 1 + deepCount(k), 0);
+
+// 3 环形跑道：循环里的步骤排成一圈，出口从圈外甩出；循环前的起跑在左、收尾在右
+function ring(spec) {
+  const { st, backs } = line(spec.tree);
+  const inLoop = (s) => { const p = phaseOf(s.n); return !!(p?.loop || p?.inLoop); };
+  const loopIdx = st.map((s, i) => inLoop(s) ? i : -1).filter((i) => i >= 0);
+  if (!loopIdx.length) return track(spec, st, backs, "这条没有回环：跑道退化成一条直线");
+  const pre = st.slice(0, loopIdx[0]), lp = st.slice(loopIdx[0], loopIdx.at(-1) + 1), post = st.slice(loopIdx.at(-1) + 1);
+  // 紧凑：站点只写名字；站下只挂终点（结局 / 跳到另一条 / 回到某步），工具与中间步骤留给逻辑树；细节在悬停提示里
+  const ends = (s) => s.spurs.flatMap((sp) => flat(sp).map((x) => x.n)).filter((m) => ["exit", "link", "back"].includes(m.k));
+  const n = lp.length, R = Math.max(150, n * 30);
+  const colW = Math.max(...pre.map((s) => size(s.n, false).w), 140) + 50;
+  const spurW = Math.max(0, ...lp.map((s) => Math.max(size(s.n, false).w, ...ends(s).map((m) => size(m, false).w + 12))));
+  const cxr = colW + 60 + spurW + 24 + R, cyr = R + 150;   // 圈左侧的站名与出口向左伸，不能压到起跑列
+  let svg = "", html = "";
+  // 圆环 + 绕圈的小点
+  svg += `<circle id="rg-${spec.name}" cx="${cxr}" cy="${cyr}" r="${R}" class="lk main ph1" style="--d:1;fill:none;stroke-width:5;opacity:.55" pathLength="1"/>`;
+  svg += `<path id="rp-${spec.name}" d="M${cxr - R},${cyr} a${R},${R} 0 1,1 ${2 * R},0 a${R},${R} 0 1,1 ${-2 * R},0" fill="none"/>`;
+  svg += `<circle r="6" class="bead"><animateMotion dur="7s" repeatCount="indefinite" rotate="auto"><mpath href="#rp-${spec.name}"/></animateMotion></circle>`;
+  const phName = phaseOf(lp[0].n);
+  svg += `<text class="pht" x="${cxr}" y="${cyr - 8}" text-anchor="middle">${esc(phName.t)}</text><text class="pht" x="${cxr}" y="${cyr + 12}" text-anchor="middle" style="font-weight:450">↺ ${esc(phName.loop ?? "")}</text>`;
+  let maxY = cyr + R, maxX = cxr + R;
+  lp.forEach((s, i) => {
+    const th = Math.PI + (i / n) * Math.PI * 2, px = cxr + Math.cos(th) * R, py = cyr + Math.sin(th) * R, sz = size(s.n, false);
+    svg += `<circle cx="${px}" cy="${py}" r="7" class="stn"/>`;
+    const right = Math.cos(th) > 0.05, left = Math.cos(th) < -0.05, lx = cxr + Math.cos(th) * (R + 24), ly = cyr + Math.sin(th) * (R + 24);
+    const x = right ? lx : left ? lx - sz.w : lx - sz.w / 2, y = ly - sz.h / 2 + (Math.abs(Math.cos(th)) < 0.05 ? (Math.sin(th) < 0 ? -sz.h / 2 : sz.h / 2) : 0);
+    html += nd(s.n, x, y, false);
+    let sy = y + sz.h + 5;
+    for (const m of ends(s)) {
+      const ms = size(m, false); const mx = right ? x + 12 : left ? x + sz.w - ms.w - 12 : x + 12;
+      html += nd(m, mx, sy, false); svg += lk(m, `M${right ? x + 6 : left ? x + sz.w - 6 : x + 6},${sy - 4} L${right ? x + 6 : left ? x + sz.w - 6 : x + 6},${sy + ms.h / 2} L${right ? mx : mx + ms.w},${sy + ms.h / 2}`, "thin", s.n);
+      sy += ms.h + 4; maxY = Math.max(maxY, sy); maxX = Math.max(maxX, mx + ms.w);
+    }
+    maxX = Math.max(maxX, x + sz.w);
+  });
+  // 起跑一列 → 圈左点；收尾一列 ← 圈右点
+  let y = cyr - (pre.length * 52) / 2;
+  pre.forEach((s, i) => {
+    const sz = size(s.n, false); html += nd(s.n, 24, y, false);
+    let sy = y + sz.h + 4;
+    for (const m of ends(s)) { const ms = size(m, false); html += nd(m, 40, sy, false); sy += ms.h + 4; }
+    svg += lk(s.n, i < pre.length - 1 ? `M${24 + 16},${y + sz.h} L${24 + 16},${y + 52}` : curveH(24 + sz.w, y + sz.h / 2, cxr - R - 8, cyr), "thin");
+    y = Math.max(y + 52, sy + 8);
+  });
+  let py2 = cyr - (post.length * 56) / 2; const px2 = maxX + 70;
+  post.forEach((s, i) => {
+    const sz = size(s.n, false); html += nd(s.n, px2, py2, false);
+    let sy = py2 + sz.h + 4; for (const m of ends(s)) { const ms = size(m, false); html += nd(m, px2 + 16, sy, false); sy += ms.h + 4; }
+    if (i === 0) svg += `<path class="lk rail" d="${curveH(cxr + R + 8, cyr, px2 - 6, py2 + sz.h / 2)}" marker-end="url(#mn)"/><text class="pht" x="${(cxr + R + px2) / 2}" y="${cyr + 34}" text-anchor="middle" style="font-weight:450">出圈 = 某个结局</text>`;
+    maxX = Math.max(maxX, px2 + sz.w + 20); py2 = sy + 14; maxY = Math.max(maxY, sy);
+  });
+  return canvas(maxX + 40, Math.max(maxY, y) + 40, svg, html);
+}
+// 没有回环时的直线跑道（环形档的退化形态）
+function track(spec, st, backs, hint) {
+  let x = 30; const Y = 90; let svg = "", html = "", maxY = Y + 40; const xs = [];
+  st.forEach((s, i) => {
+    const sz = size(s.n), w = Math.max(sz.w, 120);
+    xs.push(x + w / 2);
+    html += nd(s.n, x + (w - sz.w) / 2, Y - sz.h - 16);
+    let sy = Y + 20;
+    for (const sp of s.spurs) for (const { n: m, lv } of flat(sp)) { const ms = size(m); html += nd(m, x + (w - ms.w) / 2 + lv * 10, sy); sy += ms.h + 5; }
+    maxY = Math.max(maxY, sy);
+    x += w + 36;
+  });
+  svg += `<path class="lk main ph1" style="--d:1;opacity:.55;stroke-width:5" pathLength="1" d="M${xs[0]},${Y} H${xs.at(-1)}"/>`;
+  xs.forEach((cx0) => { svg += `<circle cx="${cx0}" cy="${Y}" r="7" class="stn"/>`; });
+  for (const b of backs) if (b.to >= 0) svg += `<path class="lk back" d="M${xs[b.from]},${Y - 60} C${xs[b.from]},${Y - 110} ${xs[b.to]},${Y - 110} ${xs[b.to]},${Y - 64}" marker-end="url(#ma)"/>`;
+  html += `<div class="hint" style="left:30px;top:${maxY + 6}px">${esc(hint)}</div>`;
+  return canvas(x + 20, maxY + 40, svg, html);
+}
+
+// 4 泳道：行 = 谁在做，列 = 先后；出口与旁支沉到最底一行
+const LANES = { ui: "前端", svc: "请求处理", bg: "后台轮次", model: "模型", tool: "工具" };
+function lanes(spec) {
+  const { st, backs } = line(spec.tree);
+  const used = Object.keys(LANES).filter((l) => st.some((s) => laneOf(s.n, spec.tree) === l));
+  const LH = 92, top = 20, labW = 92, rowY = (l) => top + used.indexOf(l) * LH + LH / 2;
+  const endY = top + used.length * LH + 18;
+  let x = labW + 20, svg = "", html = "", maxY = endY; const at = [];
+  st.forEach((s) => {
+    const sz = size(s.n), y = rowY(laneOf(s.n, spec.tree));
+    at.push({ x, y, sz });
+    html += nd(s.n, x, y - sz.h / 2);
+    let sy = endY; const w0 = sz.w;
+    let spW = 0;
+    for (const sp of s.spurs) for (const { n: m, lv } of flat(sp)) { const ms = size(m); html += nd(m, x + lv * 10, sy); sy += ms.h + 5; spW = Math.max(spW, ms.w + lv * 10); }
+    if (s.spurs.length) svg += `<path class="lk rail" d="M${x + 12},${y + sz.h / 2} V${endY - 4}"/>`;
+    maxY = Math.max(maxY, sy);
+    x += Math.max(w0, spW) + 34;
+  });
+  for (let i = 1; i < at.length; i++) {
+    const a = at[i - 1], b = at[i], x1 = a.x + a.sz.w, x2 = b.x;
+    svg += lk(st[i].n, a.y === b.y ? `M${x1},${a.y} H${x2 - 4}` : `M${x1},${a.y} H${x1 + 14} V${b.y} H${x2 - 4}`, "thin").replace("<path", '<path marker-end="url(#mn)"');
+  }
+  for (const b of backs) if (b.to >= 0) { const f = at[b.from], t = at[b.to], yy = top - 4;
+    svg += `<path class="lk back" d="M${f.x + f.sz.w / 2},${f.y - f.sz.h / 2} C${f.x + f.sz.w / 2},${yy} ${t.x + t.sz.w / 2},${yy} ${t.x + t.sz.w / 2},${t.y - t.sz.h / 2 - 4}" marker-end="url(#ma)"/>`; }
+  let bg = "";
+  used.forEach((l, i) => { bg += `<rect class="lanebg ${i % 2 ? "o" : ""}" x="0" y="${top + i * LH}" width="${x + 20}" height="${LH}"/><text class="lanet" x="16" y="${top + i * LH + LH / 2 + 4}">${LANES[l]}</text>`; });
+  bg += `<text class="lanet" x="16" y="${endY + 16}">出口 / 旁支</text>`;
+  return canvas(x + 20, maxY + 30, bg + svg, html);
+}
+
+// 4′ 改过的泳道：连续同一执行者、同一阶段的步骤叠成一列（只有交接才横移）；出口挂在自己那一步下面；循环段套带子 + 折返
+function lanes2(spec) {
+  const { st, backs } = line(spec.tree);
+  const runs = [];
+  st.forEach((s, i) => { const l = laneOf(s.n, spec.tree), ph = phaseOf(s.n), r = runs.at(-1);
+    if (r && r.l === l && r.ph === ph) r.items.push(s); else runs.push({ l, ph, items: [s] }); s.i = i; });
+  const used = Object.keys(LANES).filter((l) => runs.some((r) => r.l === l));
+  const itemH = (s) => size(s.n).h + s.spurs.reduce((a, sp) => a + flat(sp).reduce((b, { n: m }) => b + size(m).h + 5, 0), 0) + (s.spurs.length ? 6 : 0);
+  for (const r of runs) { r.h = r.items.reduce((a, s) => a + itemH(s) + 18, 0) - 18; r.w = Math.max(...r.items.map((s) => Math.max(size(s.n).w, ...s.spurs.flatMap((sp) => flat(sp).map(({ n: m, lv }) => size(m).w + 16 + lv * 12))))); }
+  const HEAD = 64, LPAD = 26, labW = 96, GAPX = 64;
+  const laneH = Object.fromEntries(used.map((l) => [l, Math.max(70, ...runs.filter((r) => r.l === l).map((r) => r.h)) + LPAD * 2]));
+  const laneY = {}; let yy = HEAD; for (const l of used) { laneY[l] = yy; yy += laneH[l]; }
+  let x = labW + 24, svg = "", html = "", bg = "";
+  const at = new Map();
+  runs.forEach((r, ri) => {
+    r.x = x; let y = laneY[r.l] + LPAD + (laneH[r.l] - LPAD * 2 - r.h) / 2;
+    if (ri === 0 || runs[ri - 1].ph !== r.ph) bg += `<text class="pht" x="${x}" y="${HEAD - 22}">${esc(r.ph.t)}</text>`;
+    r.items.forEach((s, k) => {
+      const sz = size(s.n); html += nd(s.n, x, y); at.set(s.i, { x, y, w: sz.w, h: sz.h, rx: r.x + r.w });
+      if (k) { const p = at.get(r.items[k - 1].i); svg += lk(s.n, `M${x + 14},${p.bottom} V${y - 3}`, "thin").replace("<path", '<path marker-end="url(#mn)"'); }
+      let sy = y + sz.h + 6;
+      for (const sp of s.spurs) for (const { n: m, lv } of flat(sp)) { const ms = size(m), mx = x + 16 + lv * 12; html += nd(m, mx, sy); svg += lk(m, `M${x + 8},${y + sz.h} V${sy + ms.h / 2} H${mx}`, "thin", s.n); sy += ms.h + 5; }
+      at.get(s.i).bottom = sy - (s.spurs.length ? 5 : 6) + 6;
+      y = sy + 12;
+    });
+    x += r.w + GAPX;
+  });
+  // 交接：上一列最后一步 → 下一列第一步
+  for (let ri = 1; ri < runs.length; ri++) {
+    const a = at.get(runs[ri - 1].items.at(-1).i), b = at.get(runs[ri].items[0].i), n = runs[ri].items[0].n;
+    svg += lk(n, curveH(a.x + a.w, a.y + 14, b.x - 4, b.y + 14), "").replace("<path", '<path marker-end="url(#mn)"');
+  }
+  // 循环带：从第一列在循环里的列，到最后一列
+  const inLoop = (r) => r.ph.loop || r.ph.inLoop, li = runs.map((r, i) => inLoop(r) ? i : -1).filter((i) => i >= 0);
+  if (li.length) {
+    const a = runs[li[0]], b = runs[li.at(-1)], x0 = a.x - 18, x1 = b.x + b.w + 18, ph = runs.find(inLoop).ph.loop ? runs.find(inLoop).ph : runs[li[0]].ph;
+    const loopPh = runs.map((r) => r.ph).find((p) => p.loop);
+    bg += `<rect class="band ph${(loopPh ?? ph).ph}" x="${x0}" y="${HEAD - 8}" width="${x1 - x0}" height="${yy - HEAD + 16}" rx="16"/>`;
+    bg += `<text class="bandt" x="${x0 + 14}" y="${HEAD + 10}">↺ ${esc((loopPh ?? ph).t)}${loopPh?.loop ? " · " + esc(loopPh.loop) : ""}</text>`;
+    svg += `<path class="lk back" d="M${x1 - 30},${HEAD - 8} C${x1 - 30},${HEAD - 50} ${x0 + 30},${HEAD - 50} ${x0 + 30},${HEAD - 12}" marker-end="url(#ma)"/>`;
+  }
+  for (const b of backs) if (b.to >= 0 && !(li.length && inLoop(runs.find((r) => r.items.some((s) => s.i === b.from))))) {
+    // 弧顶抬到泳道上方（三次贝塞尔的顶点在起点与控制点的 3/4 处），不从节点中间穿过
+    const f = at.get(b.from), t = at.get(b.to), y0 = Math.max(f.y, t.y), top = (HEAD - 18 - 0.25 * y0) / 0.75;
+    svg += `<path class="lk back" d="M${f.x + f.w},${f.y + 14} C${f.rx + 70},${f.y + 14} ${f.rx + 40},${top} ${(f.rx + t.x + t.w / 2) / 2},${top * 0.25 + (HEAD - 18) * 0.75} S${t.rx + 44},${t.y + 14} ${t.x + t.w + 4},${t.y + 14}" marker-end="url(#ma)"/><text class="pht" x="${(f.x + f.w / 2 + t.x + t.w / 2) / 2}" y="${HEAD - 24}" text-anchor="middle" style="fill:var(--accent-ink);font-weight:650">↺ ${esc(b.n.t)}</text>`;
+  }
+  used.forEach((l, i) => { bg = `<rect class="lanebg ${i % 2 ? "o" : ""}" x="0" y="${laneY[l]}" width="${x}" height="${laneH[l]}"/><text class="lanet" x="16" y="${laneY[l] + 22}">${LANES[l]}</text>` + bg; });
+  return canvas(x, yy + 20, bg + svg, html);
+}
+
+// 5 结局倒推：根 → 结局 → 因为什么 → 在哪一步
+function outcome(spec) {
+  const order = ["ok", "wait", "warn", "fail", "stop"];
+  const exits = spec.all.filter((n) => n.k === "exit" || n.k === "link");
+  const at = (n) => { for (let x = n.parent; x; x = x.parent) if (!["case", "exit"].includes(x.k)) return x; return null; };
+  const root = { id: "o0", k: "root", t: `${spec.name} · 为什么会停下`, kids: [], depth: 0, path: "o0", res: [] };
+  const groups = new Map();
+  for (const e of exits) {
+    const gk = e.k === "link" ? "link" : e.t;
+    if (!groups.has(gk)) { const g = { id: "og" + gk, k: e.k === "link" ? "link" : "exit", t: e.k === "link" ? "交给另一条循环" : e.t, tone: e.tone, kids: [], depth: 1, res: [], path: "" }; groups.set(gk, g); }
+    const g = groups.get(gk), s = at(e);
+    const why = { id: "ow" + e.id, k: "step", t: e.k === "link" ? e.t : e.why, note: s ? `在「${s.t}」${s.a ? "　" + s.a : ""}` : "", kids: [], depth: 2, res: [], ph: s ? phaseOf(s)?.ph : null, path: "" };
+    g.kids.push(why);
+  }
+  root.kids = [...groups.values()].sort((a, b) => (a.k === "link") - (b.k === "link") || order.indexOf(a.tone) - order.indexOf(b.tone));
+  const all = []; const col = (n, p) => { n.parent = p; n.path = p ? p.path + " " + n.id : n.id; all.push(n); n.kids.forEach((k) => col(k, n)); }; col(root, null);
+  const pos = tidy(root, all, { gapX: 56, gapY: 10 });
+  let svg = "", html = "", W = 0, H = 0;
+  for (const n of all) {
+    const p = pos.get(n.id);
+    if (n.parent) { const q = pos.get(n.parent.id); svg += lk(n, curveH(q.x + q.s.w, q.y, p.x, p.y), "thin", n.parent); }
+    html += nd(n, p.x, p.y - p.s.h / 2);
+    W = Math.max(W, p.x + p.s.w); H = Math.max(H, p.y + p.s.h / 2);
+  }
+  return canvas(W + 30, H + 24, svg, html);
+}
+
+// 6 地铁图：主干一条线（按阶段分色），出口是下挂支线，回到某一步是上方折返弧，跨循环是换乘站
+function metro(spec) {
+  const { st, backs } = line(spec.tree);
+  const Y = 190; let x = 50, svg = "", html = "", maxY = Y + 40; const xs = [];
+  st.forEach((s) => { const w = Math.max(size(s.n).w, 110, ...s.spurs.flatMap((sp) => flat(sp).map(({ n: m, lv }) => size(m).w + lv * 16))); xs.push(x + w / 2); s.w = w; x += w + 26; });
+  // 分阶段的彩色主干
+  let i0 = 0;
+  for (let i = 1; i <= st.length; i++) {
+    if (i === st.length || phaseOf(st[i].n) !== phaseOf(st[i0].n)) {
+      const ph = phaseOf(st[i0].n), xa = xs[i0] - (i0 ? 13 + st[i0].w / 2 : 0), xb = i < st.length ? xs[i] - st[i].w / 2 - 13 : xs[i - 1];
+      svg += `<path class="lk main ph${ph.ph}" pathLength="1" style="--d:1" d="M${xa},${Y} H${xb}"/>`;
+      svg += `<text class="pht" x="${xs[i0] - st[i0].w / 2}" y="${Y - 76}">${esc(ph.t)}${ph.loop ? "　↺ " + esc(ph.loop) : ""}</text>`;
+      i0 = i;
+    }
+  }
+  svg += `<path id="mt-${spec.name}" d="M${xs[0]},${Y} H${xs.at(-1)}" fill="none"/><circle r="5" class="bead"><animateMotion dur="${Math.max(4, st.length * 0.45)}s" repeatCount="indefinite"><mpath href="#mt-${spec.name}"/></animateMotion></circle>`;
+  st.forEach((s, i) => {
+    const sz = size(s.n), link = s.spurs.some((sp) => sp.k === "link");
+    svg += `<circle cx="${xs[i]}" cy="${Y}" r="${link ? 9 : 7}" class="stn ${link ? "x" : ""}"/>${link ? `<circle cx="${xs[i]}" cy="${Y}" r="4" class="stn x"/>` : ""}`;
+    html += nd(s.n, xs[i] - sz.w / 2, Y - 18 - sz.h);
+    let sy = Y + 26;
+    if (s.spurs.length) svg += `<path class="lk rail" d="M${xs[i]},${Y + 9} V${Y + 22}"/>`;
+    for (const sp of s.spurs) for (const { n: m, lv } of flat(sp)) { const ms = size(m); html += nd(m, xs[i] - ms.w / 2 + lv * 8, sy); sy += ms.h + 5; }
+    maxY = Math.max(maxY, sy);
+  });
+  backs.forEach((b, k) => { if (b.to < 0) return; const yy = Y - 150 - k * 18, f = xs[b.from], t = xs[b.to], apex = Y - 60 + 0.75 * (yy - (Y - 60));
+    svg += `<path class="lk back" d="M${f},${Y - 60} C${f},${yy} ${t},${yy} ${t},${Y - 64}" marker-end="url(#ma)"/><text class="pht" x="${(f + t) / 2}" y="${apex - 7}" text-anchor="middle" style="fill:var(--accent-ink);font-weight:650">↺ ${esc(b.n.t)}</text>`; });
+  return canvas(x + 30, maxY + 30, svg, html);
+}
+
+// 7 阶段卡片板：一排阶段卡，分岔缩进，出口是结局标签；和 atlas 抽屉同一套词汇
+function board(spec) {
+  const pill = (n) => n.k === "exit" ? `<span class="pill k-exit t-${n.tone}"><i class="dot"></i><b>${esc(n.t)}</b>${esc(n.why ?? "")}</span>`
+    : n.k === "back" ? `<span class="pill k-back">${ic("refresh", 11)}${esc(n.t)}</span>` : n.k === "link" ? `<span class="pill k-link">${ic("share", 11)}${esc(n.t)}</span>`
+    : n.k === "tool" ? `<span class="pill k-tool" title="${esc(n.why ?? "")}">${esc(n.t)}</span>` : "";
+  const item = (n) => {
+    const leafs = n.kids.filter((k) => ["exit", "back", "link", "tool"].includes(k.k)), subs = n.kids.filter((k) => !leafs.includes(k));
+    return `<div class="it"><div class="l1"><b>${esc(n.t)}</b>${n.a ? `<span class="an">${esc(n.a.split(":").pop() ? n.a : "")}</span>` : ""}</div>
+      ${n.res.length ? `<div class="row">${n.res.map((c) => `<i class="rc f-${c.f}">${esc(c.label)}</i>`).join("")}</div>` : ""}${n.note ? `<span class="nt">${esc(n.note)}</span>` : ""}
+      ${leafs.length ? `<div class="row">${leafs.map(pill).join("")}</div>` : ""}
+      ${subs.map((c) => c.k === "case" ? `<div class="cs"><i>${c.main ? "▸ " : ""}${esc(c.t)}${c.main ? "　→ 往下接着走" : ""}</i>${c.kids.map((k) => ["exit", "back", "link", "tool"].includes(k.k) ? `<div class="row">${pill(k)}</div>` : item(k)).join("")}</div>` : item(c)).join("")}</div>`;
+  };
+  return `<div class="board">${spec.tree.kids.map((p, i) => `<section class="pc ph${p.ph} ${p.loop || p.inLoop ? "loop" : ""}" style="--d:${i}"><div class="hd"><i class="sw"></i><b>${esc(p.t)}</b>${p.loop ? `<span class="lp">${ic("refresh", 11)}${esc(p.loop)}</span>` : p.inLoop ? `<span class="lp">${ic("refresh", 11)}在循环里</span>` : ""}</div>
+    ${p.kids.map((k) => ["exit", "back", "link"].includes(k.k) ? `<div class="it"><div class="row">${pill(k)}</div></div>` : item(k)).join("")}</section>`).join("")}</div>`;
+}
+
+// 0 现状：照 atlas 抽屉抄（循环视图 / Agent 轮次只有域抽屉的文件清单）
+function current(spec) {
+  const c = spec.cur;
+  if (c.kind === "files") return `<div class="dw0"><div class="crumb"><span class="tile">${ic("refresh", 13)}</span>服务端</div><h3>${esc(spec.name)}</h3>
+    <div class="insight">${esc(spec.story)}</div><div class="stats">${c.stats.map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join("")}</div>
+    <div class="cap">文件<em>${c.files.length}</em></div><div class="list">${c.files.map(([n, f]) => `<div class="fr"><b>${n}</b><i>${f}</i></div>`).join("")}</div></div>`;
+  return `<div class="dw0"><div class="crumb"><span class="tile">${ic("link", 13)}</span>服务端 / ${esc(spec.name)}</div><h3>${esc(spec.name)}</h3><div class="rt">${esc(spec.rt)}</div>
+    <div class="insight">${esc(spec.story)}</div><div class="cap">从哪触发<em>${c.trig.length}</em></div><div class="list">${c.trig.map(([n, f]) => `<div class="fr"><b>${esc(n)}</b><i>${f}</i></div>`).join("")}</div>
+    <div class="cap">怎么走<em>${c.steps.length} 步</em></div><div>${c.steps.map(([a, b], i) => `<div class="stp"><span class="no">${i + 1}</span><div><b>${esc(a)}</b><span>${esc(b)}</span></div></div>`).join("")}</div></div>`;
+}
+
+/* ---- 第二轮：按情况展示 ----
+   适用的视图与默认视图全由流程树算出来：有回环 → 环形跑道；跨 ≥3 个执行者 → 泳道；其余 → 逻辑树；结局 ≥3 个才给「为什么停」 */
+function shape(spec) {
+  const { st } = line(spec.tree);
+  const lanesN = new Set(st.map((s) => laneOf(s.n, spec.tree))).size, loop = spec.tree.kids.some((p) => p.loop), exits = spec.all.filter((n) => n.k === "exit").length;
+  const phases = spec.tree.kids.length, steps = st.length, handoffs = st.reduce((a, s, i) => a + (i && laneOf(s.n, spec.tree) !== laneOf(st[i - 1].n, spec.tree)), 0);
+  const tones = new Set(spec.all.filter((n) => n.k === "exit").map((n) => n.t)).size;
+  const views = [{ k: "tree", q: "怎么走", c: "逻辑树", r: logic, sum: `${phases} 个阶段 · ${steps} 步` }];
+  if (lanesN >= 2) views.push({ k: "lane", q: "谁来做", c: "泳道", r: lanes2, sum: `${lanesN} 个执行者 · 交接 ${handoffs} 次` });
+  if (loop) views.push({ k: "ring", q: "怎么绕", c: "环形跑道", r: ring, sum: `循环 ${st.filter((s) => { const p = phaseOf(s.n); return p.loop || p.inLoop; }).length} 站` });
+  if (exits >= 3) views.push({ k: "out", q: "为什么停", c: "结局倒推", r: outcome, sum: `${tones} 种结局 · ${exits} 个出口` });
+  const def = loop ? "ring" : lanesN >= 3 ? "lane" : "tree";
+  const why = loop ? "有回环，默认画成跑道" : lanesN >= 3 ? `跨 ${lanesN} 个执行者，默认画成泳道` : "线性流程，默认画成逻辑树";
+  return { views, def, why };
+}
+const VIEW = new Map();   // 档 + 样本 → 用户切到的视图
+const viewOf = (tier, spec, sh, exclude) => { const k = VIEW.get(tier + "|" + spec.name); const ok = sh.views.filter((v) => v.k !== exclude); return ok.find((v) => v.k === k) ?? ok.find((v) => v.k === sh.def) ?? ok[0]; };
+const safe = (f, spec) => { try { return f(spec); } catch (e) { console.error(e); return `<div class="hint" style="position:static;padding:20px">这一视图画不出来：${esc(e.message)}</div>`; } };
+const seg = (tier, spec, sh, cur, exclude) => `<div class="vseg" role="tablist">${sh.views.filter((v) => v.k !== exclude).map((v) => `<button class="${v === cur ? "on" : ""}" data-view="${v.k}" data-tier="${tier}" role="tab" aria-selected="${v === cur}">${v.q}<span>${v.c}</span>${v.k === sh.def ? '<i class="auto">自动</i>' : ""}</button>`).join("")}</div>`;
+// 结局侧栏：结局倒推的窄版——按结局分组，每条写原因与位置
+function outSide(spec) {
+  const order = ["ok", "wait", "warn", "fail", "stop"], exits = spec.all.filter((n) => n.k === "exit");
+  const at = (n) => { for (let x = n.parent; x; x = x.parent) if (!["case", "exit"].includes(x.k)) return x; return null; };
+  const g = new Map(); for (const e of exits) (g.get(e.t) ?? g.set(e.t, []).get(e.t)).push(e);
+  const groups = [...g].sort((a, b) => order.indexOf(a[1][0].tone) - order.indexOf(b[1][0].tone));
+  return `<aside class="side"><div class="cap">为什么会停<em>${groups.length} 种结局</em></div>${groups.map(([t, es], i) => `<div class="og t-${es[0].tone}" style="animation-delay:${i * 50}ms"><div class="gh"><i class="dot"></i>${esc(t)}<em>${es.length}</em></div>
+    ${es.map((e) => { const s = at(e); return `<div class="gr"><b>${esc(e.why)}</b><i>${esc(s?.t ?? "")}${s?.a ? "　" + esc(s.a) : ""}</i></div>`; }).join("")}</div>`).join("")}</aside>`;
+}
+// 缩略图：把视图缩进 184×104 的小框（渲染后按真尺寸算缩放）
+function fitThumbs(root) {
+  for (const box of root.querySelectorAll(".th .box")) { const cv = box.firstElementChild; if (!cv) continue;
+    const w = cv.offsetWidth || cv.scrollWidth, h = cv.offsetHeight || cv.scrollHeight, k = Math.min(176 / w, 96 / h);
+    cv.style.transform = `translate(-50%,-50%) scale(${k})`; cv.style.transformOrigin = "50% 50%"; }
+}
+const ROUND2 = [
+  { name: "现状", thesis: "循环 = 域与域之间的一串调用；Agent 轮次只剩文件清单", parts: [["形态", "抽屉列表"]], cost: "", block: (s) => `<div class="map">${current(s)}</div>` },
+  { name: "问题页签", thesis: "页签写成问题：怎么走 / 谁来做 / 怎么绕 / 为什么停，默认那一页由形态定", parts: [["切换", "问题页签"], ["默认", "形态决定 + 自动标"], ["不适用", "不给页签"], ["泳道", "交接列 + 循环带"]], cost: "一次只看一种；「为什么停」要多点一下",
+    block: (s, t) => { const sh = shape(s), v = viewOf(t, s, sh); return `<div class="vbar">${seg(t, s, sh, v)}<span class="why2">${sh.why}</span></div><div class="map">${safe(v.r, s)}</div>`; } },
+  { name: "主图 + 结局侧栏", thesis: "「为什么停」人人都问，常驻右栏；主图按形态选", parts: [["主图", "逻辑树 / 泳道 / 跑道"], ["右栏", "结局常驻"], ["泳道", "交接列 + 循环带"]], cost: "主图少 330px 宽；结局少的流程右栏很空",
+    block: (s, t) => { const sh = shape(s), v = viewOf(t, s, sh, "out"); return `<div class="vbar">${seg(t, s, sh, v, "out")}<span class="why2">${sh.why}</span></div><div class="split"><div class="map">${safe(v.r, s)}</div>${s.all.some((n) => n.k === "exit") ? outSide(s) : ""}</div>`; } },
+  { name: "缩略图切换", thesis: "每种看法先给一张缩略图，形状本身就是入口", parts: [["切换", "缩略图"], ["默认", "形态决定"], ["泳道", "交接列 + 循环带"]], cost: "要把每种视图都渲染一遍；缩略图里的字看不清，只看形状",
+    block: (s, t) => { const sh = shape(s), v = viewOf(t, s, sh); return `<div class="thumbs">${sh.views.map((x) => `<button class="th ${x === v ? "on" : ""}" data-view="${x.k}" data-tier="${t}"><div class="box">${safe(x.r, s)}</div><div class="tl">${x.q}<span>${x.c}</span>${x.k === sh.def ? '<i class="auto">自动</i>' : ""}</div></button>`).join("")}</div><div class="map">${safe(v.r, s)}</div>`; } },
+  { name: "叠放全景", thesis: "适用的看法全部排出来，默认的展开，其余折起只露一句概要", parts: [["排列", "默认在前"], ["其余", "折叠 + 概要"], ["泳道", "交接列 + 循环带"]], cost: "页面很长；同一条流程要往下滚才能换角度",
+    block: (s) => { const sh = shape(s), vs = [...sh.views].sort((a, b) => (b.k === sh.def) - (a.k === sh.def)); return `<div class="stack">${vs.map((x) => `<details ${x.k === sh.def ? "open" : ""}><summary>${x.q}<span>${x.c} · ${x.sum}</span>${x.k === sh.def ? '<i class="auto">自动</i>' : ""}</summary><div class="map">${safe(x.r, s)}</div></details>`).join("")}</div>`; } },
+];
+
+/* ---- 档 ---- */
+const ROUNDS = [{
+  name: "第一轮",
+  list: [
+    { name: "现状", thesis: "循环 = 域与域之间的一串调用；Agent 轮次只剩文件清单", parts: [["形态", "抽屉列表"], ["粒度", "域 → 域"], ["回环", "看不到"]], cost: "", render: current },
+    { name: "放射导图", thesis: "一眼全貌：中心是循环，一级枝是阶段", parts: [["形态", "放射"], ["枝", "按阶段着色"], ["读写", "悬停才看"]], cost: "看不出先后与回环；读写细节只在悬停时出现", render: radial },
+    { name: "逻辑树", thesis: "导图骨架 + 执行顺序：从上到下就是先后", parts: [["形态", "向右逻辑树"], ["回环", "右侧虚线折返"], ["折叠", "点节点"], ["读写", "节点里"]], cost: "回环只是一根折返线，不是真的一个圈；满样本很高", render: logic },
+    { name: "环形跑道", thesis: "循环就画成圈：一步步绕回来，出口从圈外甩出去", parts: [["主循环", "圆环"], ["出口", "圈外下挂"], ["起跑 / 收尾", "两侧"], ["动效", "小点绕圈"]], cost: "没有回环的流程退化成直线；站多时圈很大", render: ring },
+    { name: "泳道", thesis: "谁在什么时候做什么：行是执行者，列是先后", parts: [["行", "执行者"], ["列", "时间"], ["出口", "沉到底行"], ["回环", "顶部折返"]], cost: "最不像思维导图；横向很长", render: lanes },
+    { name: "结局倒推", thesis: "用户最关心它为什么停：从结局往回找原因", parts: [["根", "结局"], ["枝", "触发条件"], ["定位", "在哪一步 + 行号"]], cost: "正常路径被拆散，看不出完整流程；只适合当第二视图", render: outcome },
+    { name: "地铁图", thesis: "主干一条线，出口是支线，回环是折返，跨循环是换乘", parts: [["主干", "按阶段分色"], ["出口", "下挂支线"], ["回环", "上方弧线"], ["跨循环", "换乘站"], ["动效", "小点沿主干"]], cost: "横向长，满样本要横向滚动", render: metro },
+    { name: "阶段卡片板", thesis: "导图压成一排阶段卡：和 atlas 抽屉同一套词汇", parts: [["形态", "阶段列"], ["分岔", "缩进"], ["出口", "结局标签"], ["行号", "卡内右上"]], cost: "连线最少，先后与回环靠排版暗示", render: board },
+  ],
+}, { name: "第二轮 · 按情况", list: ROUND2 }];
+
+/* ---- 渲染 ---- */
+const KEY = "lab.loop-mindmap.";
+let round = Math.min(Number(localStorage.getItem(KEY + "r") ?? ROUNDS.length - 1), ROUNDS.length - 1);
+const curs = ROUNDS.map((_, i) => Number(localStorage.getItem(KEY + "v" + i) ?? 1));
+let showCur = false;
+const stage = document.getElementById("stage");
+const tierNow = () => { const list = ROUNDS[round].list; return showCur ? list[0] : list[curs[round]]; };
+const blockHtml = (v, s, i) => `<div class="bh"><span class="from">${s.from}</span><b>${esc(s.name)}</b><span class="rt">${esc(s.rt)}</span><span class="st">${esc(s.story)}</span></div>
+    ${v.block ? v.block(s, round + ":" + curs[round]) : `<div class="map">${safe(v.render, s)}</div>`}`;
+function render() {
+  const list = ROUNDS[round].list, v = tierNow(), cur = curs[round];
+  stage.innerHTML = SPECS.map((s, i) => `<section class="blk" data-i="${i}">${blockHtml(v, s, i)}</section>`).join("");
+  fitThumbs(stage);
+  document.getElementById("pick").innerHTML = ROUNDS.map((r, i) => `<button data-r="${i}" aria-pressed="${i === round}">${r.name}</button>`).join("") + '<span style="width:1px;height:14px;margin:0 6px;background:var(--sep)"></span>'
+    + list.map((x, i) => `<button data-v="${i}" aria-pressed="${!showCur && i === cur}"><b>${i}</b>${x.name}</button>`).join("");
+  document.getElementById("note").innerHTML = `<span class="thesis">${v.thesis}</span>${v.parts.map(([k, t]) => `<span class="part"><i>${k}</i>${t}</span>`).join("")}${v.cost ? `<span class="cost">${v.cost}</span>` : ""}`;
+}
+const renderBlock = (i) => { const el = stage.querySelector(`.blk[data-i="${i}"]`); el.innerHTML = blockHtml(tierNow(), SPECS[i], i); fitThumbs(el); };
+const setV = (i) => { showCur = false; curs[round] = i; localStorage.setItem(KEY + "v" + round, String(i)); render(); };
+const setRound = (r) => { round = r; showCur = false; localStorage.setItem(KEY + "r", String(r)); render(); };
+
+// 悬停：亮它的来路（祖先）与去路（子孙），其余压暗
+stage.addEventListener("pointerover", (e) => {
+  const el = e.target.closest("[data-path]"), cv = e.target.closest(".cv");
+  if (!cv) return;
+  if (!el) { cv.classList.remove("hov"); return; }
+  const id = el.dataset.path.split(" ").pop(), mine = el.dataset.path.split(" ");
+  cv.classList.add("hov");
+  for (const x of cv.querySelectorAll("[data-path]")) { const p = x.dataset.path.split(" "); x.classList.toggle("on", p.includes(id) || mine.includes(p.at(-1))); }
+});
+stage.addEventListener("pointerout", (e) => { const cv = e.target.closest(".cv"); if (cv && !cv.contains(e.relatedTarget)) cv.classList.remove("hov"); });
+document.addEventListener("click", (e) => {
+  const rb = e.target.closest("[data-r]"); if (rb) return setRound(Number(rb.dataset.r));
+  const pb = e.target.closest("[data-v]"); if (pb) return setV(Number(pb.dataset.v));
+  const vb = e.target.closest("[data-view]");
+  if (vb) { const i = vb.closest(".blk").dataset.i; VIEW.set(vb.dataset.tier + "|" + SPECS[i].name, vb.dataset.view); return renderBlock(i); }
+  const tg = e.target.closest("[data-tog]");
+  if (tg && tg.closest(".map") && !tg.closest(".th")) {
+    const spec = SPECS[tg.closest(".blk").dataset.i], f = FOLD.get(spec.name), id = tg.dataset.tog;
+    if (!spec.all.find((n) => n.id === id)?.kids.length) return;
+    if (!f) return;
+    f.has(id) ? f.delete(id) : f.add(id); renderBlock(tg.closest(".blk").dataset.i);
+  }
+});
+addEventListener("keydown", (e) => {
+  if (/^[0-9]$/.test(e.key) && Number(e.key) < ROUNDS[round].list.length) return setV(Number(e.key));
+  if (e.key.toLowerCase() === "r") return setRound((round + 1) % ROUNDS.length);
+  const k = e.key.toLowerCase();
+  if (k === "c") { showCur = !showCur; return render(); }
+  if (k === "p") return render();
+  if (k === "t") { const h = document.documentElement; h.dataset.theme = h.dataset.theme === "light" ? "dark" : "light"; localStorage.setItem(KEY + "t", h.dataset.theme); }
+});
+document.documentElement.dataset.theme = localStorage.getItem(KEY + "t") ?? "dark";
+render();
+
+// 性能测量入口（ego / 控制台里调 __bench()）：每种视图 排版 + 插 DOM + 强制布局 的耗时，真样本 + 合成的大流程
+window.__bench = (sizes = [100, 300, 1000]) => {
+  const synth = (n) => {   // n 个节点左右：6 个阶段，其中一个是循环；每步 1/3 概率带出口、1/6 概率带分岔
+    let left = n; const ph = [];
+    for (let p = 0; p < 6 && left > 0; p++) {
+      const kids = []; const per = Math.ceil(n / 6);
+      for (let i = 0; i < per && left > 0; i++) {
+        left--;
+        if (i % 6 === 5) { kids.push(Br(`分岔 ${p}-${i}`, {}, [C("另一支", {}, [X("失败", "条件不满足", "fail")]), C("主路", { main: true }, [])])); left -= 3; continue; }
+        kids.push(S(`步骤 ${p}-${i}`, { r: i % 2 ? ["w:TableA", "p:evt"] : [], l: ["svc", "bg", "model", "tool"][i % 4] }, i % 3 === 0 ? [X("限额", "超过上限", "warn")] : []));
+        if (i % 3 === 0) left--;
+      }
+      ph.push(P(`阶段 ${p}`, p === 2 ? { loop: "最多 60 次" } : {}, kids));
+    }
+    const spec = { name: "合成" + n, tree: N("root", "合成流程", { l: "svc" }, ph) }; prep(spec); return spec;
+  };
+  const specs = [...SPECS, ...sizes.map(synth)], views = { 逻辑树: logic, 泳道: lanes2, 环形跑道: ring, 结局倒推: outcome };
+  const host = document.createElement("div"); host.style.cssText = "position:absolute;left:-99999px;top:0"; document.body.appendChild(host);
+  const out = [];
+  for (const s of specs) for (const [name, f] of Object.entries(views)) {
+    SZ.clear();
+    const t0 = performance.now(); const html = f(s); const t1 = performance.now();
+    host.innerHTML = html; void host.offsetHeight; const t2 = performance.now();
+    out.push({ 流程: s.name, 节点: s.all.length, 视图: name, 排版ms: +(t1 - t0).toFixed(1), 插入布局ms: +(t2 - t1).toFixed(1), DOM: host.querySelectorAll("*").length });
+  }
+  host.remove(); return out;
+};
+</script>
+</body>
+</html>

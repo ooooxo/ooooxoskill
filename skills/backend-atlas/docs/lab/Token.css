@@ -1,0 +1,208 @@
+/* =============================================================================
+   Token — design tokens (single source: color / radius / spacing /
+   motion / type scale)
+   -----------------------------------------------------------------------------
+   Rule: every color in any interface, component, or card **must** reference a
+   variable from this file. Raw hex is banned. Adding a color = register a token
+   here first, then reference it elsewhere. Recoloring touches this file only.
+
+   This file is the portable mirror of src/panel/shell/tokens.css inside the
+     · Standalone demo / card / new prototype → copy this file; :root scope works
+       as-is.
+   Token names are identical on both sides, so a design migrates painlessly.
+
+   ★ Reuse first (hard rule): before adding a color, look for one to reuse below.
+     An existing token (including color-mix derivations) can express it → reuse
+     it, adding is banned. Add only when the existing palette genuinely cannot
+     express a semantic — and adding means registering the token here with its
+     semantic written down before referencing it anywhere. Lower color entropy
+     wins: one --accent deriving press/soft/ink beats four standalone values.
+   ============================================================================= */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Font stacks ----------------------------------------------------- */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+          "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
+
+  /* ---- Surfaces (neutral near-black; never tinted) --------------------- */
+  --bg-window:     #0a0a0c;   /* bottom-most window */
+  --bg-content:    #0d0d0f;   /* content area */
+  --panel:         #1a1a1c;   /* card base */
+  --panel-strong:  #202022;   /* emphasized surface / overlay */
+  --panel-2:       #242427;   /* item raised above the surface */
+  --panel-hi:      #2c2c30;   /* highlighted item */
+  --sidebar:       #121214;
+  --inset:         #28282b;   /* recessed block (quotes / secondary groups) */
+
+  /* ---- Ink (four text steps) ------------------------------------------- */
+  --ink:    #f3f4f6;   /* primary text / headings */
+  --ink-2:  #c8ccd2;   /* secondary body */
+  --ink-3:  #8e949e;   /* labels / quiet notes */
+  --ink-4:  #5c626c;   /* weakest: placeholders, counts, axis labels */
+
+  /* ---- Lines & hover --------------------------------------------------- */
+  /* Borders and dividers are deliberately low contrast; prefer whitespace. */
+  --sep:        rgba(255,255,255,0.055);
+  --sep-strong: rgba(255,255,255,0.11);
+  --hairline:   rgba(255,255,255,0.045); /* faint rule: dense lists/tables only */
+  --hover:      rgba(255,255,255,0.055);
+  --hover-2:    rgba(255,255,255,0.10);
+
+  /* ---- Accent (the one accent hue; JS may inject --user-accent) --------- */
+  --accent:        var(--user-accent, #4c8dff);
+  --accent-press:  color-mix(in srgb, var(--accent) 82%, #000);
+  --accent-soft:   color-mix(in srgb, var(--accent) 16%, transparent);  /* chip ground */
+  --accent-ink:    color-mix(in srgb, var(--accent) 62%, #fff);         /* accent text */
+  --selection:     color-mix(in srgb, var(--accent) 42%, transparent);
+  --shimmer:       var(--hover);   /* skeleton sheen: reuses hover, no new hue */
+
+  /* ---- Semantic (only when a real state fires; never decorative) -------- */
+  --online: #30d158;
+  --up:     #16a34a;   /* rise / positive delta */
+  --down:   #dc2626;   /* fall / negative delta */
+  --warn:   #d97706;   /* only once a real threshold is crossed */
+  --crit:   #dc2626;
+
+  /* ---- Radius ladder (soft corners, no sharp edges; cards start 14–16) -- */
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r-md: 14px;   /* default lower bound for a soft corner */
+  --r-lg: 18px;
+  --r-xl: 24px;   /* large cards / panels */
+  --r-pill: 99px; /* pill buttons / chips */
+
+  /* ---- Shadow ---------------------------------------------------------- */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.5);
+  --shadow-md:  0 1px 2px rgba(0,0,0,0.5), 0 12px 30px rgba(0,0,0,0.38);
+  --shadow-lg:  0 1px 2px rgba(0,0,0,0.5), 0 22px 54px rgba(0,0,0,0.5);
+  --shadow-pop: 0 1px 2px rgba(0,0,0,0.6), 0 28px 64px rgba(0,0,0,0.6);
+
+  /* Plinth — the two-plane closure of the overlay family (SHELL.md §4.5).
+     The shell is a --plinth-wide seat in --inset (darker than the page floor);
+     the card on it is --panel-strong with --card-edge as its lit top edge and
+     --shadow-sm as the tight shadow landing on the seat. Depth = tone step +
+     light, never strokes. Tip-caliber layers do not use it.               */
+  --plinth: 5px;
+  --card-edge: inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent);
+
+  /* ---- Motion curves (detail: MOTION.md §2) ----------------------------
+     The built-in CSS easings are too soft — always use the strong set below.
+     Interface motion never uses ease-in. Picking a curve is one question:
+     enter/exit → ease-out · on-screen movement → ease-in-out ·
+     hover/color → ease-hover · constant (progress, marquee) → linear.      */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);      /* default: all enter/exit */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);     /* on-screen A→B move */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);      /* iOS drawer / bottom sheet */
+  --ease-hover:  cubic-bezier(0.4, 0, 0.2, 1);        /* hover / color transition */
+  --ez:          var(--ease-out);                     /* global default alias */
+  /* Spring approximations (lower damping = bouncier). UI does not bounce by
+     default — only momentum-driven interactions do. */
+  --spring-soft: cubic-bezier(0.22, 1.2, 0.36, 1);    /* bounce≈.15 entrance/overlay */
+  --spring:      cubic-bezier(0.34, 1.56, 0.64, 1);   /* bounce≈.3 press rebound / drag settle */
+
+  /* ---- Duration ladder (interface motion always <300ms) ----------------
+     press 120 · tooltip/small overlay 160 · dropdown/view switch 220 ·
+     large overlay 320 · drawer 420. Only marketing / onboarding demos may
+     exceed --t-sheet.                                                     */
+  --t-press: 120ms;   /* :active press feedback, range 100–160 */
+  --t-fast:  160ms;   /* tooltip, chip, icon state, range 125–200 */
+  --t-med:   220ms;   /* dropdown, tab switch, list enter/exit, range 150–250 */
+  --t-slow:  320ms;   /* inside-window / popover / large block */
+  --t-sheet: 420ms;   /* drawer / bottom sheet, range 200–500 */
+
+  /* ---- Beat (timeline choreography unit, see MOTION.md §8) -------------
+     Every delay in one piece of choreography must be an integer multiple of
+     --beat. Hand-written scattered milliseconds are banned.                */
+  --beat:    60ms;    /* choreography beat: delay = calc(var(--beat) * n) */
+  --stagger: 50ms;    /* sibling stagger step 30–80ms, total capped at 300ms */
+  --shift:   8px;     /* entrance displacement: translateY(var(--shift));
+                         zeroed under reduced-motion = fade only, no movement */
+  --pop:     0.96;    /* entrance start scale: scale(var(--pop)); never scale(0) */
+  --press:   0.97;    /* :active press scale, range 0.95–0.98 */
+  --glass-blur: 20px; /* frosted overlay blur; zeroed under reduced-transparency */
+
+  /* ---- Second accent (optional; charts / chips / micro-icons) ----------
+     Defaults to the primary, i.e. one hue. Override it locally ONLY when a
+     second data dimension genuinely exists; keep it distinguishable from
+     --accent in both themes and under grayscale, and keep surfaces neutral.
+     Past two hues, separate the categories by position or shape instead.  */
+  --accent-2: var(--accent);
+
+  /* ---- Type scale (detail: FOUNDATION.md §2) --------------------------- */
+  --fs-hero:  30px;   /* large figure / hero value, 700 / -1px */
+  --fs-title: 18px;   /* section heading, 650 */
+  --fs-body:  16px;   /* body */
+  --fs-sub:   13px;   /* secondary */
+  --fs-label: 12px;   /* label */
+  --fs-cap:   11px;   /* counts / axis labels */
+}
+
+/* ===================== Light overrides (system off-white, ADR 0048) ======= */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-window:    #f5f5f7;
+  --bg-content:   #ffffff;
+  --panel:        #ffffff;
+  --panel-strong: #f5f5f7;
+  --panel-2:      #ebebed;
+  --panel-hi:     #e0e0e5;
+  --sidebar:      #f0f0f2;
+  --inset:        #e5e5ea;
+
+  /* Body text is never pure black: deep charcoal cuts the glare; secondary mid-gray. */
+  --ink:   #1d1d1f;   /* deep charcoal (#212529 also fine), not #000 */
+  --ink-2: #424245;
+  --ink-3: #86868b;   /* secondary text: mid-gray */
+  --ink-4: #aeaeb2;
+
+  /* Borders and dividers deliberately low contrast (the "elegant hairline" —
+     prefer whitespace over a line whenever possible). */
+  --sep:        rgba(0,0,0,0.05);
+  --sep-strong: rgba(0,0,0,0.09);
+  --hairline:   rgba(0,0,0,0.045);
+  --hover:      rgba(0,0,0,0.035);
+  --hover-2:    rgba(0,0,0,0.06);
+
+  --accent-ink: color-mix(in srgb, var(--accent) 62%, #000);
+
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.08);
+  --shadow-md:  0 1px 2px rgba(0,0,0,0.06), 0 12px 30px rgba(0,0,0,0.10);
+  --shadow-lg:  0 1px 2px rgba(0,0,0,0.06), 0 22px 54px rgba(0,0,0,0.14);
+  --shadow-pop: 0 1px 2px rgba(0,0,0,0.08), 0 28px 64px rgba(0,0,0,0.18);
+
+  --card-edge: inset 0 1px 0 rgba(255,255,255,0.85);
+
+  --online: #34c759;
+}
+
+/* ===================== Degradation: reduced motion / transparency =========
+   reduced-motion ≠ no motion: keep the non-moving fades and color changes
+   (they aid comprehension), drop displacement, scaling, springs, parallax.
+   This one block covers the whole site — components need nothing of their own. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --spring: var(--ease-out);
+    --spring-soft: var(--ease-out);
+    --t-press: 1ms;
+    --beat: 0ms;
+    --stagger: 0ms;
+    --shift: 0px;   /* displacement zeroed: entrances become fade-only */
+    --pop: 1;       /* scaling zeroed */
+    --press: 1;
+  }
+  *, *::before, *::after {
+    animation-duration: 120ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root { --glass-blur: 0px; }   /* frosted overlays fall back to solid; components read this */
+}

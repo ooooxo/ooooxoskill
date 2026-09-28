@@ -1,0 +1,116 @@
+{
+  "server": {
+    "entries": {
+      "hosted": 1,
+      "http": 11,
+      "hub": 1,
+      "middleware": 5
+    },
+    "methods": 24,
+    "resources": [
+      "h:ReceiveMessage",
+      "h:TodoChanged",
+      "t:AuditLog",
+      "t:Project",
+      "t:Tag",
+      "t:Todo"
+    ],
+    "edges": 26
+  },
+  "client": {
+    "entries": [
+      "hubEvent ReceiveMessage",
+      "hubEvent todoChanged",
+      "mount mounted",
+      "mount onMounted",
+      "mount onMounted",
+      "ui @change=\"rename(t.id, ($event.target as HTMLInpu…",
+      "ui @click=\"add\"",
+      "ui @click=\"archive(p.id)\"",
+      "ui @click=\"drop(p.id)\"",
+      "ui @click=\"remove(t.id)\"",
+      "ui @submit.prevent=\"add\"",
+      "ui @submit.prevent=\"send\"",
+      "ui add",
+      "ui add",
+      "ui archive",
+      "ui drop",
+      "ui on(…)",
+      "ui remove",
+      "ui rename",
+      "ui send"
+    ],
+    "resources": [
+      "api:DELETE /api/projects/{}",
+      "api:DELETE /api/todos/{}",
+      "api:GET /api/health",
+      "api:GET /api/projects",
+      "api:GET /api/tags",
+      "api:GET /api/todos",
+      "api:POST /api/projects/{}/archive",
+      "api:POST /api/tags",
+      "api:POST /api/todos",
+      "api:PUT /api/todos/{}",
+      "hubInvoke:SendMessage"
+    ]
+  },
+  "cross": {
+    "invoke": 1,
+    "push": 2,
+    "request": 10
+  },
+  "pushes": [
+    "push ReceiveMessage",
+    "push TodoChanged"
+  ],
+  "loops": [
+    "DELETE /api/Projects/{id:int} · 入口 2",
+    "DELETE /api/todos/{id:int} · 入口 2",
+    "POST /api/Projects/{id:int}/archive · 入口 2",
+    "POST /api/Tags · 入口 2",
+    "POST /api/todos · 入口 2",
+    "PUT /api/todos/{id:int} · 入口 2"
+  ],
+  "unmatched": [],
+  "placement": {
+    "Api/Hubs/ChatHub.cs": "D:hub",
+    "Api/Workers/Workers.cs": "S:bg",
+    "Core/Projects/ArchiveProject.cs": "D:projects/内部实现",
+    "Core/Projects/Repository.cs": "D:projects/内部实现",
+    "Core/Todos/TodoService.cs": "D:svc",
+    "src/api/client.ts": "D:client.svc",
+    "src/api/health.js": "D:client.svc",
+    "src/api/tags.ts": "D:client.svc",
+    "src/api/todos.ts": "D:client.svc",
+    "src/components/ChatPanel.vue": "C:ui:components",
+    "src/components/ProjectList.vue": "C:ui:components",
+    "src/components/TagList.vue": "C:ui:components",
+    "src/realtime.ts": "D:client.svc",
+    "src/views/TodosView.vue": "C:ui:views"
+  },
+  "findings": {
+    "跨域直调": [],
+    "控制器直连外部": [],
+    "共享热点": [],
+    "前端调用没对上": [],
+    "多域共写": [
+      "AuditLog"
+    ]
+  },
+  "flows": [
+    "ChatHub.SendMessage · 草稿 · 1 节点",
+    "DELETE /api/Projects/{id:int} · 草稿 · 1 节点",
+    "DELETE /api/todos/{id:int} · 草稿 · 3 节点",
+    "GET /api/Projects · 草稿 · 1 节点",
+    "GET /api/Tags · 草稿 · 1 节点",
+    "GET /api/health · 草稿 · 1 节点",
+    "GET /api/todos · 草稿 · 1 节点",
+    "GET /api/todos/{id:int} · 草稿 · 2 节点",
+    "POST /api/Projects/{id:int}/archive · 草稿 · 2 节点",
+    "POST /api/Tags · 草稿 · 1 节点",
+    "POST /api/todos · 草稿 · 5 节点",
+    "PUT /api/todos/{id:int} · 草稿 · 3 节点",
+    "TimedWorker.ExecuteAsync · 草稿 · 4 节点"
+  ],
+  "nodes": 43
+}

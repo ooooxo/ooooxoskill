@@ -1,0 +1,577 @@
+{
+  "$comment": "examples/demo 的语义层：一个带 agent 循环的最小对话应用。域按控制器分；agent 循环与积分是服务层，按谁在用自动归位。",
+  "title": "Demo 系统图",
+  "subtitle": "examples/demo · ASP.NET Core + Vue + Tauri",
+  "lanes": [
+    {
+      "id": "client",
+      "name": "客户端",
+      "cols": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "server",
+      "name": "服务端",
+      "cols": [
+        4,
+        5,
+        6
+      ]
+    },
+    {
+      "id": "store",
+      "name": "存储与外部",
+      "cols": [
+        7
+      ]
+    }
+  ],
+  "domains": [
+    {
+      "id": "client",
+      "name": "前端",
+      "col": 1,
+      "icon": "laptop",
+      "hue": "blue",
+      "spread": true,
+      "children": [
+        {
+          "id": "client.ui",
+          "name": "界面",
+          "col": 0,
+          "icon": "board",
+          "hue": "blue",
+          "match": [
+            "C:ui:*"
+          ]
+        },
+        {
+          "id": "client.stores",
+          "name": "状态 stores",
+          "col": 1,
+          "icon": "rows",
+          "hue": "blue",
+          "match": [
+            "C:stores"
+          ]
+        },
+        {
+          "id": "client.svc",
+          "name": "请求与推送",
+          "col": 2,
+          "icon": "share",
+          "hue": "blue",
+          "match": [
+            "C:svc"
+          ]
+        },
+        {
+          "id": "client.desktop",
+          "name": "桌面端 Tauri",
+          "col": 3,
+          "icon": "laptop",
+          "hue": "blue",
+          "match": [
+            "C:rust",
+            "C:sqlite"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pipe",
+      "name": "HTTP 管线",
+      "sub": [
+        "异常信封"
+      ],
+      "col": 4,
+      "icon": "lock",
+      "hue": "yellow",
+      "match": [
+        "S:pipe"
+      ]
+    },
+    {
+      "id": "hub",
+      "name": "实时",
+      "route": "/hubs/project",
+      "sub": [
+        "SignalR",
+        "项目频道"
+      ],
+      "col": 4,
+      "icon": "bell",
+      "hue": "yellow",
+      "match": [
+        "S:hub"
+      ]
+    },
+    {
+      "id": "auth",
+      "name": "账号",
+      "col": 5,
+      "icon": "user",
+      "hue": "purple",
+      "match": [
+        "S:c:Auth"
+      ]
+    },
+    {
+      "id": "projects",
+      "name": "项目与对话",
+      "col": 5,
+      "icon": "message",
+      "hue": "pink",
+      "match": [
+        "S:c:Projects"
+      ]
+    },
+    {
+      "id": "agent",
+      "name": "Agent 轮次",
+      "sub": [
+        "TurnHost",
+        "工具调用",
+        "租约回收"
+      ],
+      "col": 6,
+      "icon": "refresh",
+      "hue": "pink",
+      "desc": "发消息只起轮次就返回；轮次在后台 TurnHost 里跑：调模型 → 执行工具 → 推事件",
+      "match": [
+        "S:f:Agent/TurnService.cs",
+        "S:f:Agent/TurnHost.cs",
+        "S:f:Agent/TurnRunner.cs",
+        "S:f:Agent/Tools.cs",
+        "S:f:Agent/ModelClient.cs",
+        "S:f:Agent/LeaseSweeper.cs"
+      ]
+    },
+    {
+      "id": "svc",
+      "name": "服务层",
+      "col": 6,
+      "icon": "layers",
+      "hue": "gray",
+      "match": [
+        "S:svc",
+        "S:bg"
+      ]
+    },
+    {
+      "id": "pg",
+      "name": "数据库",
+      "sub": [
+        "EF Core"
+      ],
+      "col": 7,
+      "icon": "layers",
+      "hue": "green",
+      "match": [
+        "S:pg"
+      ]
+    },
+    {
+      "id": "ext",
+      "name": "外部模型",
+      "sub": [
+        "HttpClient"
+      ],
+      "col": 7,
+      "icon": "cloud",
+      "hue": "gray",
+      "match": [
+        "S:x:*"
+      ]
+    }
+  ],
+  "groups": {},
+  "loops": {
+    "POST /api/auth/register": [
+      "注册",
+      "邮箱 + 密码建账号，送 100 积分"
+    ],
+    "POST /api/auth/login": [
+      "登录",
+      "校验邮箱密码"
+    ],
+    "POST /api/projects": [
+      "新建项目",
+      "建一个空项目"
+    ],
+    "POST /api/projects/{id:guid}/messages": [
+      "发消息",
+      "空闲时起一个轮次交给后台跑，进行中则记成插话；立即返回"
+    ]
+  },
+  "edgeLabels": [],
+  "flows": {
+    "TurnRunner.Run": {
+      "name": "Agent 轮次",
+      "story": "发消息只起轮次就返回；轮次在后台一步步跑：取插话 → 扣费 → 调模型 → 执行工具 → 再调模型，直到出结局",
+      "tree": [
+        {
+          "t": "起跑",
+          "l": "bg",
+          "kids": [
+            {
+              "t": "后台起跑",
+              "at": "TurnRunner›call:TurnRunner.Run",
+              "l": "bg",
+              "note": "独立作用域"
+            },
+            {
+              "t": "广播开始",
+              "at": "TurnRunner.Run›call:ProjectEvents.Publish"
+            }
+          ]
+        },
+        {
+          "t": "每一步",
+          "loop": "最多 20 次",
+          "at": "TurnRunner.Loop›loop:true",
+          "kids": [
+            {
+              "k": "guard",
+              "t": "调用满 20 次？",
+              "at": "TurnRunner.Loop›guard:turn.ModelCalls >= MaxModelCalls",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "限额",
+                  "why": "调用满 20 次",
+                  "tone": "warn",
+                  "at": "TurnRunner.Loop›exit:return::limited · 这一轮已经调用模型 20 次，先停在这里"
+                }
+              ]
+            },
+            {
+              "t": "取插话",
+              "at": "TurnRunner.Loop›call:TurnRunner.DrainInterjections",
+              "note": "进行中用户补的话，模型这一步就能看到"
+            },
+            {
+              "t": "扣本次调用费",
+              "at": "TurnRunner.Loop›call:WalletService.Charge",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "402",
+                  "why": "积分不足",
+                  "tone": "fail",
+                  "at": "TurnRunner.Loop›exit:throw:402:积分不足，这一轮先停在这里"
+                }
+              ]
+            },
+            {
+              "t": "调模型",
+              "at": "TurnRunner.Loop›call:ModelClient.Complete",
+              "l": "model",
+              "note": "带最近 40 条对话"
+            },
+            {
+              "t": "落回复并推送",
+              "at": "TurnRunner.Loop›call:ProjectEvents.Publish",
+              "r": [
+                "w:Message"
+              ]
+            },
+            {
+              "k": "branch",
+              "t": "模型要调工具吗？",
+              "at": "TurnRunner.Loop›guard:reply.ToolCalls.Count == 0",
+              "kids": [
+                {
+                  "k": "case",
+                  "t": "不调",
+                  "kids": [
+                    {
+                      "k": "exit",
+                      "t": "完成",
+                      "why": "模型给出了回答",
+                      "tone": "ok",
+                      "at": "TurnRunner.Loop›exit:return::done"
+                    }
+                  ]
+                },
+                {
+                  "k": "case",
+                  "t": "调了工具",
+                  "main": true,
+                  "kids": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "执行工具",
+          "inLoop": true,
+          "l": "tool",
+          "kids": [
+            {
+              "t": "逐个执行",
+              "at": "TurnRunner.RunTools›loop:每个 call ∈ calls",
+              "kids": [
+                {
+                  "k": "tool",
+                  "t": "search_notes",
+                  "at": "TurnRunner.RunTools›call:SearchTool.Run"
+                },
+                {
+                  "k": "tool",
+                  "t": "write_note",
+                  "at": "TurnRunner.RunTools›call:NoteTool.Run"
+                }
+              ]
+            },
+            {
+              "k": "guard",
+              "t": "要问用户？",
+              "at": "TurnRunner.Loop›guard:await RunTools(turn, reply.ToolCalls)",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "等用户",
+                  "why": "模型调了 ask_user",
+                  "tone": "wait",
+                  "at": "TurnRunner.Loop›exit:return::blocked · 等用户回答"
+                }
+              ]
+            },
+            {
+              "k": "back",
+              "t": "下一步",
+              "to": "TurnRunner.Loop›call:TurnRunner.DrainInterjections"
+            }
+          ]
+        },
+        {
+          "t": "收尾",
+          "kids": [
+            {
+              "t": "落结局并广播",
+              "at": "TurnRunner.Run›call:ProjectEvents.Publish#2",
+              "r": [
+                "w:Turn"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "POST /api/projects/{id:guid}/messages": {
+      "name": "发消息",
+      "story": "空闲时起一个轮次交给后台跑，进行中则记成插话；立即返回",
+      "tree": [
+        {
+          "t": "触发",
+          "l": "ui",
+          "kids": [
+            {
+              "t": "对话框回车",
+              "l": "ui",
+              "a": "src/views/ChatView.vue:8",
+              "side": "C",
+              "r": [
+                "q:POST …/messages"
+              ]
+            }
+          ]
+        },
+        {
+          "t": "校验",
+          "kids": [
+            {
+              "k": "guard",
+              "t": "什么都没说？",
+              "at": "TurnService.StartOrInterject›guard:text.Trim().Length == 0",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "400",
+                  "why": "说点什么吧",
+                  "tone": "fail",
+                  "at": "TurnService.StartOrInterject›exit:throw:400:说点什么吧"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "分岔",
+          "kids": [
+            {
+              "k": "branch",
+              "t": "有轮次在跑吗？",
+              "at": "TurnService.StartOrInterject›guard:running is not null && running.LeaseUntil > DateTime.UtcNow",
+              "kids": [
+                {
+                  "k": "case",
+                  "t": "在跑，租约有效",
+                  "kids": [
+                    {
+                      "k": "exit",
+                      "t": "返回「插话」",
+                      "why": "模型下一步会看到",
+                      "tone": "wait",
+                      "at": "TurnService.StartOrInterject›exit:return::interjection"
+                    }
+                  ]
+                },
+                {
+                  "k": "case",
+                  "t": "没有 / 租约已过期",
+                  "main": true,
+                  "kids": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "起轮次",
+          "kids": [
+            {
+              "k": "guard",
+              "t": "同时在跑的太多？",
+              "at": "TurnService.StartOrInterject›guard:await db.Turns.CountAsync(t => t.Status == \"running\") >= MaxRunning",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "429",
+                  "why": "同时进行的任务太多了",
+                  "tone": "fail",
+                  "at": "TurnService.StartOrInterject›exit:throw:429:同时进行的任务太多了"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "交给后台",
+          "l": "bg",
+          "kids": [
+            {
+              "t": "TurnHost.Start",
+              "at": "TurnService.StartOrInterject›call:TurnHost.Start",
+              "l": "bg",
+              "note": "请求立即返回，轮次在后台跑",
+              "r": [
+                "w:Turn",
+                "w:Message"
+              ],
+              "kids": [
+                {
+                  "k": "link",
+                  "t": "Agent 轮次",
+                  "flow": "S|bgrun:m:M:Demo.Agent.TurnRunner.Run(System.Guid)"
+                },
+                {
+                  "k": "exit",
+                  "t": "返回「新轮次」",
+                  "why": "立即返回",
+                  "tone": "ok",
+                  "at": "TurnService.StartOrInterject›exit:return::turn"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "POST /api/auth/register": {
+      "name": "注册",
+      "story": "邮箱 + 密码建账号，送 100 积分",
+      "tree": [
+        {
+          "t": "触发",
+          "l": "ui",
+          "kids": [
+            {
+              "t": "登录页点「注册」",
+              "l": "ui",
+              "a": "src/views/LoginView.vue:2",
+              "side": "C",
+              "r": [
+                "q:POST /api/auth/register"
+              ]
+            }
+          ]
+        },
+        {
+          "t": "校验",
+          "kids": [
+            {
+              "k": "guard",
+              "t": "邮箱格式对吗？",
+              "at": "AuthController.Register›guard:!body.Email.Contains('@')",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "400",
+                  "why": "邮箱格式不正确",
+                  "tone": "fail",
+                  "at": "AuthController.Register›exit:throw:400:邮箱格式不正确"
+                }
+              ]
+            },
+            {
+              "k": "guard",
+              "t": "密码够长吗？",
+              "at": "AuthController.Register›guard:body.Password.Length < 8",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "400",
+                  "why": "密码至少 8 位",
+                  "tone": "fail",
+                  "at": "AuthController.Register›exit:throw:400:密码至少 8 位"
+                }
+              ]
+            },
+            {
+              "k": "guard",
+              "t": "邮箱注册过吗？",
+              "at": "AuthController.Register›guard:await db.Users.AnyAsync(u => u.Email == body.Email)",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "409",
+                  "why": "该邮箱已注册",
+                  "tone": "fail",
+                  "at": "AuthController.Register›exit:throw:409:该邮箱已注册"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "t": "建账号",
+          "kids": [
+            {
+              "t": "写账号",
+              "at": "AuthController›call:AuthController.Register"
+            },
+            {
+              "t": "送注册积分",
+              "at": "AuthController.Register›call:WalletService.Grant",
+              "kids": [
+                {
+                  "k": "exit",
+                  "t": "200",
+                  "why": "返回账号 id",
+                  "tone": "ok"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

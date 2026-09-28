@@ -1,7 +1,7 @@
 # Morii
 
 一套 agent skill 合集 —— 主体是 **视觉 / 设计** 向的 Morii 系列(把「看不见的东西」做成看得见的:
-数据出卡、界面成系统、图标成家族、图标会动),外加两个工程纪律向 skill。
+数据出卡、界面成系统、图标成家族、图标会动),外加三个工程向 skill。
 Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用,**按需装,装哪个用哪个**。
 
 ## Morii 视觉系列
@@ -12,6 +12,7 @@ Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用,**按需装,装�
 | **morii-design** | 新界面/组件/原型的视觉与交互规范底座(铺满视口的完整页面,非单卡) | 设计 · UI · 界面 · 组件 · 原型 · design system |
 | **morii-icon** | 画一个 Morii 扁平 SVG 图标 —— 实心/线性二选一整套一档 · 大圆角 · 单色成家族 · 含图标动效 | 图标 · icon · svg 图标 · glyph · 一套图标 |
 | **morii-charm** | 拟物「角饰」—— 用堆叠 div 手搭的立体小物件 + 一段循环动画,不是扁平图标 | 角饰 · 拟物图标 · 会动的图标 · charm · animated icon |
+| **morii-compare** | 「对照版」—— 一页 HTML 把 ≥5 套完整方案(+ 现状)摆在真样本上并排切档,明暗两版、拍图自检,按用户挑的开下一轮 | 对照版 · 出几套 · 对比方案 · A/B · compare designs |
 
 一家人:`morii-design` 定页面基调 → `morii-card` 出数据卡 → `morii-icon` 画其中的静态图标 →
 `morii-charm` 做会动的拟物小物件。互相引用,但各自独立可用。
@@ -22,6 +23,7 @@ Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用,**按需装,装�
 |-------|--------|--------|
 | **backend-discipline** | 后端/API 服务的决策纪律:ADR 决策记录 · CONTEXT.md 领域语言 · 铁律 · 决策卫生 · 发布闸门(与语言栈无关) | 后端设计 · ADR · 数据模型 · 鉴权/删除/幂等 |
 | **git-commit-convention** | 中文前缀提交规范 `[更新][优化][重构][修复]` + 附带 `commit-msg` 校验 hook | 提交 · commit message |
+| **backend-atlas** | 从真代码抽出整套系统图(ASP.NET Core + Vue/TS):谁调谁、按钮写了哪张表、推送谁收、业务循环怎么跑 —— 自包含 HTML,[详见](skills/backend-atlas/README.md) | 系统图 · 架构图 · 业务循环 · 调用链 |
 
 ## 安装
 
@@ -34,7 +36,7 @@ npx skills add ooooxo/ooooxoskill
 
 ```
 /morii-card   /morii-design   /morii-icon   /morii-charm
-/backend-discipline   /git-commit-convention
+/backend-discipline   /git-commit-convention   /backend-atlas
 ```
 
 只装单个,直接点名:
@@ -89,6 +91,8 @@ skills/
     SKILL.md · IRON-LAWS.md · DECISION-HYGIENE.md · RELEASE-GATE.md · ADR-TEMPLATE.md · CONTEXT-TEMPLATE.md
   git-commit-convention/  中文前缀提交规范
     SKILL.md · commit-msg-hook.sh
+  backend-atlas/          代码 → 系统图(需 .NET 10 SDK + bun)
+    SKILL.md · README.md · run.sh · extractor/(Roslyn) · client/(TS/Rust) · join.ts · viewer/ · examples/demo/ · test/
 ```
 
 每个 skill 自带支持文件与工具;`npx skills` 会把整个文件夹一并落到
