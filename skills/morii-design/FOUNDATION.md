@@ -12,7 +12,7 @@
   - **Emphasis** — the one lead value of a unit (§2), the focused series.
 
   A color with no job — "give this parameter a nice color" — is noise, and a meaningful hue is never reused as decoration.
-- **Surfaces may carry color when the color has a job** — a brand-tinted ground, a category block, a solid object. Large areas take clean color: a light tint or a confident solid. Greyed, muddy mid-tones over large areas read dirty.
+- **Surfaces may carry color when the color has a job** — a brand-tinted ground, a category block, a solid object. Large areas take clean color: a light tint or a confident solid. Greyed, muddy mid-tones over large areas read dirty. A coloring applies to every item of its kind or to none — coloring only the "important" ones turns identity into emphasis. On colored surfaces, text drops to two levels (solid / faint), since ink ranks don't order on changing grounds.
 - **Tone triplets:** solid for fills, `-ink` for text and icons, `-soft` for chip grounds. Colored text never uses the bare solid and is never softened with opacity.
 - **Never color alone** — every distinction also has an icon, shape, text, position or weight (▲▼ beside a delta, a check beside a selection).
 - **Contrast** — body ≥4.5:1, large text and UI graphics ≥3:1, measured on the real ground in both themes. A rank that fails is not a usable rank.
@@ -23,7 +23,7 @@
 - **Rank, don't align.** Things in a unit (card, row, record, view) are unequal: decide the order, then express it. Equal weight everywhere means the eye has nowhere to land.
 - **One lead per unit** — the thing that changes, or the reason the user came. It may take one type tier up and its semantic tone; nothing else in the unit does.
 - **Spend the cheapest channel first:** position → weight → ink rank → size → color. Pushing every channel on everything flattens it again.
-- **Two weights** (`--weight-body`, `--weight-strong`) and one size scale (`--fs-*`) — the values are the product's tuning. Inside a component, hierarchy is weight and ink; size tiers separate levels of the page.
+- **Two weights** (`--weight-body`, `--weight-strong`) and one size scale (`--fs-*`) — the values are the product's tuning. Inside a unit, at most three size tiers — caption, body, lead — and two when there is no lead; the page scale doesn't change.
 - **Labels are demoted, not deleted** — a caption above a bold value.
 - One alignment axis per block · figures `tabular-nums` · large numbers as 万 / 亿 · serif only for long-form prose.
 

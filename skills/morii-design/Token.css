@@ -164,7 +164,7 @@
   --inset:        #e5e5ea;
   --ink:   #1d1d1f;
   --ink-2: #424245;
-  --ink-3: #86868b;
+  --ink-3: #6e6e73;   /* 5:1 on white — labels are small text */
   --ink-4: #aeaeb2;
   --sep:        rgba(0,0,0,0.05);
   --sep-strong: rgba(0,0,0,0.09);
