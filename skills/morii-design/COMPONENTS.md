@@ -105,7 +105,8 @@ When the output is a page it fills the viewport — `body` never centers a small
 | **Dashboard** | a responsive grid of metric blocks | data, operations | 1100–1280 |
 | **Mobile column** | full-height flow + bottom tab bar | lifestyle, health | `min(440px, 100%)` |
 
-- **Segment** with whitespace first, a faint hairline second; a page may contain zero cards. Several views live in one page, switched by tabs.
+- **Zone by the business.** Regions come from the business map (`SKILL.md` §1): one region per concern, in the order the work happens; what the business treats as one stays in one region, what it keeps apart never shares a container. Region titles and nav labels use the business's words.
+- **Segment** with whitespace first, a line second; a page may contain zero cards. Several views live in one page, switched by tabs.
 - **A metric block must carry,** in this rank: the lead figure and its change → what it measures → enough context to judge it → a graphic of its shape → the source, faintest. How they arrange is open.
 - **One insight line per screen** (≤18 字) states the conclusion and never restates the chart. Figures compared side by side share a baseline. Findings in a list use one prefix form per column and echo comparable values graphically. Sources open from a quiet entry, never sit on the face.
 

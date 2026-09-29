@@ -1,10 +1,10 @@
 # Morii Charts — graphics and charts
 
-> **Read** whenever a page draws any SVG graphic or chart. Every block gets at least one graphic, so nearly every page reaches this file. All inline SVG, zero dependencies.
+> **Read** whenever a page draws any SVG graphic or chart. All inline SVG, zero dependencies.
 
-## 1. Graphics first
+## 1. Draw when the drawing says more
 
-For any piece of information, first ask whether it can be **drawn**; fall back to text after. Figures get a graphic echo beside them to convey magnitude.
+Draw when the graphic carries what text can't — a trend, a proportion, a figure against its threshold or target, a distribution. A figure with nothing to compare against needs no graphic; a chart added for decoration is still decoration.
 
 ## 2. One SVG per graphic
 
@@ -29,8 +29,8 @@ A chart takes the **full row width** at a **fixed pixel height**. Too narrow to 
 
 | Relationship | Graphic |
 |---|---|
-| trend over time | line + same-hue area fade + end-point value tag |
-| categories | rounded bars: all grey, one focus bar in accent, with a tag |
+| trend over time | line + an end-point value tag (an area fade if the style uses one) |
+| categories | bars; one focus bar carries the emphasis, the rest recede |
 | share of a total | donut, ≤5 slices (more → bars) |
 | two periods | slope / dumbbell |
 | time × category | heat grid |

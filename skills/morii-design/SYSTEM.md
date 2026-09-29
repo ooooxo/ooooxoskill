@@ -5,15 +5,15 @@
 ## 1. What a component is
 
 - **One concept, one behavior contract.** Same job + same behavior = the same component, however it looks (look differences are variants). Different behavior = a different component, even if the two look identical.
-- **Tools don't know the business.** A shared component imports no router, no store, no domain words. Pieces that do are the app's shell and stay with the app — that line is what keeps a kit reusable.
+- **Three layers, partitioned by the business.** *Kit* components don't know the business — no router, no store, no domain words — so any product can reuse them. *Domain* components know exactly one domain (an order card, a customer face), are named in its words, and are composed from the kit. *Shell and pages* compose domains. Code and the registry split the same way (`kit/`, `domains/<domain>/`, `shell/`), so one domain can be read, changed or removed in one place.
 - **Promote on the second caller**, and move *both* callers onto it. A first copy left behind is how duplicates are born.
 - **One implementation per concept.** A second popover, table, warning bar or tooltip is a defect even when it looks right: logic that lives in one copy (close on page change, an IME guard on `Esc`) silently goes missing in the other.
 - **Merge the shared parts, not the shells.** Two things sharing rows, state and motion but differing in frame share those pieces behind two thin shells. One component with a mode flag grows into a row of switches.
 - **A deliberate fork is fine** when the jobs differ — write down the test that separates them ("a panel or a whole page", never "how many rows") and share the contract.
 
-## 2. Tokens — dials → roles → component-local
+## 2. Tokens — style → roles → component-local
 
-- **Components read roles only.** Turning a dial restyles the product with zero component edits; a role fixed once is fixed everywhere.
+- **Components read roles only** — including the surface treatment (`--surface-line`, `--surface-rest`, `--surface-blur`) and type (`--font-display`, `--weight-*`). Re-tuning the values restyles the product with zero component edits (`STYLE.md`); a role fixed once is fixed everywhere.
 - **Register by meaning, even when values match.** Row hover and button hover are two roles, so tuning one never moves the other. When a borrowed meaning dies, give the survivor its own name.
 - **Derive states by relationship.** "One step toward the ink" reads as *forward* in both themes; a fixed ramp step flips order between them.
 - **Themes live in the role tier only;** components never branch on theme. A custom property that references another resolves *where it is declared*, so a theme block or subtree override must re-declare every derived role it changes; a role used inside a list stays list-safe (`transparent`, not `none`, in `box-shadow`).

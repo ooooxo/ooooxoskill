@@ -1,20 +1,20 @@
 # Morii Foundation — the visual logics
 
-> **Read** once per task, before the first line of CSS. It turns the language (`SKILL.md` §5) into decisions you can derive. Values live in `Token.css`.
+> **Read** once per task, before the first line of CSS. It derives the invariants (`SKILL.md` §5) — what always holds. How a product tunes the look is `STYLE.md`; values live in its token file.
 
 ## 1. Color
 
-- **Chroma is zero or full.** Surfaces, lines and shadows are pure neutrals (shadows are black alpha); color appears at full strength on a few small points. Middle saturation — tinted panels, large 15% washes, blue-tinted shadows — reads as dirty, however subtle each piece is.
-- **Three sources, no fourth:**
-  - **Semantic** — a real state, from a lexicon defined once (one word → one tone: 已完成 → ok, 逾期 → crit). Only when true; a warning without a crossed threshold is noise.
-  - **Identity** — tells entities apart; derived from the name (a hash onto hues that avoid the semantic ones), used on small solid marks. Same name, same color, everywhere.
-  - **The accent** — current navigation, the primary action, focus, the focused series, links.
+- **克制 is not neutrality.** Color is a design material; restraint means every color has a job and one small, harmonized palette covers them all.
+- **The jobs:**
+  - **Brand** — the product's hue: a ground it tints, a block it fills, the accent on navigation, the primary action, focus, links.
+  - **Category / identity** — tells sections, kinds or entities apart; picked deterministically (a hash of the name onto `--cat-*`), same thing same color everywhere.
+  - **State** — from a lexicon defined once (one word → one tone: 已完成 → ok, 逾期 → crit), only when true; a warning without a crossed threshold is noise.
+  - **Emphasis** — the one lead value of a unit (§2), the focused series.
 
-  "Give this parameter a nice color" is a fourth source: refuse it.
-- **Where color may land:** small solid marks, chips and tags (`-soft` ground + `-ink` text), active / selected / focus indicators, chart geometry, and **the one lead value of a unit** (§2). All other text is ink.
+  A color with no job — "give this parameter a nice color" — is noise, and a meaningful hue is never reused as decoration.
+- **Surfaces may carry color when the color has a job** — a brand-tinted ground, a category block, a solid object. Large areas take clean color: a light tint or a confident solid. Greyed, muddy mid-tones over large areas read dirty.
 - **Tone triplets:** solid for fills, `-ink` for text and icons, `-soft` for chip grounds. Colored text never uses the bare solid and is never softened with opacity.
 - **Never color alone** — every distinction also has an icon, shape, text, position or weight (▲▼ beside a delta, a check beside a selection).
-- **90 / 10** neutral to colored area; monochrome is allowed.
 - **Contrast** — body ≥4.5:1, large text and UI graphics ≥3:1, measured on the real ground in both themes. A rank that fails is not a usable rank.
 - **Decorative lines faint, functional lines strong** — separators share one faint level; focus, selection and drop outlines stay at full strength.
 
@@ -23,7 +23,7 @@
 - **Rank, don't align.** Things in a unit (card, row, record, view) are unequal: decide the order, then express it. Equal weight everywhere means the eye has nowhere to land.
 - **One lead per unit** — the thing that changes, or the reason the user came. It may take one type tier up and its semantic tone; nothing else in the unit does.
 - **Spend the cheapest channel first:** position → weight → ink rank → size → color. Pushing every channel on everything flattens it again.
-- **Two weights:** 400–450 and 650–720 (hero figures 700+). **Scale:** hero 30 · title 18 · body 16 · sub 13 · label 12 · cap 11. Inside a component, hierarchy is weight and ink; size tiers separate levels of the page.
+- **Two weights** (`--weight-body`, `--weight-strong`) and one size scale (`--fs-*`) — the values are the product's tuning. Inside a component, hierarchy is weight and ink; size tiers separate levels of the page.
 - **Labels are demoted, not deleted** — a caption above a bold value.
 - One alignment axis per block · figures `tabular-nums` · large numbers as 万 / 亿 · serif only for long-form prose.
 
@@ -31,27 +31,26 @@
 
 **Proximity groups before any line does:** the gap inside a group is clearly smaller than between groups (≈1.5–2×), all from `--sp-*`. Whitespace is the first separator; prefer empty over full.
 
-**One cue per boundary** — the cheapest that works: ① whitespace ② a tone step ③ a hairline ④ a shadow, only when the upper thing floats. Stacked cues draw a frame inside a frame; fill + an inner top highlight + a tight shadow is the **stamped sticker** — a light source nothing else on screen has, repeated until the page is a sheet of stickers.
+**Separation is the product's surface model, applied by role.** The tuning decides what a raised object or a floating layer looks like (`STYLE.md`); every boundary of the same role gets exactly those cues, and never extra ones ad hoc. Within any style prefer the cheapest cue that works — whitespace, then a tone step, then a line, then depth. One treatment stamped on everything regardless of role — an edge light plus a tight shadow on every card, tile and button — is the **stamped sticker**.
 
 **Elevation is a role — give each thing the one it has:**
 
-| Role | What | Separation |
+| Role | What | Rule |
 |---|---|---|
-| **Sheet** | page, sidebar, content area | none inside; whitespace or a hairline between regions |
-| **Resting group** | a quote, a field track, a secondary group inside a face | a tone step (`--inset`) or whitespace — no shadow |
-| **Raised object** | an independent thing the user picks, drags or selects | a tone step up, **or** `--shadow-sm` in light — one of the two |
-| **Floating layer** | popover, menu, tip, drawer, inside-window | `--panel-strong` + `--shadow-md`/`-lg`, at most one hairline |
-| **Modal** | blocks its scope | scrim + `--shadow-pop` |
+| **Sheet** | page, sidebar, content area | the ground; regions inside separate by whitespace or a line |
+| **Resting group** | a quote, a field track, a secondary group inside a face | held together, not lifted — never pretends to float |
+| **Raised object** | an independent thing the user picks, drags or selects | visibly above its neighbours, the same way for every raised object |
+| **Floating layer** | popover, menu, tip, drawer, inside-window | separates from whatever it covers, in every theme |
+| **Modal** | blocks its scope | a scrim over exactly what it blocks |
 
-- Resting things cast no shadow — a shadow says "above the page, and can go away".
+- Components draw these through the surface roles (`--panel*`, `--surface-*`, `--shadow-*`); the tuning fills them.
 - **Selection is lift** (the raised role) plus a second channel, never an accent ring.
 - **A container's presence is a signal:** one boxed item among bare ones says "look here"; boxing everything says nothing.
 - **Check against the real ground, in both themes.** Dark steps are small (a card one step up can vanish); light has nothing above white, so light lifts with shadow or a hairline — never a "brighter" surface or an edge highlight.
-- **Floating material is a dial**, picked once: *solid* (default: `--panel-strong` + diffuse shadow) · *translucent* (neutral fill + blur + one faint rim; for small drops or surfaces whose content shows through; solid under reduced-transparency) · *shaped* (the layer grows out of its host as one continuous shape).
 
 **Shape**
 
-- Radius scales with the box: dense rows and small controls `--r-xs`/`--r-sm` · containers `--r-md`/`--r-lg` · large faces `--r-xl`. `--r-pill` only for chips and tags.
+- Radius scales with the box, from the ladder: dense rows and small controls `--r-xs`/`--r-sm` · containers `--r-md`/`--r-lg` · large faces `--r-xl`.
 - **Nested radius: outer = inner + padding**, derived, never both picked: `calc(var(--outer) - var(--pad))`. A border between them counts as padding; when padding ≥ outer radius, the inner takes its own ladder value.
 - One shape language per strip — a toolbar doesn't mix pills and squares.
 

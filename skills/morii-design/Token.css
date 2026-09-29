@@ -1,5 +1,5 @@
 /* =============================================================================
-   Token.css — Morii tokens: a few dials → named roles every component reads.
+   Token.css — Morii's tuning of the language, written as the roles every component reads.
    Use:   standalone page / prototype → copy next to it. Inside a product repo use
           its own token file (Morii src/panel/shell/tokens.css · Hrige
           src/styles/tokens.css); role names match.
@@ -18,6 +18,20 @@
   --depth:   1;   /* floating shadows     0.6 flat · 1 · 1.4 deep             */
   --pace:    1;   /* durations            0.8 brisk · 1 · 1.2 calm            */
   /* Dials resolve on :root. A subtree override must re-declare the derived roles. */
+
+  /* ---- Tuning card (STYLE.md §4): tone-step surfaces · mostly neutral + one
+     accent, color at full strength where it lands · dark + light twin · soft · system sans, 2 weights ·
+     hairline · flat at rest · comfortable · crisp. A new product re-tunes the
+     dials and roles within the language's range; components never change. */
+
+  /* ---- Surface treatment + type roles — Morii leaves most empty ---------- */
+  --surface-line: 0 solid transparent;   /* border of resting / raised surfaces */
+  --surface-rest: 0 0 0 transparent;     /* box-shadow list at rest — list-safe empty, never `none` */
+  --surface-blur: none;                  /* backdrop-filter for translucent styles */
+  --font-display: var(--font);           /* headings */
+  --font-num:     var(--font);           /* figures */
+  --weight-body:   430;
+  --weight-strong: 680;
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
           "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
@@ -66,6 +80,14 @@
   --crit-soft: color-mix(in srgb, var(--crit) 16%, transparent);
   --up: var(--ok);
   --down: var(--crit);
+  /* Category / identity hues — one harmonized set (equal lightness and chroma),
+     picked by hash of the name; text on them uses color-mix toward --ink. */
+  --cat-1: oklch(0.70 0.14 255);
+  --cat-2: oklch(0.70 0.14 305);
+  --cat-3: oklch(0.72 0.12 195);
+  --cat-4: oklch(0.74 0.14 150);
+  --cat-5: oklch(0.78 0.14 80);
+  --cat-6: oklch(0.70 0.15 25);
   --shimmer: var(--hover);
 
   /* ---- Shape: by box size (xs dense … xl large faces), pills for chips ---- */
