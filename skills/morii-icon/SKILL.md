@@ -8,7 +8,7 @@ description: >
   加个 icon / 换个图标 / 设计一套图标 / empty-state pictogram / a small graphic inside a
   button」 so every hand-authored SVG icon comes out in one consistent family. Keywords:
   图标 icon svg 字形 glyph 实心图标 filled icon pictogram. It is the icon companion to
-  morii-design / morii-card — those build whole pages / cards, this governs how one icon
+  morii-design / morii-card — those build interfaces and component systems / cards, this governs how one icon
   itself is drawn. 避免发丝级(<1.75)或粗细不一的描边，更不要一套里混档；never use emoji.
   Also governs icon motion (§9 + MOTION.md)：图标默认不动，只在状态切换/结果确认/空态/
   加载环处动，绕 (12,12)、中间帧仍成立。
@@ -27,7 +27,7 @@ allowed-tools:
 
 A Morii icon is **bold, full and flat** — it fills its frame, rounds every corner, carries one clean silhouette, and reads the same in both themes. 默认档是**实心块面**（vibe: iOS / Fluent *solid*）：小尺寸不糊、主题翻转不飘，所以拿不准时选它。**线性档**同样合法，但要求一条统一的粗描边（≥1.75，24 网格上通常 2–2.4）——发丝细线才是被排除的那种，不是「描边」本身。
 
-**分工**：[morii-design] 阶段 ③ 把「图标怎么画」整个委派给本 skill，自己只管用法（尺寸 / 色阶 / icon tile / 位置 / 该不该动）；**造型与画质以本 skill 为准，冲突时本 skill 优先**。页面任务里遇到要新画或改画的字形，就是从那边调过来的。
+**分工**：[morii-design] 工作流第 5 步（Icons）把「图标怎么画」整个委派给本 skill，自己只管用法（尺寸 / 色阶 / icon tile / 位置 / 该不该动）；**造型与画质以本 skill 为准，冲突时本 skill 优先**。页面任务里遇到要新画或改画的字形，就是从那边调过来的。
 
 ## A. 先定风格档位（动手前第一决策）
 
@@ -209,6 +209,6 @@ Hold while drawing, fix on sight: **先定档位再动手**（§0：实心 / 线
 
 ---
 
-References: style vibe (look-only) `exemplars.svg`(+`-dark`) · review card flow `design-card.md` · live server + self-check tool `build-gallery.mjs` (reads your registry, outputs to the project dir) · **icon motion `MOTION.md`** · parent [morii-design] 阶段 ③ + its `MOTION.md` (motion 上位法).
+References: style vibe (look-only) `exemplars.svg`(+`-dark`) · review card flow `design-card.md` · live server + self-check tool `build-gallery.mjs` (reads your registry, outputs to the project dir) · **icon motion `MOTION.md`** · parent [morii-design] 工作流第 5 步 + its `MOTION.md` (motion 上位法).
 
 [morii-design]: ~/.claude/skills/morii-design/SKILL.md

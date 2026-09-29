@@ -1,210 +1,173 @@
 /* =============================================================================
-   Token — Morii design system tokens (single source: color / radius / spacing /
-   motion / type scale)
-   -----------------------------------------------------------------------------
-   Rule: every color in any interface, component, or card **must** reference a
-   variable from this file. Raw hex is banned. Adding a color = register a token
-   here first, then reference it elsewhere. Recoloring touches this file only.
-
-   This file is the portable mirror of src/panel/shell/tokens.css inside the
-   Morii app (scoped to .morii-shell, ADR 0020 / 0048):
-     · Inside the Morii repo → use tokens.css directly, do not copy this file.
-     · Standalone demo / card / new prototype → copy this file; :root scope works
-       as-is.
-   Token names are identical on both sides, so a design migrates painlessly.
-
-   ★ Reuse first (hard rule): before adding a color, look for one to reuse below.
-     An existing token (including color-mix derivations) can express it → reuse
-     it, adding is banned. Add only when the existing palette genuinely cannot
-     express a semantic — and adding means registering the token here with its
-     semantic written down before referencing it anywhere. Lower color entropy
-     wins: one --accent deriving press/soft/ink beats four standalone values.
+   Token.css — Morii tokens: a few dials → named roles every component reads.
+   Use:   standalone page / prototype → copy next to it. Inside a product repo use
+          its own token file (Morii src/panel/shell/tokens.css · Hrige
+          src/styles/tokens.css); role names match.
+   Needs: color-mix() and calc() inside colors (Safari 16.2+ / Chromium 111+).
+   Components read roles only (SYSTEM.md §2). Raw hex / px in a component is a
+   fork; before adding a role, check whether one (or a color-mix of one) says it.
    ============================================================================= */
 
 :root {
   color-scheme: dark;
 
-  /* ---- Font stacks ----------------------------------------------------- */
+  /* ---- Dials — the look, decided once per product (SKILL.md §4) ---------- */
+  --accent-base: #4c8dff;   /* the one hue; JS may inject --user-accent over it */
+  --shape:   1;   /* radius scale         0.7 crisp · 1 soft · 1.3 round      */
+  --density: 1;   /* space + control size 0.85 compact · 1 · 1.15 roomy       */
+  --depth:   1;   /* floating shadows     0.6 flat · 1 · 1.4 deep             */
+  --pace:    1;   /* durations            0.8 brisk · 1 · 1.2 calm            */
+  /* Dials resolve on :root. A subtree override must re-declare the derived roles. */
+
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
           "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
   --font-mono: "SF Mono", "Menlo", "Consolas", monospace;
 
-  /* ---- Surfaces (neutral near-black; never tinted) --------------------- */
-  --bg-window:     #0a0a0c;   /* bottom-most window */
-  --bg-content:    #0d0d0f;   /* content area */
-  --panel:         #1a1a1c;   /* card base */
-  --panel-strong:  #202022;   /* emphasized surface / overlay */
-  --panel-2:       #242427;   /* item raised above the surface */
-  --panel-hi:      #2c2c30;   /* highlighted item */
-  --sidebar:       #121214;
-  --inset:         #28282b;   /* recessed block (quotes / secondary groups) */
+  /* ---- Surfaces by elevation role (FOUNDATION.md §3), never tinted ------- */
+  --bg-window:    #0a0a0c;   /* ground */
+  --bg-content:   #0d0d0f;   /* the sheet */
+  --sidebar:      #121214;
+  --panel:        #1a1a1c;   /* resting container, when one is needed */
+  --panel-strong: #202022;   /* floating layer */
+  --panel-2:      #242427;   /* raised / selected */
+  --panel-hi:     #2c2c30;   /* highlight inside a raised set */
+  --inset:        #28282b;   /* recessed: fields, tracks, wells */
 
-  /* ---- Ink (four text steps) ------------------------------------------- */
-  --ink:    #f3f4f6;   /* primary text / headings */
-  --ink-2:  #c8ccd2;   /* secondary body */
-  --ink-3:  #8e949e;   /* labels / quiet notes */
-  --ink-4:  #5c626c;   /* weakest: placeholders, counts, axis labels */
+  /* ---- Ink by rank ------------------------------------------------------- */
+  --ink:   #f3f4f6;   /* headings, the lead */
+  --ink-2: #c8ccd2;   /* body */
+  --ink-3: #8e949e;   /* labels, default icons */
+  --ink-4: #5c626c;   /* faintest — verify ≥3:1 on its real ground */
 
-  /* ---- Lines & hover --------------------------------------------------- */
-  /* Borders and dividers are deliberately low contrast; prefer whitespace. */
+  /* ---- Lines by job, all faint ------------------------------------------- */
   --sep:        rgba(255,255,255,0.055);
   --sep-strong: rgba(255,255,255,0.11);
-  --hairline:   rgba(255,255,255,0.045); /* faint rule: dense lists/tables only */
+  --hairline:   rgba(255,255,255,0.045);
   --hover:      rgba(255,255,255,0.055);
   --hover-2:    rgba(255,255,255,0.10);
 
-  /* ---- Accent (the one accent hue; JS may inject --user-accent) --------- */
-  --accent:        var(--user-accent, #4c8dff);
-  --accent-press:  color-mix(in srgb, var(--accent) 82%, #000);
-  --accent-soft:   color-mix(in srgb, var(--accent) 16%, transparent);  /* chip ground */
-  --accent-ink:    color-mix(in srgb, var(--accent) 62%, #fff);         /* accent text */
-  --selection:     color-mix(in srgb, var(--accent) 42%, transparent);
-  --shimmer:       var(--hover);   /* skeleton sheen: reuses hover, no new hue */
-
-  /* ---- Semantic (only when a real state fires; never decorative) -------- */
-  --online: #30d158;
-  --up:     #16a34a;   /* rise / positive delta */
-  --down:   #dc2626;   /* fall / negative delta */
-  --warn:   #d97706;   /* only once a real threshold is crossed */
+  /* ---- Tones: solid (fills) · -ink (text, icons) · -soft (chip ground) ---- */
+  --accent:       var(--user-accent, var(--accent-base));
+  --accent-press: color-mix(in srgb, var(--accent) 82%, #000);
+  --accent-soft:  color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-ink:   color-mix(in srgb, var(--accent) 62%, #fff);
+  --accent-2:     var(--accent);   /* only for a genuine second data dimension */
+  --on-accent:    #fff;            /* text / icons on a solid accent fill — check ≥4.5:1 against the hue */
+  --selection:    color-mix(in srgb, var(--accent) 42%, transparent);
+  --ok:     #16a34a;
+  --warn:   #d97706;   /* only when a real threshold is crossed */
   --crit:   #dc2626;
+  --online: #30d158;   /* live lamp, always followed by its text */
+  --ok-ink:    color-mix(in srgb, var(--ok) 62%, #fff);
+  --warn-ink:  color-mix(in srgb, var(--warn) 62%, #fff);
+  --crit-ink:  color-mix(in srgb, var(--crit) 62%, #fff);
+  --ok-soft:   color-mix(in srgb, var(--ok) 16%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 16%, transparent);
+  --crit-soft: color-mix(in srgb, var(--crit) 16%, transparent);
+  --up: var(--ok);
+  --down: var(--crit);
+  --shimmer: var(--hover);
 
-  /* ---- Radius ladder (soft corners, no sharp edges; cards start 14–16) -- */
-  --r-xs: 7px;
-  --r-sm: 10px;
-  --r-md: 14px;   /* default lower bound for a soft corner */
-  --r-lg: 18px;
-  --r-xl: 24px;   /* large cards / panels */
-  --r-pill: 99px; /* pill buttons / chips */
+  /* ---- Shape: by box size (xs dense … xl large faces), pills for chips ---- */
+  --r-xs: calc(7px  * var(--shape));
+  --r-sm: calc(10px * var(--shape));
+  --r-md: calc(14px * var(--shape));
+  --r-lg: calc(18px * var(--shape));
+  --r-xl: calc(24px * var(--shape));
+  --r-pill: 999px;
 
-  /* ---- Shadow ---------------------------------------------------------- */
-  --shadow-sm:  0 1px 2px rgba(0,0,0,0.5);
-  --shadow-md:  0 1px 2px rgba(0,0,0,0.5), 0 12px 30px rgba(0,0,0,0.38);
-  --shadow-lg:  0 1px 2px rgba(0,0,0,0.5), 0 22px 54px rgba(0,0,0,0.5);
-  --shadow-pop: 0 1px 2px rgba(0,0,0,0.6), 0 28px 64px rgba(0,0,0,0.6);
+  /* ---- Space: one rhythm; gaps inside a group < between groups ----------- */
+  --sp-1: calc(4px  * var(--density));
+  --sp-2: calc(8px  * var(--density));
+  --sp-3: calc(12px * var(--density));
+  --sp-4: calc(16px * var(--density));
+  --sp-5: calc(24px * var(--density));
+  --sp-6: calc(32px * var(--density));
+  --sp-7: calc(48px * var(--density));
+  --sp-8: calc(64px * var(--density));
 
-  /* Plinth — the two-plane closure of the overlay family (SHELL.md §4.5).
-     The shell is a --plinth-wide seat in --inset (darker than the page floor);
-     the card on it is --panel-strong with --card-edge as its lit top edge and
-     --shadow-sm as the tight shadow landing on the seat. Depth = tone step +
-     light, never strokes. Tip-caliber layers do not use it.               */
-  --plinth: 5px;
-  --card-edge: inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent);
+  /* ---- Control size: height is the size, the rest derives (SYSTEM.md §7) -- */
+  --h-sm: calc(28px * var(--density));   /* toolbars, dense rows */
+  --h-md: calc(34px * var(--density));   /* default */
+  --h-lg: calc(44px * var(--density));   /* touch, a sparse face's primary */
+  --hit:  44px;                          /* minimum hit area, whatever the look */
 
-  /* ---- Motion curves (detail: MOTION.md §2) ----------------------------
-     The built-in CSS easings are too soft — always use the strong set below.
-     Interface motion never uses ease-in. Picking a curve is one question:
-     enter/exit → ease-out · on-screen movement → ease-in-out ·
-     hover/color → ease-hover · constant (progress, marquee) → linear.      */
-  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);      /* default: all enter/exit */
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);     /* on-screen A→B move */
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);      /* iOS drawer / bottom sheet */
-  --ease-hover:  cubic-bezier(0.4, 0, 0.2, 1);        /* hover / color transition */
-  --ez:          var(--ease-out);                     /* global default alias */
-  /* Spring approximations (lower damping = bouncier). UI does not bounce by
-     default — only momentum-driven interactions do. */
-  --spring-soft: cubic-bezier(0.22, 1.2, 0.36, 1);    /* bounce≈.15 entrance/overlay */
-  --spring:      cubic-bezier(0.34, 1.56, 0.64, 1);   /* bounce≈.3 press rebound / drag settle */
+  /* ---- Elevation: shadows only for what floats. No bevel / lit-edge role. -
+     sm lifted object · md anchored layer · lg drawer, inside-window · pop modal */
+  --shadow-sm:  0 4px 14px rgb(0 0 0 / calc(0.32 * var(--depth)));
+  --shadow-md:  0 1px 2px rgb(0 0 0 / calc(0.40 * var(--depth))), 0 12px 30px rgb(0 0 0 / calc(0.38 * var(--depth)));
+  --shadow-lg:  0 1px 2px rgb(0 0 0 / calc(0.40 * var(--depth))), 0 22px 54px rgb(0 0 0 / calc(0.50 * var(--depth)));
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / calc(0.50 * var(--depth))), 0 28px 64px rgb(0 0 0 / calc(0.60 * var(--depth)));
+  --glass-blur: 20px;
 
-  /* ---- Duration ladder (interface motion always <300ms) ----------------
-     press 120 · tooltip/small overlay 160 · dropdown/view switch 220 ·
-     large overlay 320 · drawer 420. Only marketing / onboarding demos may
-     exceed --t-sheet.                                                     */
-  --t-press: 120ms;   /* :active press feedback, range 100–160 */
-  --t-fast:  160ms;   /* tooltip, chip, icon state, range 125–200 */
-  --t-med:   220ms;   /* dropdown, tab switch, list enter/exit, range 150–250 */
-  --t-slow:  320ms;   /* inside-window / popover / large block */
-  --t-sheet: 420ms;   /* drawer / bottom sheet, range 200–500 */
+  /* ---- Motion (MOTION.md §2): four curves; never ease-in ----------------- */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);     /* enter / exit */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);    /* on-screen A→B */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-hover:  cubic-bezier(0.4, 0, 0.2, 1);       /* hover / color */
+  --ez:          var(--ease-out);
+  --spring-soft: cubic-bezier(0.22, 1.2, 0.36, 1);   /* momentum entrances */
+  --spring:      cubic-bezier(0.34, 1.56, 0.64, 1);  /* press rebound, drag settle */
+  --t-press: calc(120ms * var(--pace));
+  --t-fast:  calc(160ms * var(--pace));
+  --t-med:   calc(220ms * var(--pace));
+  --t-slow:  calc(320ms * var(--pace));
+  --t-sheet: calc(420ms * var(--pace));
+  --beat:    60ms;    /* choreography delays are multiples of this */
+  --stagger: 50ms;
+  --shift:   8px;
+  --pop:     0.96;    /* entrance start scale — never scale(0) */
+  --press:   0.97;
 
-  /* ---- Beat (timeline choreography unit, see MOTION.md §8) -------------
-     Every delay in one piece of choreography must be an integer multiple of
-     --beat. Hand-written scattered milliseconds are banned.                */
-  --beat:    60ms;    /* choreography beat: delay = calc(var(--beat) * n) */
-  --stagger: 50ms;    /* sibling stagger step 30–80ms, total capped at 300ms */
-  --shift:   8px;     /* entrance displacement: translateY(var(--shift));
-                         zeroed under reduced-motion = fade only, no movement */
-  --pop:     0.96;    /* entrance start scale: scale(var(--pop)); never scale(0) */
-  --press:   0.97;    /* :active press scale, range 0.95–0.98 */
-  --glass-blur: 20px; /* frosted overlay blur; zeroed under reduced-transparency */
-
-  /* ---- Second accent (optional; charts / chips / micro-icons) ----------
-     Defaults to the primary, i.e. one hue. Override it locally ONLY when a
-     second data dimension genuinely exists; keep it distinguishable from
-     --accent in both themes and under grayscale, and keep surfaces neutral.
-     Past two hues, separate the categories by position or shape instead.  */
-  --accent-2: var(--accent);
-
-  /* ---- Type scale (detail: FOUNDATION.md §2) --------------------------- */
-  --fs-hero:  30px;   /* large figure / hero value, 700 / -1px */
-  --fs-title: 18px;   /* section heading, 650 */
-  --fs-body:  16px;   /* body */
-  --fs-sub:   13px;   /* secondary */
-  --fs-label: 12px;   /* label */
-  --fs-cap:   11px;   /* counts / axis labels */
+  /* ---- Type (FOUNDATION.md §2) — the lead may take one tier up ------------ */
+  --fs-hero:  30px;
+  --fs-title: 18px;
+  --fs-body:  16px;
+  --fs-sub:   13px;
+  --fs-label: 12px;
+  --fs-cap:   11px;
 }
 
-/* ===================== Light overrides (system off-white, ADR 0048) ======= */
+/* ---- Light: same roles re-valued. Nothing is above white, so light lifts
+   with shadow or a hairline — never a "brighter" surface or an edge light. */
 [data-theme="light"] {
   color-scheme: light;
   --bg-window:    #f5f5f7;
   --bg-content:   #ffffff;
+  --sidebar:      #f0f0f2;
   --panel:        #ffffff;
-  --panel-strong: #f5f5f7;
+  --panel-strong: #f5f5f7;   /* = --bg-window: a floating layer is carried by its shadow */
   --panel-2:      #ebebed;
   --panel-hi:     #e0e0e5;
-  --sidebar:      #f0f0f2;
   --inset:        #e5e5ea;
-
-  /* Body text is never pure black: deep charcoal cuts the glare; secondary mid-gray. */
-  --ink:   #1d1d1f;   /* deep charcoal (#212529 also fine), not #000 */
+  --ink:   #1d1d1f;
   --ink-2: #424245;
-  --ink-3: #86868b;   /* secondary text: mid-gray */
+  --ink-3: #86868b;
   --ink-4: #aeaeb2;
-
-  /* Borders and dividers deliberately low contrast (the "elegant hairline" —
-     prefer whitespace over a line whenever possible). */
   --sep:        rgba(0,0,0,0.05);
   --sep-strong: rgba(0,0,0,0.09);
   --hairline:   rgba(0,0,0,0.045);
   --hover:      rgba(0,0,0,0.035);
   --hover-2:    rgba(0,0,0,0.06);
-
   --accent-ink: color-mix(in srgb, var(--accent) 62%, #000);
-
-  --shadow-sm:  0 1px 2px rgba(0,0,0,0.08);
-  --shadow-md:  0 1px 2px rgba(0,0,0,0.06), 0 12px 30px rgba(0,0,0,0.10);
-  --shadow-lg:  0 1px 2px rgba(0,0,0,0.06), 0 22px 54px rgba(0,0,0,0.14);
-  --shadow-pop: 0 1px 2px rgba(0,0,0,0.08), 0 28px 64px rgba(0,0,0,0.18);
-
-  --card-edge: inset 0 1px 0 rgba(255,255,255,0.85);
-
-  --online: #34c759;
+  --ok-ink:     color-mix(in srgb, var(--ok) 70%, #000);
+  --warn-ink:   color-mix(in srgb, var(--warn) 70%, #000);
+  --crit-ink:   color-mix(in srgb, var(--crit) 70%, #000);
+  --online:     #34c759;
+  --shadow-sm:  0 4px 14px rgb(0 0 0 / calc(0.06 * var(--depth)));
+  --shadow-md:  0 1px 2px rgb(0 0 0 / calc(0.05 * var(--depth))), 0 12px 30px rgb(0 0 0 / calc(0.10 * var(--depth)));
+  --shadow-lg:  0 1px 2px rgb(0 0 0 / calc(0.05 * var(--depth))), 0 22px 54px rgb(0 0 0 / calc(0.14 * var(--depth)));
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / calc(0.07 * var(--depth))), 0 28px 64px rgb(0 0 0 / calc(0.18 * var(--depth)));
 }
 
-/* ===================== Degradation: reduced motion / transparency =========
-   reduced-motion ≠ no motion: keep the non-moving fades and color changes
-   (they aid comprehension), drop displacement, scaling, springs, parallax.
-   This one block covers the whole site — components need nothing of their own. */
+/* ---- Reduced motion = gentler, not none: fades stay, movement goes -------- */
 @media (prefers-reduced-motion: reduce) {
-  :root {
-    --spring: var(--ease-out);
-    --spring-soft: var(--ease-out);
-    --t-press: 1ms;
-    --beat: 0ms;
-    --stagger: 0ms;
-    --shift: 0px;   /* displacement zeroed: entrances become fade-only */
-    --pop: 1;       /* scaling zeroed */
-    --press: 1;
-  }
+  :root { --spring: var(--ease-out); --spring-soft: var(--ease-out); --t-press: 1ms;
+          --beat: 0ms; --stagger: 0ms; --shift: 0px; --pop: 1; --press: 1; }
   *, *::before, *::after {
-    animation-duration: 120ms !important;
-    animation-delay: 0ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 120ms !important;
-    transition-delay: 0ms !important;
-    scroll-behavior: auto !important;
+    animation-duration: 120ms !important; animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important; transition-duration: 120ms !important;
+    transition-delay: 0ms !important; scroll-behavior: auto !important;
   }
 }
-
-@media (prefers-reduced-transparency: reduce) {
-  :root { --glass-blur: 0px; }   /* frosted overlays fall back to solid; components read this */
-}
+@media (prefers-reduced-transparency: reduce) { :root { --glass-blur: 0px; } }
