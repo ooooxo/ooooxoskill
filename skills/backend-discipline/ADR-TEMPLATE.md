@@ -14,7 +14,7 @@ Don't ADR boilerplate or reversible trivia. Do ADR anything you'd re-litigate in
 
 ## Numbering & lifecycle
 
-- Sequential: `docs/adr/NNNN-kebab-slug.md` (`0036-ai-memory-plane.md`). Numbers never reused.
+- Sequential. **File name = 4-digit number + a SHORT topic in the project's working language** (2–8 characters/words, a noun phrase — NOT the decision sentence): `docs/adr/0078-订单外链.md`, `0036-ai-memory-plane.md` for an English-only team. The decision itself belongs in the file's `#` title, never in the file name — long sentence slugs truncate in every file list and nobody can recall them. No spaces, slashes or colons. Numbers never reused.
 - **Lineage in the header**: `amends NNNN` (refines), `supersedes NNNN` (replaces the decision), and move dead ones to `docs/adr/archive/`. A decision is never edited away — it's superseded by a new number that argues the change.
 - **The number is load-bearing**: cite `ADR 0036` in code comments, CONTEXT entries, and invariant lines. That back-reference is how a line of code stays connected to its reason across years.
 
