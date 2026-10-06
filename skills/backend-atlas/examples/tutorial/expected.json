@@ -95,7 +95,9 @@
     "前端调用没对上": [],
     "多域共写": [
       "AuditLog"
-    ]
+    ],
+    "引用了作废的 ADR": [],
+    "引用的 ADR 不存在": []
   },
   "flows": [
     "ChatHub.SendMessage · 草稿 · 1 节点",
@@ -112,5 +114,8 @@
     "PUT /api/todos/{id:int} · 草稿 · 3 节点",
     "TimedWorker.ExecuteAsync · 草稿 · 4 节点"
   ],
-  "nodes": 43
+  "nodes": 43,
+  "adrs": [],
+  "adrTotal": "0 条 · 有效 0 · 待确认 0 · 作废 0（可以删 0）· 状态读不出 0 · 注释引用 0 处",
+  "adrRemovable": []
 }

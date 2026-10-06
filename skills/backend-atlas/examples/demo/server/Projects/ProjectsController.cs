@@ -27,5 +27,5 @@ public sealed class ProjectsController(AppDb db, TurnService turns) : Controller
 
     // ---------- [ 发消息：空闲时起一个轮次交给后台，进行中则记成插话 ] ----------
     [HttpPost("{id:guid}/messages")]
-    public Task<string> Send(Guid id, [FromBody] MessageDto body) => turns.StartOrInterject(id, body.Text);
+    public Task<string> Send(Guid id, [FromBody] MessageDto body) => turns.StartOrInterject(id, body.Text); // 只起轮次就返回（见 KeroClient ADR 0001：仓名只是以 Client 结尾，仍按本端编号找）
 }

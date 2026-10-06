@@ -22,7 +22,7 @@ export const useChatStore = defineStore("chat", () => {
 
   async function send(text: string) {
     lines.value.push({ role: "user", text });
-    const r = await api.sendMessage(projectId.value!, text);
+    const r = await api.sendMessage(projectId.value!, text); // 插话还是新轮次由服务端定（server ADR 0001）
     if (r.kind === "interjection") lines.value.push({ role: "system", text: "已插话，下一步生效" });
   }
 

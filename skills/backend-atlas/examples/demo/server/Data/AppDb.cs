@@ -4,6 +4,7 @@ namespace Demo.Data;
 
 public sealed class User { public Guid Id { get; set; } public string Email { get; set; } = ""; public string PasswordHash { get; set; } = ""; }
 public sealed class Wallet { public Guid UserId { get; set; } public int Balance { get; set; } }
+// 流水只增不改（ADR 0009）
 public sealed class LedgerEntry { public long Id { get; set; } public Guid UserId { get; set; } public int Amount { get; set; } public string Reason { get; set; } = ""; }
 public sealed class Project { public Guid Id { get; set; } public Guid UserId { get; set; } public string Title { get; set; } = ""; }
 public sealed class Turn { public Guid Id { get; set; } public Guid ProjectId { get; set; } public string Status { get; set; } = "running"; public int ModelCalls { get; set; } public DateTime LeaseUntil { get; set; } }

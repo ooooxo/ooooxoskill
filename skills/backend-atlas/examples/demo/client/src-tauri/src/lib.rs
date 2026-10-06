@@ -19,6 +19,7 @@ async fn quick_send(app: AppHandle, db: State<'_, Db>, project_id: String, text:
         .await
         .map_err(|e| e.to_string())?;
     clear_draft(&db.0, &project_id).await?;
+    // 成功后广播，主窗口在就补一行提示（ADR 0001）
     app.emit(QUICK_SENT, &project_id).map_err(|e| e.to_string())
 }
 

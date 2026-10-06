@@ -24,7 +24,7 @@ public sealed class WalletService(AppDb db)
     public async Task<bool> Charge(Guid userId, int amount, string reason)
     {
         var wallet = await db.Wallets.SingleAsync(w => w.UserId == userId);
-        if (wallet.Balance < amount) return false;
+        if (wallet.Balance < amount) return false; // 不透支（ADR 0003）
         wallet.Balance -= amount;
         db.Ledger.Add(new LedgerEntry { UserId = userId, Amount = -amount, Reason = reason });
         await db.SaveChangesAsync();

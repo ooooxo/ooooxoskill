@@ -1,11 +1,12 @@
 // test/examples.ts —— 回归：在 examples/ 下每个示例项目上整趟跑管线
 //   ① 快照：入口 / 跨端边 / 推送 / 循环 / 文件归位 / 体检 / 流程与 examples/<名>/expected.json 逐项对账（防退化）
 //   ② 事实：examples/<名>/must.json 里人工标注的「正确的图必须有 / 必须没有」逐条核对（防「没退化但本来就错」）
-//   ③ 意图画布：空白 / 叠真图两种都要起得来
+//   ③ .atlas/（给 agent 读、要提交进 git）：代码没变时重跑一字不差
+//   ④ 意图画布：空白 / 叠真图两种都要起得来
 // 怎么跑：bun test/examples.ts [示例名…]      有意改动用 UPDATE=1 重写快照（must.json 不会被改），随改动一起提交
 // 需要：.NET 10 SDK、bun
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const HERE = join(import.meta.dir, "..");
@@ -21,9 +22,10 @@ for (const [name, ex] of Object.entries(EXAMPLES).filter(([n]) => !pick.length |
   const dir = join(HERE, "examples", name);
   const work = join(process.env.TMPDIR ?? "/tmp", `atlas-test-${name}`);
   const out = join(work, `${name}-atlas.html`);
-  execFileSync(join(HERE, "run.sh"), [join(dir, ex.server), ex.client === "-" ? "-" : join(dir, ex.client), out], {
-    env: { ...process.env, SEM: join(dir, "atlas.json"), WORK: work }, stdio: ["ignore", "ignore", "inherit"],
+  const run = (force = false) => execFileSync(join(HERE, "run.sh"), [join(dir, ex.server), ex.client === "-" ? "-" : join(dir, ex.client), out], {
+    env: { ...process.env, SEM: join(dir, "atlas.json"), WORK: work, FORCE: force ? "1" : "0" }, stdio: ["ignore", "ignore", "inherit"],
   });
+  run();
   const json = (f: string) => JSON.parse(readFileSync(join(work, f), "utf8"));
   const server = json("server.graph.json"), client = json("client.graph.json"), sys = json("system.json");
   const html = readFileSync(out, "utf8");
@@ -44,6 +46,12 @@ for (const [name, ex] of Object.entries(EXAMPLES).filter(([n]) => !pick.length |
     findings: Object.fromEntries(D.findings.map((f: any) => [f.title, f.items.map((i: any) => i.label).sort()])),
     flows: D.flows.map((f: any) => `${f.name} · ${f.source === "sem" ? "已整理" : "草稿"} · ${f.size} 节点`).sort(),
     nodes: D.nodes.length,
+    // ADR：注释引用挂到了哪些卡（只列上了图的）
+    adrs: D.adrs.map((a: any) => `${a.side} ${a.n} ${a.status} · ${a.cites} 处 · ${a.nodes.join(" ")}`).sort(),
+    // ADR 总数与状态（一个仓里多个项目时别的项目的 ADR 混进来过）：从 .atlas/adr.md 第一行统计读
+    adrTotal: readFileSync(join(dir, ".atlas/adr.md"), "utf8").split("\n").find((l) => /^\d+ 条 · 有效/.test(l)),
+    // 可以删的 ADR（作废 + 不再引用 + 没有有效 ADR 提到）：从 .atlas/adr.md 读
+    adrRemovable: (readFileSync(join(dir, ".atlas/adr.md"), "utf8").split("### 可以删")[1]?.split("\n###")[0].split("\n##")[0] ?? "").split("\n").filter((l) => l.startsWith("- ")).map((l) => l.split(" · ")[0].replace(/^- (\S+) ADR (\d+).*/, "$1 $2")),   // 不写「ADR 编号」：快照文件也在仓库里，会被当成引用
   };
   const expPath = join(dir, "expected.json");
   if (process.env.UPDATE === "1" || !existsSync(expPath)) {
@@ -72,10 +80,16 @@ for (const [name, ex] of Object.entries(EXAMPLES).filter(([n]) => !pick.length |
       if (has === neg) fails.push(`${name} 事实${neg ? "不该有" : "缺"}：${fact}`);
     }
   }
+  // ---- ③ .atlas/ 幂等：全量重抽一趟（像新 clone / CI 那样），内容必须一字不差 ----
+  const dump = (d: string): string => readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))
+    .map((f) => f.isDirectory() ? dump(join(d, f.name)) : `${f.name}\n${readFileSync(join(d, f.name), "utf8")}`).join("\n");
+  const before = dump(join(dir, ".atlas"));
+  run(true);
+  if (dump(join(dir, ".atlas")) !== before) fails.push(`${name}：.atlas/ 重跑后变了（里面不能有时间戳、绝对路径或不稳定的排序）`);
   console.log(`${name}：${actual.nodes} 节点 · ${sys.loops.length} 循环 · ${actual.flows.length} 流程 · 跨端 ${sys.cross.length}`);
 }
 
-// ---- ③ 意图画布：这里坏过（serve.ts 语法错整个画布起不来，快照照样全绿） ----
+// ---- ④ 意图画布：这里坏过（serve.ts 语法错整个画布起不来，快照照样全绿） ----
 if (!pick.length || pick.includes("canvas")) {
   const atlas = join(process.env.TMPDIR ?? "/tmp", "atlas-test-demo", "demo-atlas.html");
   for (const a of [null, ...(existsSync(atlas) ? [atlas] : [])]) {

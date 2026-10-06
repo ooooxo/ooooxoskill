@@ -159,27 +159,29 @@ export function buildFlows(sys: any, SEM: any, ctx: Ctx, outlineDir: string) {
     const facts = new Map<string, Fact>(); const col = (n: Fact) => { facts.set(n.key, n); n.kids?.forEach(col); }; col(flow.root);
     const e = ctx.entryOf(flow.id), loop = e ? ctx.loopOf(e.id) : null, sem = semBy.get(flow.id);
     const fe: string[] = [];
-    const tree = sem ? organized(ctx, flow, sem, facts, fe) : [...(e?.kind === "http" ? trigger(loop) : []), ...draft(ctx, flow)];
+    // 语义层只写了 name / story（没写 tree）= 只起名，流程图仍用自动草稿
+    const tree = sem?.tree ? organized(ctx, flow, sem, facts, fe) : [...(e?.kind === "http" ? trigger(loop) : []), ...draft(ctx, flow)];
     for (const x of fe) errs.push(`${sem?.name ?? flow.id}：${x}`);
     const name = sem?.name ?? loop?.name ?? (e?.kind === "http" ? `${e.verbs.join(",")} ${e.route}` : flow.root.t);
     const root = flow.root.method;
-    out.push({ id: flow.id, name, story: sem?.story ?? loop?.story ?? null, kind: flow.kind, source: sem ? "sem" : "auto",
-      dom: root ? ctx.domOf(root) : null, card: root ? ctx.cardOf(root) : null, loop: loop?.id ?? null, lane: flow.kind === "http" ? "svc" : "bg", size: facts.size, tree, ibo: ibo(flow, e, loop, tree) });
+    const cnt = (k: string) => [...facts.values()].filter((x) => x.k === k).length;
+    // 值不值得整理：循环 · 交给后台 · 出口 · 节点数（索引与 .atlas/index.md 的「还差什么」同一个排法）
+    const rank = cnt("loop") * 10 + cnt("bg") * 8 + cnt("exit") * 2 + facts.size / 10;
+    out.push({ id: flow.id, name, story: sem?.story ?? loop?.story ?? null, kind: flow.kind, source: sem?.tree ? "sem" : "auto", named: !!sem, summary: e?.summary ?? (root ? ctx.ix.method.get(root)?.summary : null) ?? null,
+      dom: root ? ctx.domOf(root) : null, card: root ? ctx.cardOf(root) : null, loop: loop?.id ?? null, lane: flow.kind === "http" ? "svc" : "bg", size: facts.size, rank, tree, ibo: ibo(flow, e, loop, tree) });
     // 一条流程一个文件：名字里的斜杠空格换掉，再带 id 的短哈希防重名
     const file = `${name.replace(/[\\/:*?"<>|\s{}]+/g, "-").replace(/-+/g, "-").slice(0, 40)}-${createHash("sha1").update(flow.id).digest("hex").slice(0, 6)}.md`;
-    let md = `# ${name}  ·  ${sem ? "已整理" : "草稿"}\nid: ${flow.id.slice(2)}\n\n每行：[种类] 文本  ‹锚点键›  文件:行。语义层 flows 的节点用 "at": "锚点键" 引用。\n\n`;
+    let md = `# ${name}  ·  ${sem?.tree ? "已整理" : "草稿"}\nid: ${flow.id.slice(2)}\n\n每行：[种类] 文本  ‹锚点键›  文件:行。语义层 flows 的节点用 "at": "锚点键" 引用。\n\n`;
     const dump = (n: Fact, d: number) => { md += `${"  ".repeat(d)}- [${n.k}] ${n.t}${n.args?.length ? ` (${n.args.join(", ")})` : ""}  ‹${n.key}›  ${n.file}:${n.line}\n`; n.kids?.forEach((k) => dump(k, d + 1)); };
     dump(flow.root, 0);
     writeFileSync(`${outlineDir}/${file}`, md);
-    const cnt = (k: string) => [...facts.values()].filter((x) => x.k === k).length;
-    rows.push({ name, sem: !!sem, size: facts.size, loops: cnt("loop"), exits: cnt("exit"), bg: cnt("bg"), dom: root ? ctx.domOf(root) : null, file });
+    rows.push({ id: flow.id.slice(2), name, sem: !!sem?.tree, size: facts.size, rank, loops: cnt("loop"), exits: cnt("exit"), bg: cnt("bg"), dom: root ? ctx.domOf(root) : null, file });
   }
   // 索引：已整理的在前；草稿按复杂度（循环 · 交给后台 · 出口 · 节点数）排，最值得整理的在最上面
-  const score = (r: any) => r.loops * 10 + r.bg * 8 + r.exits * 2 + r.size / 10;
-  rows.sort((a, b) => +b.sem - +a.sem || score(b) - score(a));
+  rows.sort((a, b) => +b.sem - +a.sem || b.rank - a.rank);
   writeFileSync(`${outlineDir}/index.md`, `# 流程索引（自动生成，勿手改）\n\n${rows.length} 条 · 已整理 ${rows.filter((r) => r.sem).length}。草稿按复杂度排，越靠前越值得整理；整理时只读那一条的文件。\n\n`
-    + `| 流程 | 状态 | 节点 | 循环 | 后台 | 出口 | 域 | 文件 |\n|---|---|---|---|---|---|---|---|\n`
-    + rows.map((r) => `| ${r.name} | ${r.sem ? "已整理" : "草稿"} | ${r.size} | ${r.loops} | ${r.bg} | ${r.exits} | ${r.dom ? ctx.label(r.dom) : ""} | ${r.file} |`).join("\n") + "\n");
+    + `| 流程 | id（语义层 flows 的键） | 状态 | 节点 | 循环 | 后台 | 出口 | 域 | 文件 |\n|---|---|---|---|---|---|---|---|---|\n`
+    + rows.map((r) => `| ${r.name} | \`${r.id.replace(/\|/g, "\\|")}\` | ${r.sem ? "已整理" : "草稿"} | ${r.size} | ${r.loops} | ${r.bg} | ${r.exits} | ${r.dom ? ctx.label(r.dom) : ""} | ${r.file} |`).join("\n") + "\n");
   if (errs.length) throw new Error(`语义层 flows 有 ${errs.length} 处对不上代码（代码改了就要重整这几条）：\n  ${errs.join("\n  ")}\n  大纲：${outlineDir}/index.md`);
   return out;
 }

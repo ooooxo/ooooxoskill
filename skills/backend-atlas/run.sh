@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一键出系统图：服务端 Roslyn 抽取 → 客户端 TS / Rust 抽取 → 两端拼循环 → 内联成自包含 HTML。任何一步失败即退出。
+# 一键出系统图：服务端 Roslyn 抽取 → 客户端 TS / Rust 抽取 → 两端拼循环 → 内联成自包含 HTML，并在语义层旁边写 .atlas/（给 agent 读的索引）。任何一步失败即退出。
 # 怎么跑：SEM=<语义层.json> ./run.sh <server.csproj | .sln | .slnx> <client-root | -> <out.html>
 #        语义层文件不存在 = 按抽取结果生成骨架再出图；客户端写 - = 只有服务端。ICONS=<注册表> 换图标；WORK=<目录> 放中间件；FORCE=1 强制全量；SHARE=1 不写本机路径
 # 需要：.NET 10 SDK、bun、bash；首次会编译抽取器、装 typescript / tree-sitter。

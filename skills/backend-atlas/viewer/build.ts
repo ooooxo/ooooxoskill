@@ -1,11 +1,14 @@
-// atlas 图构建：system.json → 分层节点（泳道框 → 组卡 → 叶卡）+ 叶级聚合边 + 循环的有序边序列，内联进 graph.html 出一个自包含 HTML
+// atlas 图构建：system.json → 分层节点（泳道框 → 组卡 → 叶卡）+ 叶级聚合边 + 循环的有序边序列 + 代码注释里的 ADR 引用，内联进 graph.html 出一个自包含 HTML；
+//   给 agent 读的 .atlas/ 写在语义层旁边（outline.ts、flows.ts）
 // 怎么跑：bun viewer/build.ts <system.json> <semantics.json> <server-root> <client-root> <icons.ts> <out.html>
 //        语义层文件不存在 = 按抽取结果生成一份骨架写到那个路径再出图（第一次接项目就这样起步）；SHARE=1 不把本机绝对路径写进 HTML
 // 需要：bun；icons.ts 是图标注册表（默认 viewer/icons.ts，项目可换成自己的同名键注册表）；同目录 graph.html 模板与 Token.css。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { indexSystem, loopModel } from "./core.js";
 import { buildFlows } from "./flows.ts";
+import { scanAdrs } from "./adr.ts";
+import { writeOutline } from "./outline.ts";
 
 const ICONS = ["message", "user", "users", "laptop", "cloud", "layers", "bell", "lock", "rows", "grid", "refresh", "search", "plus",
   "chevRight", "chevDown", "close", "link", "fileText", "pulse", "share", "folder", "board", "info", "eye", "expand", "undo", "check"];
@@ -194,7 +197,8 @@ if (fresh) {
     edgeLabels: [],
   };
   writeFileSync(semPath, JSON.stringify(SEM, null, 2) + "\n");
-  console.log(`语义层 ${semPath} 不存在，已按抽取结果生成骨架（${SEM.domains.length} 个域）。改域名 / 合并域 / 给循环起人话名后重跑即可`);
+  console.log(`语义层 ${semPath} 不存在，已按抽取结果生成骨架（${SEM.domains.length} 个域，名字都是控制器原名）。`
+    + `下一步是初次整理：照 ${join(dirname(semPath), ".atlas/curate.md")} 按业务归类域、给循环和流程起人话名、把图整理好读，写回这个文件后重跑`);
 }
 
 // ---- 语义层：业务域挂在最上层；先按叶 id、再按组 id 认领；没被认领的节点直接报错 ----
@@ -388,8 +392,58 @@ const findings = [
 for (const n of nodes.values()) if (n.usedBy) n.usedBy = n.usedBy.map(dlbl);
 for (const [t, u] of tableUse) if (nodes.has(t)) Object.assign(nodes.get(t), { writers: [...u.w], readers: [...u.r] });
 
+// edgeLabels 两端必须是语义层里的域 id：写错了就报出来，不静默不画
+{
+  const ids = new Set(domains.map((d) => d.id));
+  const bad = (SEM.edgeLabels ?? []).flatMap((x: any) => [x.from, x.to]).filter((id: string) => !ids.has(id));
+  if (bad.length) throw new Error(`edgeLabels 里这些域 id 不存在：${[...new Set(bad)].join(", ")}（写 domains 里的 id，不带 D:）`);
+}
+
+// ---- ADR：源码注释里的「ADR NNNN」就是锚点。引用按行号落到所在方法的卡上，ADR 跟着挂到卡 → 域 / 循环，抽屉里讲「为什么」 ----
+const S_ROOT = sys.server.root ?? serverRoot;
+const A = scanAdrs([{ side: "S", root: S_ROOT }, ...(clientRoot === "-" ? [] : [{ side: "C", root: clientRoot }])]);
+const methodsIn = new Map<string, any[]>();
+for (const m of ix.method.values()) { const k = `${m.id[0]}|${m.file}`; (methodsIn.get(k) ?? methodsIn.set(k, []).get(k)!).push(m); }
+const cardOfMethod = (m: any) => { const L = m.id[0] === "S" ? leafIdOf(m.id) : "C:f:" + m.file; return L && nodes.has(L) ? L : null; };
+// 在方法里 → 那个方法的卡；方法头上的注释（下面 4 行内就是方法开头）→ 那个方法；
+// 其余在方法外的：文件卡，再不行就是这个文件里各方法共同所在的域；都没有 = 不上图（仍进 .atlas/by-file.md）
+const cardOfCite = (c: any): string | null => {
+  const ms = methodsIn.get(`${c.side}|${c.file}`) ?? [];
+  const m = ms.filter((x) => x.line <= c.line && c.line <= x.endLine).sort((a, b) => (a.endLine - a.line) - (b.endLine - b.line))[0]
+    ?? ms.filter((x) => x.line > c.line && x.line - c.line <= 4).sort((a, b) => a.line - b.line)[0];
+  const L = m && cardOfMethod(m);
+  if (L) return L;
+  if (nodes.has(`${c.side}:f:${c.file}`)) return `${c.side}:f:${c.file}`;
+  const doms = new Set(ms.map(cardOfMethod).filter(Boolean).map((k) => nearDom(k!)));
+  return doms.size === 1 ? [...doms][0] : null;
+};
+const cites = A.cites.map((c) => ({ ...c, card: cardOfCite(c) }));
+// 同一个 docs/adr 里，有效 ADR 的正文提到了谁（supersedes / 修订 / 配套）：被提到的作废 ADR 还是历史链上的一环
+const mentionedBy = new Map<string, string[]>();
+for (const a of A.adrs.values()) if (a.status !== "dead") for (const n of a.mentions) { const k = a.key.replace(/#\d+$/, "#" + n); (mentionedBy.get(k) ?? mentionedBy.set(k, []).get(k)!).push(a.n); }
+const refsTo = new Map<string, any[]>();
+for (const r of A.refs) if (r.adr) (refsTo.get(r.adr) ?? refsTo.set(r.adr, []).get(r.adr)!).push(r);
+const adrs = [...A.adrs.values()].map((a) => {
+  const cs = cites.filter((c) => c.adr === a.key), by = (mentionedBy.get(a.key) ?? []).sort(), rs = refsTo.get(a.key) ?? [];
+  // 可以删 = 作废 + 仓库里没有任何文件再指着它（代码注释、CLAUDE.md / CONTEXT.md / 文档、字符串都算）+ 没有有效 ADR 提到它；删了 git 里还有历史
+  return { ...a, cites: cs.length, refs: rs.map((r) => `${r.file}:${r.line}`), mentionedBy: by, removable: a.status === "dead" && !cs.length && !rs.length && !by.length,
+    nodes: [...new Set(cs.map((c) => c.card).filter(Boolean))].sort() as string[], at: cs[0] ? { side: cs[0].side, file: cs[0].file, line: cs[0].line } : null };
+}).sort((x, y) => x.side.localeCompare(y.side) || x.key.localeCompare(y.key));
+const missing = new Map<string, any[]>();
+for (const c of cites) if (!c.adr) (missing.get(`${c.side} ${c.n}`) ?? missing.set(`${c.side} ${c.n}`, []).get(`${c.side} ${c.n}`)!).push(c);
+findings.push(
+  { id: "adr-dead", title: "引用了作废的 ADR", why: "代码注释还指着已作废 / 已归档的 ADR：要么决策换了、代码没跟上，要么注释该改指向接替它的那条。",
+    items: adrs.filter((a) => a.status === "dead" && a.cites).map((a) => ({ label: `ADR ${a.n} ${a.title}`, sub: `${a.raw === "archive" ? "已归档" : a.raw} · ${a.cites} 处引用`, n: a.cites, nodes: a.nodes, at: a.at })) },
+  { id: "adr-missing", title: "引用的 ADR 不存在", why: "注释里的编号在 docs/adr 里找不到：写错了号，或指的是别的仓（写成「client ADR 0018」「server ADR 0161」才会去那一端找）。",
+    items: [...missing.values()].map((cs) => ({ label: `ADR ${cs[0].n}`, sub: `${cs.length} 处 · ${cs[0].file}:${cs[0].line}`, n: cs.length,
+      nodes: [...new Set(cs.map((c) => c.card).filter(Boolean))] as string[], at: { side: cs[0].side, file: cs[0].file, line: cs[0].line } })) },
+);
+
 // ---- 流程：控制流骨架 → 流程树（语义层整理过的按锚点核对，其余自动草稿），挂到所属域与业务循环上 ----
-const flowsOut = `${dirname(sysPath)}/flows`;
+// 给 agent 读的东西都写进项目里的 .atlas/（和语义层放一起，可以提交）：索引 · ADR · 按文件反查 · 流程大纲
+// 语义层叫 atlas.json（放在项目根，推荐）→ .atlas/；别的名字（本机 semantics/<项目>.json 放一起的）→ .atlas-<项目>/，互不覆盖
+const ATLAS = join(dirname(semPath), basename(semPath) === "atlas.json" ? ".atlas" : `.atlas-${basename(semPath, ".json")}`);
+const flowsOut = `${ATLAS}/flows`;
 const flows = buildFlows(sys, SEM, {
   ix,
   label: (id: string) => nodes.get(id)?.label ?? id,
@@ -399,6 +453,11 @@ const flows = buildFlows(sys, SEM, {
   entryOf: (id: string) => sys.entries.find((e: any) => e.id === id),
 }, flowsOut);
 
+// 语义层 flows 里只起了名的 GET 查询：端点卡也用这个名字（有业务循环的已经用循环名）
+for (const f of flows) { const ep = f.named && f.card ? nodes.get(f.card) : null; if (ep?.kind === "endpoint" && !ep.human) ep.human = f.name; }
+// 取名的材料在不在：CONTEXT.md（统一语言）· ADR 条数，写进 curate.md 开头，agent 不用自己去找
+const glossary = [...new Set([dirname(semPath), S_ROOT, ...(clientRoot === "-" ? [] : [clientRoot])])].map((d) => join(d, "CONTEXT.md")).filter(existsSync).map((p) => relative(dirname(semPath), p));
+
 const data = {
   // 管线域 / 实时域 = 认领了 S:pipe / S:hub 的那个域（循环步骤里请求经管线、推送经 Hub 靠它们），域名随意起
   title: SEM.title, subtitle: SEM.subtitle, lanes: SEM.lanes, findings, shared: svcDom, pipeDom: claim("S:pipe") ?? null, hubDom: claim("S:hub") ?? null,
@@ -406,6 +465,7 @@ const data = {
   roots: process.env.SHARE === "1" ? { S: "", C: "" } : { S: sys.server.root ?? serverRoot, C: clientRoot },   // 只给 ⌘ 点开源码用；SHARE=1 不带本机路径
   revisions: { S: sys.server, C: sys.client },
   nodes: [...nodes.values()], edges: [...edges.values()], loops, flows,
+  adrs: adrs.filter((a) => a.nodes.length).map(({ n, side, title, status, raw, path, cites, nodes }) => ({ n, side, title, status, raw, path, cites, nodes })),
   icons: Object.fromEntries(ICONS.map((n) => { if (!icons[n]) throw new Error(`icon missing: ${n}`); return [n, icons[n]]; })),
   generatedAt: sys.generatedAt,
 };
@@ -416,5 +476,12 @@ const html = readFileSync(`${here}/graph.html`, "utf8")
   .replace("/*__FLOW__*/", () => readFileSync(`${here}/flow.js`, "utf8"))
   .replace("/*__DATA__*/null", () => JSON.stringify(data).replace(/</g, "\\u003c"));   // 代码里的 "</script>" 字面量不能截断页面
 writeFileSync(outPath, html);
-console.log(`流程 ${flows.length} 条 · 已整理 ${flows.filter((f: any) => f.source === "sem").length} · 草稿 ${flows.filter((f: any) => f.source === "auto").length} · 大纲 ${flowsOut}/index.md`);
+writeOutline(ATLAS, {
+  title: SEM.title, nodes, edges: [...edges.values()], edgeLabels: data.edgeLabels, loops, flows, findings, adrs, cites, dups: A.dups, nearDom, glossary,
+  // 只写相对路径；语义层不在项目仓库里时（跳出去了）只写目录名，不把本机路径写进要提交的文件
+  roots: Object.fromEntries((["S", "C"] as const).map((k) => { const r = k === "S" ? S_ROOT : clientRoot === "-" ? null : clientRoot;
+    const rel = r && relative(dirname(semPath), r); return [k, r === null ? null : rel!.startsWith("..") ? basename(r) : rel || "."]; })),
+});
+console.log(`流程 ${flows.length} 条 · 已整理 ${flows.filter((f: any) => f.source === "sem").length} · 草稿 ${flows.filter((f: any) => f.source === "auto").length}`);
+console.log(`ADR ${adrs.length} 条 · 注释引用 ${cites.length} 处（上图 ${cites.filter((c) => c.card).length}）· 引用作废 ${findings.find((f) => f.id === "adr-dead")!.items.length} 条 · 不存在 ${missing.size} 个 · 指向本图外 ${A.foreign} 处 · 给 agent 读：${ATLAS}/index.md`);
 console.log(`${outPath}: ${data.nodes.length} nodes (${data.nodes.filter((n) => !n.parent).length} top) · ${data.edges.length} edges · ${loops.length} loops · ${(html.length / 1024).toFixed(0)} KB`);

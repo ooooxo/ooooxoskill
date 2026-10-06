@@ -1,23 +1,26 @@
 ---
 name: backend-atlas
 description: >
-  「系统图」—— extract a whole-system map from real code (not from docs or memory): ASP.NET Core
-  server via Roslyn + Vue/TS client via the TS compiler API + Tauri Rust via tree-sitter, joined
-  deterministically into business loops (UI action → REST/WS/invoke → controller → service → table
-  → SignalR push → receiver), rendered as one self-contained HTML. Use when the user wants to SEE
-  how the system hangs together or trace one feature end to end: 「系统图 / 架构图 / 画一下整个系统
-  / 业务循环 / 这个接口谁调的 / 这个按钮最后写了哪张表 / 推送谁收 / 端到端链路 / 重新出一版 atlas /
-  更新系统图」. Also the REVERSE direction — design-first: open an editable canvas (blank, or over the
-  real map) where the user double-clicks to add the domains / endpoints / tables / events they WANT,
-  saved to intent/<project>.json; the agent reads that file plus its change log to work out with the
-  user what structure they need, and planned-vs-real shows as dashed-vs-solid: 「画一下我想要的结构 /
-  开个空白画布 / 意图图 / 我在画布上改了看看 / 按画布实现 / 还差哪些没做」. Not for single-file call
-  questions a grep answers. Keywords: atlas 系统图 架构图 业务循环 调用链 意图 画布 intent canvas.
+  The project's long-lived, agent-kept build record (「系统图 / atlas」): a whole-system map extracted
+  from real code (ASP.NET Core + Vue/TS + Tauri → domains, business loops, flows, tables, push events)
+  plus the layer agents curate on top — business-domain grouping, human names for loops and flows,
+  and ADRs anchored by the `ADR NNNN` comments already in code (re-checked every build; dead,
+  unreferenced ADRs are listed for pruning, so the record stays lean). Writes
+  `.atlas/` into the repo: index.md · by-file.md (file → domain · loops · ADRs) · adr.md · curate.md.
+  Use it MID-CODING even when nobody says "atlas": READ — before changing an endpoint / table / event
+  / business loop, when asked why something is built this way or what constrains it, or what a button
+  or push ends up touching → check .atlas first; WRITE — after a feature or non-obvious decision
+  lands (ADR written, loop added, controllers regrouped) → cite the ADR in code, name and group what's
+  new, rerun; FIRST TIME taking over a project → generate, then curate it into business language.
+  Phrases: 「系统图 / 架构图 / 梳理整个系统 / 接手项目 / 按业务分类 / 业务循环 / 这个接口谁调的 / 写了哪张表
+  / 推送谁收 / 事件谁在收 / 为什么这么设计 / 当初怎么定的 / 有哪些约束 / 改之前先看看 / 整理一下图 / 更新
+  atlas」, and the design-first intent canvas 「画我想要的结构 / 按画布实现」. Not for single-file
+  questions a grep answers.
 ---
 
 # backend-atlas
 
-事实全由抽取器给（谁调谁、读写哪张表、推什么事件），人只写**语义层**（域怎么分、叫什么、循环讲什么）。图不猜：跨端连接只靠确定性对接——路由模板、Hub 事件名、Tauri 命令名、总线事件名；对不上的列进体检，不静默吞。
+事实全由抽取器给（谁调谁、读写哪张表、推什么事件）；**语义层由 agent 整理**（域按业务怎么分、叫什么、循环和流程讲什么），决策挂在代码注释里的 `ADR NNNN` 上。三样各有各的家，自动更新只刷新事实，不碰整理过的东西。图不猜：跨端连接只靠确定性对接——路由模板、Hub 事件名、Tauri 命令名、总线事件名；对不上的列进体检，不静默吞。
 
 ## 管线
 
@@ -31,7 +34,9 @@ client/     TS API  → client.graph.json   (Vue 3（<script setup> / Options AP
                                           事件信封：一个 Hub 事件名装多种类型时按 e.type 分支拆成「事件#类型」)
 join.ts             → system.json         (两端合并 + 跨端边 + 每个改状态的 HTTP 端点一条业务循环 + 没对上的前端调用 unmatched)
 viewer/build.ts     → out.html            (语义层归并成 泳道 → 域 → 功能组 → 叶，内联 graph.html + Token.css；
-                                          viewer/flows.ts 把 flows 转成流程树：整理过的按锚点核对，其余自动草稿；旁边写 flows/ 大纲：index.md + 每条流程一个文件)
+                                          viewer/flows.ts 把 flows 转成流程树：整理过的按锚点核对，其余自动草稿；
+                                          viewer/adr.ts 扫注释里的 ADR 引用、对上 docs/adr、读状态，按行号挂到卡上；
+                                          viewer/outline.ts → 语义层旁边的 .atlas/（给 agent 读，提交进 git）)
 viewer/serve.ts     → http://127.0.0.1    (可编辑：图 + intent.json 叠加；只监听本机)
 ```
 
@@ -46,14 +51,35 @@ open out/<项目>-atlas.html        # Linux 用 xdg-open
 ```
 
 - **语义层放在用户自己的项目仓库里**（推荐 `<项目根>/atlas.json`），不要放进 skill 目录——skill 更新会覆盖它。示例：`examples/demo/atlas.json`。
-- **第一次接项目**：`SEM` 指向一个还不存在的文件，build 按抽取结果生成骨架（每个控制器组一个域、全部循环键）写到那里再出图。之后改名字 / 合并域 / 写循环故事，整趟重跑。
+- **第一次接项目**：`SEM` 指向一个还不存在的文件，build 按抽取结果生成骨架（每个控制器组一个域、全部循环键）写到那里再出图。**接着 agent 做初次整理**（按业务归类、起名、让图好读），照 `.atlas/curate.md` 来，见 `docs/curate.md`。
 - 客户端写 `-` = 只有服务端。环境变量：`ICONS`（默认自带的 `viewer/icons.ts`）· `WORK`（中间件目录，默认按项目分开放在 `$TMPDIR`）· `FORCE=1`（强制全量）· `SHARE=1`（HTML 里不写本机绝对路径，发给别人时用）。
 
 **增量**：每一段按输入内容哈希判断，没变就跳过——只改语义层 / 模板时整趟约 0.1–0.2 秒（全量：中型项目约 60 个入口约 7 秒、大型项目约 90 个服务端入口 + 800 个客户端入口约 9 秒）；抽取器 / join 自身的代码、被引用的项目、tsconfig 也算进哈希。
 所以反复改语义层、整理流程时放心整趟重跑 `run.sh`，不用手挑步骤。
 出图后**主动 `open`** 给用户看；自己验收走 ego-browser 截图。
 
-**回归**：改了抽取器 / join / build 后跑 `bun test/examples.ts`——在 `examples/` 下每个示例（demo：自家写法；tutorial：官方教程 / 分层项目写法）整趟跑，快照 `expected.json` 逐项对账 + `must.json` 人工标注的事实逐条核对 + 意图画布冒烟；快照有意改动用 `UPDATE=1` 重写，随改动一起提交。
+**回归**：改了抽取器 / join / build 后跑 `bun test/examples.ts`——在 `examples/` 下每个示例（demo：自家写法 + 各种 ADR 引用；tutorial：官方教程 / 分层项目写法）整趟跑，快照 `expected.json` 逐项对账 + `must.json` 人工标注的事实逐条核对 + `.atlas/` 重跑一字不差 + 意图画布冒烟；快照有意改动用 `UPDATE=1` 重写，随改动一起提交。
+
+## agent 日常：读 · 写 · 整理
+
+build 在语义层旁边写 `.atlas/`（语义层不叫 `atlas.json` 时写 `.atlas-<名字>/`，本机 `semantics/` 里几个项目互不覆盖），只有相对路径、没有时间戳，代码不变时全量重抽也一字不差，**提交进 git**，新 clone 不跑也能查：
+
+| 文件 | 干什么 |
+|---|---|
+| `index.md` | 全貌 + 域树 + 「还差什么」（逐步打磨从这里挑） |
+| `by-file.md` | 文件 → 域 · 业务循环 · 注释引用的 ADR |
+| `adr.md` | 每条 ADR 一行（状态 · 引用数 · 落在哪些域）+ 引用问题 |
+| `curate.md` | 整理工作单：没起名的域 / 循环 / 流程 + 图上不好读的地方，每条带着整理要用的事实 |
+| `flows/` | 流程大纲（见 `docs/flows.md`） |
+
+- **读，改代码前**：先 `grep <文件名> .atlas/by-file.md`，只读列出的那几条 ADR。被问「为什么」时，用关键词 grep `adr.md`。
+- **写，做完一件事后**：
+  - 有不显然的决定：把 ADR 写进 `docs/adr`，再在代码起作用的地方用注释引用 `（ADR NNNN）`，见 `docs/adr.md`。agent 起草的写 proposed，理由不编。
+  - 新增或改了业务循环、新控制器：在 `atlas.json` 里起名、归进业务域。
+  - 重跑 `run.sh`，看 `index.md`「还差什么」变短了没有。
+- **在图上看决策**：浮岛「决策 N」列出全部有效 ADR，点一条画布只亮它管着的卡；卡上的「📄 N」角标表示有几条 ADR 管着它；点卡在「为什么」里打开原文。
+- **清理 ADR**：整理图的同时清掉没用的。adr.md「可以删」列着已作废、代码不再引用、也没有有效 ADR 提到的，列给用户确认后 `git rm`（见 `docs/adr.md`）。
+- **整理**：agent 负责把图归纳成业务话、让它好读，见 `docs/curate.md`。改到哪里就顺手整理哪里。
 
 ## 语义层 `atlas.json`
 
@@ -63,10 +89,10 @@ open out/<项目>-atlas.html        # Linux 用 xdg-open
 |---|---|
 | `title` / `subtitle` | 页头 |
 | `lanes` | 泳道 → 占哪些 col（客户端 0–3 · 服务端 4–6 · 存储 7） |
-| `domains` | 业务域树。`match` 认领节点 id（叶 id 只能精确点名，组 id 可用 `*` 结尾前缀）；`hue` 色相；`route` 路由前缀；`children` 子域；`spread` 子项各占各的列 |
+| `domains` | 业务域树。`match` 认领节点 id（叶 id 只能精确点名，组 id 可用 `*` 结尾前缀）；`name` 业务名；`desc` 一句话说它管什么；`hue` 色相；`route` 路由前缀；`children` 子域；`spread` 子项各占各的列 |
 | `groups` | `{ 域节点 id: [ {name, icon, match: [正则…]} ] }` 域内再按功能分组；正则匹配 `名字 动词 路由 文件` |
 | `loops` | `{ "VERB /route": [人话名, 一句话故事] }` 循环标题；键对不上任何循环 build 直接报错（常见：`[controller]` 取类名原样大小写） |
-| `flows` | 整理过的流程，见 `docs/flows.md` |
+| `flows` | 流程：只起名 `{ name, story }`，或整理成流程树（加 `tree`），见 `docs/flows.md` |
 | `homes` / `uiSplit` / `database` | 项目专属归属规则 / 客户端目录再细分 / 数据库卡的名字，见 `docs/porting.md` |
 | `edgeLabels` | 域与域之间连线上的字 |
 
@@ -76,7 +102,7 @@ open out/<项目>-atlas.html        # Linux 用 xdg-open
 
 ## 图的重点：体检
 
-build 从抽取事实里确定性算五类命中，头部芯片 + 浮岛「体检」列出，点一项画布只亮它涉及的卡：
+build 从抽取事实里确定性算七类命中，头部芯片 + 浮岛「体检」列出，点一项画布只亮它涉及的卡：
 
 | 项 | 规则 |
 |---|---|
@@ -85,6 +111,8 @@ build 从抽取事实里确定性算五类命中，头部芯片 + 浮岛「体�
 | 共享热点 | 被 ≥3 个域触达的服务文件；目录名撞上某个业务域的控制器名 = 「住错了地方」，排最前 |
 | 前端调用没对上 | 前端请求的路径在服务端找不到端点：外部服务、路由写错，或端点没被抽到（这条循环就断了） |
 | 多域共写 | 同一张表的写入方落在 ≥2 个域（都经同一个 store 写的不算） |
+| 引用了作废的 ADR | 注释还指着已作废 / 已归档的 ADR：决策换了代码没跟上，或注释该改指新号 |
+| 引用的 ADR 不存在 | 注释里的编号找不到：写错号，或指另一端却没写 `client` / `server` |
 
 **服务文件自动归位**：语义层认领了 `S:svc` 的那个域 = 共享域。build 从每个控制器方法（以及语义层点名给某个域的服务文件里的方法）沿 calls 走进服务文件，只一个域用到的文件搬进该域的「内部实现」组，多个域用的留在共享域（>12 个时按目录分组），HostedService 所在文件进「后台任务」。所以图上连共享域的线就是真共享。
 
@@ -95,6 +123,8 @@ build 从抽取事实里确定性算五类命中，头部芯片 + 浮岛「体�
 | 什么时候 | 读 |
 |---|---|
 | 改图的画法、解释图上线型 / 颜色 / 抽屉怎么排 | `docs/viewer.md` |
+| 第一次接项目后的整理、起名、图不好读、「还差什么」里有整理项 | `docs/curate.md` |
+| 改代码前查「为什么」、写完决策要落到代码、体检报 ADR 问题 | `docs/adr.md` |
 | 整理一条业务流程（build 报「草稿 N」、锚点对不上、用户问「这个循环怎么跑」） | `docs/flows.md` |
 | 用户要画想要的结构、意图画布、「按画布实现」 | `docs/intent.md` |
 | 接一个新项目、图上缺东西、支持范围 | `docs/porting.md` |
@@ -103,4 +133,4 @@ build 从抽取事实里确定性算五类命中，头部芯片 + 浮岛「体�
 
 - `docs/lab/`：主视图的对照版实验页：`loop-mindmap.html` 是流程画法的对照版（四种画法的定稿来源，`__bench()` 可测渲染性能），不是主流程。
 - HTML 里带着代码派生的文字（结局原话、字符串常量、注释）：代码里有不该外传的字面量时，别把图发出去。
-- 产物与中间件（`out/`、`node_modules/`、`extractor/bin|obj/`、`<WORK>/`）不进 git；`semantics/`、`intent/` 目录只给本机用，不发布。
+- 产物与中间件（`out/`、`node_modules/`、`extractor/bin|obj/`、`<WORK>/`）不进 git；项目里的 `.atlas/` 要进 git（给 agent 查）；`semantics/`、`intent/` 目录只给本机用，不发布。

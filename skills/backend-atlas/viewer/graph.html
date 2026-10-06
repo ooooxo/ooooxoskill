@@ -97,6 +97,8 @@ input { -webkit-user-select: text; user-select: text; cursor: text; }
 .hue-orange { --h: var(--h-orange); } .hue-purple { --h: var(--h-purple); } .hue-teal { --h: var(--h-teal); } .hue-gray { --h: var(--h-gray); }
 .top { display: flex; align-items: center; gap: 8px; height: 24px; }
 .top .ic { color: color-mix(in srgb, var(--on-hue) 72%, transparent); }
+.adn { display: inline-flex; align-items: center; gap: 2px; height: 20px; padding: 0 6px; border-radius: 7px; font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums;
+  color: inherit; opacity: .72; background: color-mix(in srgb, currentColor 9%, transparent); }
 .xp { margin-left: auto; height: 24px; padding: 0 4px 0 9px; border-radius: 8px; background: color-mix(in srgb, var(--on-hue) 9%, transparent); display: inline-flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 650; color: color-mix(in srgb, var(--on-hue) 78%, transparent); font-variant-numeric: tabular-nums; }
 .xp:hover { background: color-mix(in srgb, var(--on-hue) 16%, transparent); color: var(--on-hue); }
 .xp:active { transform: scale(var(--press)); }
@@ -882,13 +884,20 @@ function cardCls(n, H) {
 // 同组端点去掉共同路由前缀（/api/v1/admin/…），卡上只留区分彼此的部分
 const sibCache = new Map();
 const sibShort = (n) => sibCache.get(n.parent) ?? sibCache.set(n.parent, trimmer((byId.get(n.parent)?.kids ?? [n.id]).map((k) => byId.get(k)).filter((c) => c.kind === "endpoint").map((c) => c.routes[0]))).get(n.parent);
+let ADR_IX = null, ADR_OF = null;
+const adrsOn = (id) => {
+  if (ADR_OF !== D.nodes) { ADR_OF = D.nodes; ADR_IX = new Map();
+    for (const a of D.adrs ?? []) if (a.status !== "dead") for (const x of a.nodes) for (const k of [x, ...ancestors(x)]) (ADR_IX.get(k) ?? ADR_IX.set(k, new Set()).get(k)).add(a); }
+  return ADR_IX.get(id)?.size ?? 0;
+};
+const adrBadge = (n) => { const k = adrsOn(n.id); return k ? `<span class="adn" title="${k} 条 ADR 管着这里：点卡看「为什么」">${ic("fileText", 12)}${k}</span>` : ""; };
 function cardBody(n) {
-  if (isDomCard(n)) return `<div class="top">${ic(n.icon ?? "grid", 20)}${canOpen(n) ? `<button class="xp" data-exp="${esc(n.id)}" aria-label="展开 ${esc(n.label)}">${n.count}${ic("chevRight", 13)}</button>` : ""}</div>
+  if (isDomCard(n)) return `<div class="top">${ic(n.icon ?? "grid", 20)}${adrBadge(n)}${canOpen(n) ? `<button class="xp" data-exp="${esc(n.id)}" aria-label="展开 ${esc(n.label)}">${n.count}${ic("chevRight", 13)}</button>` : ""}</div>
       <div class="bot"><span class="mt ${n.route ? "m" : ""}">${esc(n.route ?? (n.kids.length ? `${n.count} ${unitOf(n)}` : laneOf(n.col)?.name ?? ""))}</span><b class="ttl">${esc(n.label)}</b></div>`;
-  if (n.kind === "endpoint") return `<div class="top">${n.verbs.map((v) => `<span class="vb">${v}</span>`).join("")}</div>
+  if (n.kind === "endpoint") return `<div class="top">${n.verbs.map((v) => `<span class="vb">${v}</span>`).join("")}${adrBadge(n)}</div>
       <div class="bot"><span class="mt m">${esc(routeTail(sibShort(n)(n.routes[0])))}</span><b class="ttl">${esc(n.human ?? n.label)}</b></div>`;
   if (isRes(n)) return `${ic(n.icon ?? "layers", 16)}<b class="ttl">${esc(n.label)}</b><span class="mt">${n.kind === "table" ? "表" : "事件"}</span>`;
-  return `<div class="top">${ic(n.icon ?? "fileText", 16)}</div><div class="bot">${n.file ? `<span class="mt m">${esc(n.file.split("/").slice(0, -1).join("/"))}</span>` : `<span class="mt">${esc(n.desc ?? "")}</span>`}<b class="ttl">${esc(n.label)}</b></div>`;
+  return `<div class="top">${ic(n.icon ?? "fileText", 16)}${adrBadge(n)}</div><div class="bot">${n.file ? `<span class="mt m">${esc(n.file.split("/").slice(0, -1).join("/"))}</span>` : `<span class="mt">${esc(n.desc ?? "")}</span>`}<b class="ttl">${esc(n.label)}</b></div>`;
 }
 
 /* ================= 相机 ================= */
@@ -948,7 +957,8 @@ function renderIsland() {
     <button class="bd-ib ${S.pop === "find" ? "on" : ""}" data-pop="find" aria-label="找" title="找  ⌘F">${ic("search", 16)}</button>
     <button class="bd-ib ${S.pop === "legend" ? "on" : ""}" data-pop="legend" aria-label="图例" title="线条图例">${ic("link", 16)}</button>
     <span class="bd-sep"></span>
-    <button class="bd-ib ${S.pop === "health" ? "on" : ""}" data-pop="health" title="体检：跨域直调、直连外部、共享热点、多域共写">${ic("pulse", 16)}体检${(() => { const n = (D.findings ?? []).reduce((a, f) => a + f.items.length, 0); return `<span class="nb ${n ? "w" : ""}">${n}</span>`; })()}</button>`;
+    <button class="bd-ib ${S.pop === "health" ? "on" : ""}" data-pop="health" title="体检：跨域直调、直连外部、共享热点、多域共写、ADR 引用问题">${ic("pulse", 16)}体检${(() => { const n = (D.findings ?? []).reduce((a, f) => a + f.items.length, 0); return `<span class="nb ${n ? "w" : ""}">${n}</span>`; })()}</button>
+    ${(() => { const n = (D.adrs ?? []).filter((a) => a.status !== "dead").length; return n ? `<button class="bd-ib ${S.pop === "adr" ? "on" : ""}" data-pop="adr" title="决策：代码注释引用的 ADR 挂在哪">${ic("fileText", 16)}决策<span class="nb">${n}</span></button>` : ""; })()}`;
 }
 function renderPop() {
   const pop = document.getElementById("pop");
@@ -979,6 +989,15 @@ function renderPop() {
     pop.innerHTML = `<div class="dl" style="padding-top:12px"><section class="sec"><div class="cap">线型 = 关系<em>${kinds.length}</em></div><div class="list">${kinds.map((k) => row(sample(`k-${k} m-${FAM(k)}`, FAM(k)), WHAT[k][0], WHAT[k][1])).join("")}</div></section>
       <section class="sec"><div class="cap">状态</div><div class="list">${row(flow, "聚焦", "点亮的线上有点沿调用方向流动")}${row(sample("k-request m-l loop", "l"), "业务循环", "强调色，按步骤编号")}${row(sample("k-calls m-w warn", "w"), "体检命中", "警示色，跨域直调 / 直连外部")}${row(sample("k-calls m-n base"), "连共享层", "预期的分层，画淡")}${row(sample("k-calls m-l plan", "l"), "想要的线", "意图里有、代码里还没有")}</div></section></div>`;
     return;
+  } else if (S.pop === "adr") {
+    // 一条 ADR 归到它落卡最多的那个域；点一条，画布只亮它管着的卡（同体检）
+    const NAME = { proposed: "待确认" };
+    const list = (D.adrs ?? []).filter((a) => a.status !== "dead" && (!q || (a.n + a.title).toLowerCase().includes(q)));
+    const home = (a) => { const c = new Map(); for (const x of a.nodes) { const d = domainOf(x) ?? x; c.set(d, (c.get(d) ?? 0) + 1); } return [...c].sort((x, y) => y[1] - x[1])[0]?.[0]; };
+    const by = new Map(); for (const a of list) { const d = home(a); (by.get(d) ?? by.set(d, []).get(d)).push(a); }
+    const row = (a) => `<button class="fr" data-adr="${esc(a.side + a.n)}" title="${esc(a.path)}"><span class="bx"><b>ADR ${a.n} ${esc(a.title)}</b><i>${a.nodes.length} 张卡 · ${a.cites} 处引用</i></span><span class="rt3">${NAME[a.status] ? `<span class="tag">${NAME[a.status]}</span>` : a.status === "unknown" ? `<span class="tag">${esc(a.raw)}</span>` : ""}</span>${chev()}</button>`;
+    pop.innerHTML = search("找决策：编号、标题")
+      + `<div class="dl"><p class="why">代码注释里引用的 ADR，挂在它起作用的卡上。点一条，画布只亮它管着的地方；点卡在「为什么」里打开原文。</p>${[...by].sort((x, y) => y[1].length - x[1].length).map(([d, as]) => `<section class="sec hue-${hueOf(d)}"><div class="cap"><i class="sw"></i>${esc(byId.get(d)?.label ?? "")}<em>${as.length}</em></div><div class="list">${as.sort((x, y) => y.cites - x.cites || x.n.localeCompare(y.n)).map(row).join("")}</div></section>`).join("") || `<div class="clean">没有匹配的决策</div>`}</div>`;
   } else if (S.pop === "health") {
     // 四类一排切换，一次只看一类：说明一句 + 命中项（小条 = 涉及几个域）；为 0 的是空态
     const F = D.findings ?? [], cur = F[S.htab] ?? F[0];
@@ -1202,6 +1221,16 @@ function findingsHtml(id) {
   const SHOW = 3;
   return rows.length ? `<section class="sec"><div class="cap">体检<em>${rows.length}</em></div><div class="list">${rows.slice(0, SHOW).join("")}</div>${rows.length > SHOW ? `<details class="more"><summary>其余 ${rows.length - SHOW} 项</summary><div class="list">${rows.slice(SHOW).join("")}</div></details>` : ""}</section>` : "";
 }
+// 为什么：代码注释引用了、落在这些卡上的 ADR（引用多的在前）；点一行在编辑器打开那份 ADR
+function adrHtml(hit) {
+  const NAME = { proposed: "待确认", dead: "已作废" };
+  const rows = (D.adrs ?? []).filter((a) => a.nodes.some(hit)).sort((a, b) => b.cites - a.cites || a.n.localeCompare(b.n)).map((a) => {
+    const href = vsc(a.side, a.path, 1), tag = a.status === "accepted" ? "" : `<span class="tag ${a.status === "dead" ? "w" : ""}">${esc(NAME[a.status] ?? a.raw)}</span>`;
+    return `<${href ? `a href="${href}" title="在编辑器打开"` : "div"} class="fr"><span class="bx"><b>ADR ${a.n} ${esc(a.title)}</b><i class="m">${esc(a.path)}</i></span><span class="rt3">${tag}${a.cites} 处引用</span>${href ? chev() : ""}</${href ? "a" : "div"}>`;
+  });
+  const SHOW = 3;
+  return rows.length ? `<section class="sec"><div class="cap">为什么<em>${rows.length}</em></div><div class="list">${rows.slice(0, SHOW).join("")}</div>${rows.length > SHOW ? `<details class="more"><summary>其余 ${rows.length - SHOW} 条</summary><div class="list">${rows.slice(SHOW).join("")}</div></details>` : ""}</section>` : "";
+}
 // 依赖只讲到域：往外调谁、谁调进来，小条是调用根数；体检命中的着警示色。细到卡请在图上展开
 function depsHtml(n) {
   const own = nearDom(n.id) ?? n.id, inN = (id) => within(n.id, id);
@@ -1241,7 +1270,7 @@ function mainHtml(n) {
     ? statsHtml(n.id) + flowRows(n.id) + kidsBody(n.kids)
     : flowRows(n.id) + leafBody(n) + sec("业务循环", loopsIn(n.id).length, loopsIn(n.id).map(loopRow).join(""));
   return head({ top: crumbOf(n), title: n.human ?? n.label, rt: rtOf(n), close: "main", expand: canOpen(n) && !S.open.has(n.id) ? n.id : null })
-    + `<div class="pb">${tags}${n.desc ? `<p class="sel-text">${esc(n.desc)}</p>` : ""}${body}${findingsHtml(n.id)}${depsHtml(n)}</div>`;
+    + `<div class="pb">${tags}${n.desc ? `<p class="sel-text">${esc(n.desc)}</p>` : ""}${body}${adrHtml((x) => within(n.id, x))}${findingsHtml(n.id)}${depsHtml(n)}</div>`;
 }
 // 二级抽屉（一）：一个功能组——一排数 + 按内容分节的叶子（组里还有组时列成功能行）
 function groupHtml(c) {
@@ -1252,18 +1281,18 @@ function groupHtml(c) {
 function leafHtml(c) {
   const ls = loopsIn(c.id);
   return head({ top: backOf() ?? crumbOf(c), title: c.human ?? c.label, rt: rtOf(c), close: "side" })
-    + `<div class="pb">${leafBody(c)}${sec("业务循环", ls.length, ls.map(loopRow).join(""))}<button class="act" data-go="${esc(c.id)}">${ic("search", 14)}在图上定位</button></div>`;
+    + `<div class="pb">${leafBody(c)}${adrHtml((x) => x === c.id)}${sec("业务循环", ls.length, ls.map(loopRow).join(""))}<button class="act" data-go="${esc(c.id)}">${ic("search", 14)}在图上定位</button></div>`;
 }
 // 二级抽屉（三）：一条业务循环——故事一句 · 从哪触发 · 怎么走（竖脊串起步骤，画布同时按步骤点亮）
 function loopHtml(l) {
-  const steps = loopSteps(l), T = l.triggers, SHOW = 5;
+  const steps = loopSteps(l), T = l.triggers, SHOW = 5, cards = new Set([l.endpoint, ...l.steps.flatMap((s) => [s.a, s.b])]);
   const trig = (t) => `<a class="fr" href="${vsc("C", t.file, t.line)}" title="在编辑器打开"><span class="bx"><b>${esc(t.label)}</b><i class="m">${esc(t.file)}:${t.line}</i></span>${chev()}</a>`;
   const trigSec = !HAS_CLIENT ? "" : T.length
     ? `<section class="sec"><div class="cap">从哪触发<em>${T.length}</em></div><div class="list">${T.slice(0, SHOW).map(trig).join("")}</div>${T.length > SHOW ? `<details class="more"><summary>其余 ${T.length - SHOW} 处</summary><div class="list">${T.slice(SHOW).map(trig).join("")}</div></details>` : ""}</section>`
     : `<p class="dim">客户端目前没有入口走到这里。</p>`;
   const path = steps.map((s, i) => `${i && s.phase !== steps[i - 1].phase ? `<div class="phase">${s.phase === 1 ? "推送之后，接收端这边" : "再次推送之后"}</div>` : ""}<button class="step" data-step="${esc(s.a + SEP + s.b)}"><span class="no">${s.no}</span><span class="sx"><b>${esc(byId.get(s.a).human ?? byId.get(s.a).label)} → ${esc(byId.get(s.b).human ?? byId.get(s.b).label)}</b><span>${esc(stepText(s))}</span></span></button>`).join("");
   return head({ top: backOf() ?? crumbOf(byId.get(l.endpoint)), title: l.name, rt: `${esc(l.verbs.join(","))}　${esc(routeTail(l.route))}`, close: "side" })
-    + `<div class="pb">${l.story ? `<div class="insight sel-text">${esc(l.story)}</div>` : ""}${(() => { const f = D.flows.find((x) => x.loop === l.id); return f ? `<button class="fc-main" data-flow="${esc(f.id)}"><span>看它怎么跑</span><i>${f.source === "sem" ? "已整理" : "草稿"} · ${f.size} 个节点</i>${ic("chevRight", 14)}</button>` : ""; })()}${trigSec}
+    + `<div class="pb">${l.story ? `<div class="insight sel-text">${esc(l.story)}</div>` : ""}${(() => { const f = D.flows.find((x) => x.loop === l.id); return f ? `<button class="fc-main" data-flow="${esc(f.id)}"><span>看它怎么跑</span><i>${f.source === "sem" ? "已整理" : "草稿"} · ${f.size} 个节点</i>${ic("chevRight", 14)}</button>` : ""; })()}${trigSec}${adrHtml((x) => cards.has(x))}
       <section class="sec"><div class="cap">怎么走<em>${steps.length} 步</em></div><div class="path">${path}</div></section>
       <p class="dim">在图上展开卡片，步骤会细到功能、端点和表。</p></div>`;
 }
@@ -1584,7 +1613,7 @@ bd.addEventListener("wheel", (e) => {
   else { S.tx -= e.deltaX; S.ty -= e.deltaY; applyView(); }
 }, { passive: false });
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-pop],[data-flag],[data-unflag],[data-close],[data-go],[data-openloop],[data-side],[data-step],[data-exp-panel],[data-draw],[data-back],[data-htab],[data-flow],[data-flowclose],[data-view]");
+  const t = e.target.closest("[data-pop],[data-flag],[data-adr],[data-unflag],[data-close],[data-go],[data-openloop],[data-side],[data-step],[data-exp-panel],[data-draw],[data-back],[data-htab],[data-flow],[data-flowclose],[data-view]");
   if (!t || bd.contains(t)) return;
   const d = t.dataset;
   if (d.flow) return openFlow(d.flow);
@@ -1599,6 +1628,7 @@ document.addEventListener("click", (e) => {
   if (d.htab && !d.pop) { S.htab = +d.htab; return renderPop(); }
   if (d.pop) { const tab = d.htab ? +d.htab : null; S.pop = S.pop === d.pop && (tab === null || tab === S.htab) ? null : d.pop; S.htab = tab ?? S.htab ?? Math.max(0, (D.findings ?? []).findIndex((f) => f.items.length)); S.find = ""; return render(); }
   if (d.flag) { const [fi, ii] = d.flag.split(":").map(Number); return showFlag(D.findings[fi].items[ii]); }
+  if (d.adr) { const a = D.adrs.find((x) => x.side + x.n === d.adr); return showFlag({ label: `ADR ${a.n} ${a.title}`, nodes: a.nodes }); }
   if ("unflag" in d) { S.flag = null; return render(); }
   if (d.close === "main") return blurCard();
   if (d.close === "side") { S.side = null; return render(); }

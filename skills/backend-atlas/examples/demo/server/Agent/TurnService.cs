@@ -9,7 +9,7 @@ namespace Demo.Agent;
 // =====================================================
 public sealed class TurnService(AppDb db, TurnHost host)
 {
-    public const int MaxRunning = 3;
+    public const int MaxRunning = 3; // 同时跑的轮次上限（ADR 0002）
 
     // ---------- [ 续跑：空闲时起新轮次交给后台，进行中则记成插话 ] ----------
     public async Task<string> StartOrInterject(Guid projectId, string text)
@@ -30,7 +30,7 @@ public sealed class TurnService(AppDb db, TurnHost host)
         db.Turns.Add(turn);
         db.Messages.Add(new Message { ProjectId = projectId, Role = "user", Content = text });
         await db.SaveChangesAsync();
-        host.Start(turn.Id);
+        host.Start(turn.Id); // 交给后台跑，请求立刻返回（ADR 0001）
         return "turn";
     }
 }

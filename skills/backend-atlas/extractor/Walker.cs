@@ -247,7 +247,8 @@ public sealed class Walker(Solution solution, IReadOnlyList<Compilation> comps, 
         var raw = def.ContainingType.TypeKind == TypeKind.Interface
             ? await SymbolFinder.FindImplementationsAsync(def, solution)
             : await SymbolFinder.FindOverridesAsync(def, solution);
-        var found = raw.OfType<IMethodSymbol>().Where(Own).ToList();
+        // SymbolFinder 并行查找、顺序不定：按全名排，同一份代码每次抽出来一字不差（.atlas/ 要提交进 git）
+        var found = raw.OfType<IMethodSymbol>().Where(Own).OrderBy(m => m.ToDisplayString(), StringComparer.Ordinal).ToList();
         _impls[def] = found;
         return found;
     }
