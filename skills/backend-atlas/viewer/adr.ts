@@ -45,7 +45,7 @@ function statusOf(txt: string, archived: boolean): [Status, string] {
 // 「ADR NNNN」后面跟着的列表也算：ADR 0109/0147 · ADR 0001、0002、0006 · ADR 0018 / 0019 · ADR 0020 §2 与 0023 · 区间 ADR 0144–0161
 // 返回每个编号和它前面那个「ADR」的位置（判断限定词用）
 const NEXT = /^(?:\s*(?:§[\d.]+|D\d+|决定\s*\d+))?\s*([\/、,，&+]|和|与|及|[-–—~]|至|到)\s*(\d{3,4})(?!\d)/;
-export function adrNums(txt: string): { n: string; at: number }[] {
+function adrNums(txt: string): { n: string; at: number }[] {
   const out: { n: string; at: number }[] = [];
   for (const m of txt.matchAll(/ADR[ _-]?(\d{3,4})(?!\d)/g)) {
     let prev = +m[1], rest = txt.slice(m.index! + m[0].length, m.index! + m[0].length + 80);
@@ -60,7 +60,7 @@ export function adrNums(txt: string): { n: string; at: number }[] {
   return out;
 }
 // 判断「还有没有人指着」要偏保守：「ADR」后面直到这一句结束（。；换行，最多 120 字）出现的四位数都算（「ADR 0011 引入、0128/0138」）
-export function looseNums(txt: string): { n: string; at: number }[] {
+function looseNums(txt: string): { n: string; at: number }[] {
   const out: { n: string; at: number }[] = [];
   for (const m of txt.matchAll(/ADR[ _-]?(?=\d)/g)) {
     const tail = txt.slice(m.index!, m.index! + 120).split(/[。；;\n]/)[0];

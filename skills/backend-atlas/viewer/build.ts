@@ -421,10 +421,11 @@ const cites = A.cites.map((c) => ({ ...c, card: cardOfCite(c) }));
 // 同一个 docs/adr 里，有效 ADR 的正文提到了谁（supersedes / 修订 / 配套）：被提到的作废 ADR 还是历史链上的一环
 const mentionedBy = new Map<string, string[]>();
 for (const a of A.adrs.values()) if (a.status !== "dead") for (const n of a.mentions) { const k = a.key.replace(/#\d+$/, "#" + n); (mentionedBy.get(k) ?? mentionedBy.set(k, []).get(k)!).push(a.n); }
-const refsTo = new Map<string, any[]>();
+const citesTo = new Map<string, any[]>(), refsTo = new Map<string, any[]>();
+for (const c of cites) if (c.adr) (citesTo.get(c.adr) ?? citesTo.set(c.adr, []).get(c.adr)!).push(c);
 for (const r of A.refs) if (r.adr) (refsTo.get(r.adr) ?? refsTo.set(r.adr, []).get(r.adr)!).push(r);
 const adrs = [...A.adrs.values()].map((a) => {
-  const cs = cites.filter((c) => c.adr === a.key), by = (mentionedBy.get(a.key) ?? []).sort(), rs = refsTo.get(a.key) ?? [];
+  const cs = citesTo.get(a.key) ?? [], by = (mentionedBy.get(a.key) ?? []).sort(), rs = refsTo.get(a.key) ?? [];
   // 可以删 = 作废 + 仓库里没有任何文件再指着它（代码注释、CLAUDE.md / CONTEXT.md / 文档、字符串都算）+ 没有有效 ADR 提到它；删了 git 里还有历史
   return { ...a, cites: cs.length, refs: rs.map((r) => `${r.file}:${r.line}`), mentionedBy: by, removable: a.status === "dead" && !cs.length && !rs.length && !by.length,
     nodes: [...new Set(cs.map((c) => c.card).filter(Boolean))].sort() as string[], at: cs[0] ? { side: cs[0].side, file: cs[0].file, line: cs[0].line } : null };
