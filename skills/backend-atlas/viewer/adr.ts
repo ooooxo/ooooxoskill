@@ -64,7 +64,8 @@ function looseNums(txt: string): { n: string; at: number }[] {
   const out: { n: string; at: number }[] = [];
   for (const m of txt.matchAll(/ADR[ _-]?(?=\d)/g)) {
     const tail = txt.slice(m.index!, m.index! + 120).split(/[。；;\n]/)[0];
-    for (const t of tail.matchAll(/(?<![\w.#-])(\d{3,4})(?![\w%])/g)) out.push({ n: t[1].padStart(4, "0"), at: m.index! });
+    // 只认四位数：三位数多半是像素 / 数量（「RAIL_W 188」），紧跟 ADR 的三位号已由 adrNums 认过
+    for (const t of tail.matchAll(/(?<![\w.#-])(\d{4})(?![\w%])/g)) out.push({ n: t[1], at: m.index! });
   }
   return [...adrNums(txt), ...out];
 }
@@ -82,7 +83,7 @@ function loadDir(dir: string, side: string, root: string): Map<string, Adr> {
       if (!x) continue;
       const txt = readFileSync(join(d, f), "utf8");
       const [status, raw] = statusOf(txt, archived);
-      const title = (txt.match(/^#\s+(.+)$/m)?.[1] ?? f).replace(/^(?:ADR[ -]?)?\d{3,4}\s*[—–:：·-]\s*/i, "").trim();
+      const title = (txt.match(/^#\s+(.+)$/m)?.[1] ?? f).replace(/^(?:ADR[ -]?)?\d{3,4}(?:\s*[—–:：·-]\s*|\s+(?=\D))/i, "").trim();
       // 同号在 archive/ 和正文目录都有：正文目录的为准（后读覆盖），记进编号重复
       if (!archived && m.has(x[1])) dups.push({ side, n: x[1], files: [m.get(x[1])!.path, relative(root, join(d, f))] });
       const own = (at: number) => !QUAL.some(([re]) => re.test(txt.slice(Math.max(0, at - 12), at)));   // 「客户端仓 ADR 0018」是别的仓的，不算
