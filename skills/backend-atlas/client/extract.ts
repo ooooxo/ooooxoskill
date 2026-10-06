@@ -297,12 +297,18 @@ function urlOf(e: ts.Expression): Url | null {
   const u = urlPath(e);
   if (u !== null) return { paths: [u] };
   let x = unwrap(e), prefix = "";
+  // const url = `${root}${path}${query(q)}`; fetch(url)：跟进局部常量
+  const local = ts.isIdentifier(x) ? valueDecl(x) : undefined;
+  if (local && ts.isVariableDeclaration(local) && local.initializer && ts.getCombinedNodeFlags(local) & ts.NodeFlags.Const)
+    return urlOf(local.initializer);
   if (ts.isBinaryExpression(x) && x.operatorToken.kind === ts.SyntaxKind.PlusToken) {
     const l = staticStr(x.left);
     if (l === null) return null;
     prefix = l; x = unwrap(x.right);
-  } else if (ts.isTemplateExpression(x) && x.templateSpans.length === 1 && x.templateSpans[0].literal.text === "") {
-    prefix = x.head.text; x = unwrap(x.templateSpans[0].expression);
+  } else if (ts.isTemplateExpression(x)) {
+    const t = templateParam(x);
+    if (!t) return null;
+    prefix = t.prefix; x = t.param;
   }
   if (!ts.isIdentifier(x)) return null;
   const d = valueDecl(x);
@@ -311,6 +317,23 @@ function urlOf(e: ts.Expression): Url | null {
   const base = prefix.replace(/^https?:\/\/[^/]+/, "");
   if (base && !base.startsWith("/")) return null;
   return { param: fn.parameters.indexOf(d as ts.ParameterDeclaration), prefix: base, fn };
+}
+
+// `${常量}/x${参数}`、`${root}${path}${query(q)}` → 前缀 + 参数：打头的运行时基址（值静态拿不到）记空前缀；
+// 参数之后只许跟查询串（字面量空或以 ? 开头），再拼路径就认不出
+function templateParam(t: ts.TemplateExpression): { prefix: string; param: ts.Expression } | null {
+  let prefix = t.head.text;
+  for (let i = 0; i < t.templateSpans.length; i++) {
+    const s = t.templateSpans[i], ex = unwrap(s.expression);
+    if (paramOf(ex) !== undefined) {
+      const tail = t.templateSpans.slice(i).map((x) => x.literal.text);
+      return tail.every((l) => l === "" || l.startsWith("?")) ? { prefix, param: ex } : null;
+    }
+    const v = staticStr(ex);
+    if (v === null && (i > 0 || t.head.text !== "")) return null;
+    prefix = prefix + (v ?? "") + s.literal.text;
+  }
+  return null;
 }
 
 // 标识符指向的声明；{ method } 简写属性要取它引用的那个变量 / 参数，不是属性自己
@@ -533,6 +556,13 @@ function declFn(d: ts.Declaration): Fn | undefined {
   if (ts.isShorthandPropertyAssignment(d)) {
     const v = checker.getShorthandAssignmentValueSymbol(d);
     return v?.declarations?.map(declFn).find(Boolean);
+  }
+  // export const { get, post } = createClient(base)：工厂 return 对象里的同名成员
+  if (ts.isBindingElement(d) && ts.isObjectBindingPattern(d.parent) && ts.isVariableDeclaration(d.parent.parent)) {
+    const init = d.parent.parent.initializer && unwrap(d.parent.parent.initializer);
+    const factory = init && ts.isCallExpression(init) ? fnsOf(init.expression)[0] : undefined;
+    const key = (d.propertyName ?? d.name).getText();
+    return factory ? returnedMember(factory, key)[0] : undefined;
   }
   return undefined;
 }
