@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>对照版 · TOPIC</title>
+<!--
+  干什么：TOPIC 的多档对照。第 0 档 = 现状（照现行代码抄），1–N 档各是一套完整方案；三条真样本并排（稀 / 中 / 满）。
+         已经定下、每一档都遵守的：……（写在这里，一条一句）
+  怎么跑：/usr/bin/open 这个文件（项目的 Vite 起着时也可开 /docs/lab/<topic>.html）。
+         数字切档 · C 与现状来回对照 · R 换轮次 · P 重播动效 · [ ] 调宽 · T 明暗。
+  需要什么：下面两行 <link> 指向项目的 token 源（没有项目 token 就把 morii-design 的 Token.css 拷到旁边改成 ./Token.css）。
+         图标从项目的图标注册表抽一次、内联进 ICON，不手画。
+-->
+<link rel="stylesheet" href="../../src/styles/tokens.css">
+<!-- 项目有控件原子（按钮 / chip / 段控）就一起引：<link rel="stylesheet" href="../../src/styles/control.css"> -->
+<style>
+/* ---- 可调参数 ---------------------------------------------------------- */
+:root {
+  --fw: 420px;   /* 被比较那块东西的宽（[ ] 键实时改） */
+  --fx: 22px;    /* 它的左右内边距 */
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  background: var(--gate-ground, var(--bg-window));
+  color: var(--ink);
+  display: flex; flex-direction: column; overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none; user-select: none; cursor: default;
+}
+button { font: inherit; color: inherit; cursor: default; }
+.ic { flex: none; display: block; }
+
+/* ================= 实验台自己的一条（不是被比较的东西） ================= */
+.lab { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 16px 28px 12px; }
+.lab-top { display: flex; align-items: center; gap: 18px; }
+.lab h1 { margin: 0; font-size: var(--fs-title); font-weight: 650; white-space: nowrap; }
+.pick { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.pick button {
+  height: 28px; padding: 0 10px; border: 0; border-radius: var(--r-xs); background: none;
+  font-size: var(--fs-label); color: var(--ink-3); display: inline-flex; align-items: center; gap: 6px;
+  transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover);
+}
+.pick button b { font-family: var(--font-mono); font-weight: 450; color: var(--ink-4); }
+.pick button:hover { background: var(--hover); color: var(--ink-2); }
+.pick button[aria-pressed="true"] { color: var(--ink); font-weight: 650; }
+.pick button[aria-pressed="true"] b { color: var(--accent); }
+.lab-sep { width: 1px; height: 14px; margin: 0 6px; background: var(--sep-strong, var(--sep)); }
+.lab-sp { flex: 1; }
+.keys { font-size: var(--fs-cap); color: var(--ink-4); white-space: nowrap; }
+.keys kbd { font-family: var(--font-mono); padding: 0 4px; border-radius: 4px; background: var(--chip-ground, var(--hover-2)); color: var(--ink-3); }
+.lab-note { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 22px; }
+.thesis { font-size: var(--fs-sub); font-weight: 650; margin-right: 6px; }
+.part { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-xs); background: var(--chip-ground, var(--hover-2)); font-size: var(--fs-cap); color: var(--ink-2); }
+.part i { font-style: normal; color: var(--ink-4); }
+.cost { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-cap); color: var(--warn-ink, var(--warn)); }
+
+.stage { flex: 1; min-height: 0; display: flex; gap: 28px; padding: 8px 28px 24px; overflow-x: auto; }
+.col { flex: none; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.col > .lbl { display: flex; gap: 8px; padding-left: 4px; font-size: var(--fs-cap); color: var(--ink-4); }
+.col > .lbl b { font-weight: 650; color: var(--ink-3); }
+
+/* ================= 被比较的那块东西的壳（按题目改：卡 / 抽屉面 / 一整页的一截） ================= */
+.face {
+  position: relative; width: var(--fw); flex: 1; min-height: 0; display: flex; flex-direction: column;
+  background: var(--panel-strong, var(--panel)); border-radius: var(--r-md); box-shadow: var(--shadow-md); overflow: hidden;
+}
+.fhead { padding: 18px var(--fx) 12px; display: flex; flex-direction: column; gap: 6px; }
+.fname { margin: 0; font-size: var(--fs-title); font-weight: 650; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 20px; padding: 0 7px; border-radius: var(--r-xs); background: var(--chip-ground, var(--hover-2)); font-size: var(--fs-label); color: var(--ink-2); display: inline-flex; align-items: center; }
+.fbody { flex: 1; min-height: 0; overflow: auto; padding: 4px var(--fx) 24px; display: flex; flex-direction: column; gap: 18px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sp { flex: 1; }
+
+/* ---- 示例：各档的键（换题目时整段换掉） ---- */
+.k { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border: 0; border-radius: var(--r-sm); background: none; font-size: var(--fs-label); color: var(--ink-2); transition: background var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.k:hover { background: var(--hover); color: var(--ink); }
+.k:active { transform: scale(var(--press)); }
+.k.danger { color: var(--crit); }
+.k .ic { color: var(--ink-3); }
+.v1 .k { background: var(--inset); box-shadow: inset 0 0 0 1px var(--sep); }
+.v1 .k:hover { background: var(--hover-2); }
+.k.main { background: var(--ink); color: var(--bg-content); font-weight: 650; }
+.v2 .k { border-radius: var(--r-pill); background: var(--hover); height: 32px; padding: 0 14px; }
+.v2 .k:hover { background: var(--hover-2); }
+.v2 .k:hover .ic { color: var(--accent); }
+.v2 .k.main { background: var(--ink); }
+.foot { flex: none; display: flex; align-items: center; gap: 6px; padding: 12px var(--fx) 14px; border-top: 1px solid var(--sep); }
+.isl { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; padding: 6px; border-radius: calc(var(--r-sm) + 6px); background: var(--panel-strong, var(--panel)); box-shadow: var(--shadow-md), 0 0 0 1px var(--sep); }
+.v5 .fbody { padding-bottom: 80px; }
+
+/* ================= 锚定层（下拉 / ⋯ 菜单，示例里没用到也留着） ================= */
+.menu { position: fixed; z-index: 50; min-width: 150px; padding: 4px; border-radius: var(--r-sm); background: var(--panel-strong, var(--panel)); box-shadow: var(--shadow-md), 0 0 0 1px var(--sep); display: flex; flex-direction: column; }
+.menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-xs); background: none; font-size: var(--fs-label); color: var(--ink-2); text-align: left; }
+.menu button:hover { background: var(--hover); color: var(--ink); }
+.menu button.danger { color: var(--crit); }
+</style>
+</head>
+<body>
+
+<header class="lab">
+  <div class="lab-top">
+    <h1>TOPIC · 对照版</h1>
+    <div class="pick" id="pick"></div>
+    <span class="lab-sp"></span>
+    <span class="keys"><kbd>数字</kbd> 切档 <kbd>C</kbd> 对照现状 <kbd>R</kbd> 轮次 <kbd>P</kbd> 重播 <kbd>[ ]</kbd> 宽 <b id="fwv">420</b> <kbd>T</kbd> 明暗</span>
+  </div>
+  <div class="lab-note" id="note"></div>
+</header>
+
+<main class="stage" id="stage"></main>
+
+<script type="module">
+/* ---- 图标：从项目的图标注册表抽一次贴进来（Hrige：bun -e 'import {icons} from "./src/components/ui/icons.ts"…'） ---- */
+const ICON = {
+  more: '<circle cx="5.5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="18.5" cy="12" r="2.2"/>',
+  edit: '<path d="M15.6 4.6a2.4 2.4 0 0 1 3.4 3.4L9.4 17.6 5 19l1.4-4.4z"/>',
+};
+const ic = (n, s = 16, c = "") =>
+  `<svg class="ic ${c}" width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ICON[n] ?? ""}</svg>`;
+
+/* ---- 样本：照项目真 schema 抄形状，≥3 条，稀 / 中 / 满 ---- */
+const SPECS = [
+  { from: "稀", note: "一两格、没有主角", title: "缸染", meta: ["gangran"], acts: [], more: [{ label: "删除", danger: true }], editable: true },
+  { from: "中", note: "用户截图那条", title: "测试1", meta: ["RT-202609-0001", "在用"], acts: [{ label: "另存为新路线", icon: "edit" }], more: [{ label: "删除", danger: true }], editable: true },
+  { from: "满", note: "动作多、零件全", title: "晨曦制衣", meta: ["SO-202609-0012", "已确认"], flow: "自动转生产", acts: [{ label: "转生产（手工指定）", icon: "edit" }], more: [{ label: "取消订单", danger: true }], editable: false },
+];
+
+/* ---- 小件（示例用；换题目时换成题目自己的零件） ---- */
+const head = (s) => `<header class="fhead"><h2 class="fname">${s.title}</h2><div class="meta">${s.meta.map((m) => `<span class="chip">${m}</span>`).join("")}</div></header>`;
+const acts = (s, withIcon = false) =>
+  (s.editable ? `<button class="k">${withIcon ? ic("edit", 13) : ""}编辑</button>` : "") +
+  s.acts.map((a) => `<button class="k">${withIcon && a.icon ? ic(a.icon, 13) : ""}${a.label}</button>`).join("") +
+  (s.flow ? `<button class="k main">${s.flow}</button>` : "");
+const more = () => `<button class="k" data-menu="more" aria-label="更多">${ic("more", 16)}</button>`;
+
+/* ---- 轮次与档：每档 name / thesis（一句论点）/ parts（零件，一个一枚）/ cost（代价，写不出就是没想透）/ render ----
+   第一轮第 0 档永远是现状，照现行代码抄，不画成稻草人。下一轮在 ROUNDS 末尾加一项，上一轮原样留着当判据记录。 */
+const ROUNDS = [
+  {
+    name: "第一轮",
+    list: [
+      { name: "现状", thesis: "动作是一排幽灵字", parts: [["键", "无底"]], cost: "",
+        render: (s) => `${head(s)}<div class="fbody"><div class="row">${acts(s)}${s.more.map((m) => `<button class="k danger">${m.label}</button>`).join("")}</div></div>` },
+      { name: "有底键", thesis: "键有底有环，一眼看出能按", parts: [["键", "凹底 细环"], ["危险", "收进 ⋯"]], cost: "一排灰底块，比现状重",
+        render: (s) => `${head(s)}<div class="fbody v1"><div class="row">${acts(s)}<span class="sp"></span>${more()}</div></div>` },
+      { name: "药丸", thesis: "Morii 那一族：药丸、极淡的底", parts: [["键", "药丸 淡底"], ["图标", "指上去变强调色"]], cost: "圆角比全站按钮圆一档",
+        render: (s) => `${head(s)}<div class="fbody v2"><div class="row">${acts(s, true)}<span class="sp"></span>${more()}</div></div>` },
+      { name: "图标加字", thesis: "每颗键前面一枚字形，读得更快", parts: [["键", "字形 + 字"]], cost: "每个动作都得有图标",
+        render: (s) => `${head(s)}<div class="fbody"><div class="row">${acts(s, true)}<span class="sp"></span>${more()}</div></div>` },
+      { name: "底栏", thesis: "动作沉在底边一条栏", parts: [["位置", "底栏"]], cost: "内容短时键离内容远",
+        render: (s) => `${head(s)}<div class="fbody v1"></div><footer class="foot v1">${more()}<span class="sp"></span>${acts(s)}</footer>` },
+      { name: "浮岛", thesis: "动作浮在右下角一枚岛", parts: [["位置", "右下浮岛"]], cost: "压着最后一屏，要留底距",
+        render: (s) => `${head(s)}<div class="fbody v5"></div><div class="isl v2">${more()}${acts(s, true)}</div>` },
+    ],
+  },
+];
+
+/* ---- 弹簧（动效档用；Morii 的写法：k 刚度、z 阻尼比，dt 钳在 1/30） ---- */
+const step = (p, to, { k, z }, dt) => { p.v += (-k * (p.x - to) - 2 * z * Math.sqrt(k) * p.v) * dt; p.x += p.v * dt; };
+let raf = 0, lastT = 0;
+const anims = new Set();   // 每项 { tick(dt) → 还在动吗 }
+function frame(t) {
+  raf = 0;
+  const dt = Math.min(1 / 30, Math.max(0, (t - lastT) / 1000));
+  lastT = t;
+  let busy = false;
+  for (const a of anims) busy = a.tick(dt) || busy;
+  if (busy) kick();
+}
+function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(frame); } }
+
+/* ---- 渲染 ---- */
+const KEY = "lab.TOPIC.";
+let round = Math.min(Number(localStorage.getItem(KEY + "r") ?? ROUNDS.length - 1), ROUNDS.length - 1);
+const cur = ROUNDS.map((_, i) => Number(localStorage.getItem(KEY + "v" + i) ?? (i === 0 ? 1 : 0)));
+let showCur = false;
+let fw = 420;
+const stage = document.getElementById("stage");
+
+function render(play = false) {
+  const list = ROUNDS[round].list;
+  const v = showCur ? ROUNDS[0].list[0] : list[cur[round]];
+  stage.innerHTML = SPECS.map((s, i) =>
+    `<div class="col"><div class="lbl"><b>${s.from}</b><span>${s.note}</span></div><article class="face" data-i="${i}">${v.render(s)}</article></div>`).join("");
+  document.getElementById("pick").innerHTML =
+    (ROUNDS.length > 1 ? ROUNDS.map((r, i) => `<button data-r="${i}" aria-pressed="${i === round}">${r.name}</button>`).join("") + '<span class="lab-sep"></span>' : "") +
+    list.map((x, i) => `<button data-v="${i}" aria-pressed="${!showCur && i === cur[round]}"><b>${i}</b>${x.name}</button>`).join("");
+  document.getElementById("note").innerHTML =
+    `<span class="thesis">${v.thesis}</span>${v.parts.map(([k, t]) => `<span class="part"><i>${k}</i>${t}</span>`).join("")}${v.cost ? `<span class="cost">${v.cost}</span>` : ""}`;
+  if (play) kick();
+}
+const setV = (i) => { showCur = false; cur[round] = i; localStorage.setItem(KEY + "v" + round, String(i)); closeMenu(); render(true); };
+const setRound = (r) => { round = r; showCur = false; localStorage.setItem(KEY + "r", String(r)); closeMenu(); render(true); };
+
+/* ---- 锚定层 ---- */
+let menu = null;
+function closeMenu() { menu?.remove(); menu = null; }
+function openMenu(btn, spec) {
+  closeMenu();
+  menu = document.createElement("div");
+  menu.className = "menu";
+  menu.innerHTML = spec.more.map((m) => `<button class="${m.danger ? "danger" : ""}">${m.label}</button>`).join("");
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect(), h = menu.offsetHeight, w = menu.offsetWidth;
+  menu.style.left = Math.min(r.left, innerWidth - w - 8) + "px";
+  menu.style.top = (r.bottom + 6 + h > innerHeight ? r.top - 6 - h : r.bottom + 6) + "px";
+}
+
+document.addEventListener("click", (e) => {
+  const rb = e.target.closest("[data-r]");
+  if (rb) return setRound(Number(rb.dataset.r));
+  const pb = e.target.closest("[data-v]");
+  if (pb) return setV(Number(pb.dataset.v));
+  if (menu?.contains(e.target)) return closeMenu();
+  const trig = e.target.closest("[data-menu]");
+  const face = e.target.closest(".face");
+  if (trig && face) return menu ? closeMenu() : openMenu(trig, SPECS[face.dataset.i]);
+  closeMenu();
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") return closeMenu();
+  if (/^[0-9]$/.test(e.key) && Number(e.key) < ROUNDS[round].list.length) return setV(Number(e.key));
+  if (e.key === "[" || e.key === "]") {
+    fw = Math.max(320, Math.min(720, fw + (e.key === "]" ? 20 : -20)));
+    document.documentElement.style.setProperty("--fw", fw + "px");
+    document.getElementById("fwv").textContent = fw;
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if (k === "c") { showCur = !showCur; closeMenu(); return render(true); }
+  if (k === "r" && ROUNDS.length > 1) return setRound((round + 1) % ROUNDS.length);
+  if (k === "p") return render(true);
+  if (k === "t") {
+    const h = document.documentElement;
+    h.dataset.theme = h.dataset.theme === "light" ? "dark" : "light";
+    localStorage.setItem(KEY + "t", h.dataset.theme);
+    closeMenu();
+  }
+});
+addEventListener("resize", closeMenu);
+
+document.documentElement.dataset.theme = localStorage.getItem(KEY + "t") ?? "light";
+render(true);
+</script>
+</body>
+</html>
