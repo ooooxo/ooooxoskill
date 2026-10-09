@@ -6,12 +6,12 @@
 <!--
   干什么：TOPIC 的多档对照（morii-compare 模板）。第 0 档 = 现状，1–N 档各一套完整方案。
          上下布局，生成的内容占满宽：顶条放所有切换（样本 / 看法 / 钉住 / 比例 / 明暗）与「记录」（交互动作 + 改动一条时间线），
-         底坞放 agent 按题目定的滑块（轮次共用 + 选中档私有），用户只管拉。
+         滑条栏放 agent 按题目定的滑块（轮次共用 + 选中档私有），用户只管拉。
          默认一次只看一档（单看，数字 / ← → 换档）；C 现状对选中，A 才平铺全部（自动算列数与比例，放不下保底比例滚动）——有必要才平铺。样本（稀 / 中 / 满）一次只看一条。
          台子与被比较物彻底分开：每格样本挂一个 Shadow DOM，档的样式只进自己的影子；台子控件照抄项目的
          SegControl（强调实心滑块）· ScaleTrack（刻度轨 + 带数游标 + 默认刻痕）· icons.ts · .ink-glass / .ink-kbd。
-         看法 = 两颗开关，默认都开：交互（真点真用，底坞记动作）+ 拼装（零件框内按住拖）；都关 = 静态（可钉住状态）。
-  怎么跑：/usr/bin/open 这个文件。数字选档 · S 样本 · M 轮换看法 · C 只看现状与选中档 · T 明暗（默认跟随系统）· I 收起底坞 ·
+         看法 = 两颗开关，默认都开：交互（真点真用，滑条栏记动作）+ 拼装（零件框内按住拖）；都关 = 静态（可钉住状态）。
+  怎么跑：/usr/bin/open 这个文件。数字选档 · S 样本 · M 轮换看法 · C 只看现状与选中档 · T 明暗（默认跟随系统）· I 收起滑条栏 ·
          R 轮次 · P 重播 · ⌘Z / Ctrl+Z 撤回、⇧⌘Z / Ctrl+Y 重做（不占界面，撤回过的记录变灰）。刻度轨可拖、可点、← → 微调，双击回默认。
   需要什么：下面 <link> 指向项目 token 源（只吃自定义属性，影子里照样继承）。改题目只动脚本第 ② 段（TOPIC / KEY / SPECS / CSS / ROUNDS），写法见 morii-compare 的 SKILL.md ④。
 -->
@@ -22,7 +22,7 @@
 /* ---- 可调参数 ---------------------------------------------------------- */
 :root {
     --top-h: 52px;     /* 顶条高（样本 / 看法 / 钉住） */
-  --dock-h: 88px;    /* 底坞高（agent 定的滑块；I 键收起） */
+  --dock-w: 212px;   /* 左侧滑条栏宽（agent 定的滑块；I 键收起） */
   --gap: 10px;       /* 岛离窗边 */
   --grid: 16px;      /* 舞台点阵间距（拼装吸附 = 它的一半，见脚本 SNAP） */
 }
@@ -36,12 +36,12 @@ body { background: var(--bg-content); color: var(--ink-2); font: 13px/1.45 var(-
 .isl button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* 舞台：满铺点阵板，样本占满宽；只上下给顶条与底坞留位置，格子永远不被压 */
+/* 舞台：满铺点阵板；上给顶条两行、左给滑条栏留位置，格子永远不被压 */
 .board { position: fixed; inset: 0; overflow: auto;
-  padding: calc(var(--top-h) + var(--gap) + 46px) 0 calc(var(--dock-h) + var(--gap) * 2) 0;
+  padding: calc(var(--top-h) + var(--gap) + 46px) 0 calc(var(--gap) * 2) calc(var(--dock-w) + var(--gap) * 2);
   background: var(--bg-content) radial-gradient(circle, var(--sep-strong) 1px, transparent 1.2px) 0 0 / var(--grid) var(--grid);
-  transition: padding-bottom var(--t-slow) var(--ease-out), background-color var(--t-slow) var(--ease-hover); }
-body.dock-off .board { padding-bottom: calc(var(--gap) * 2); }
+  transition: padding-left var(--t-slow) var(--ease-out), background-color var(--t-slow) var(--ease-hover); }
+body.dock-off .board { padding-left: 0; }
 
 /* 玻璃：料照抄 base.css 的 .ink-glass（前端 ADR 0076），影用 --shadow-float */
 .isl { z-index: 10; border-radius: var(--r-md); border: 0.5px solid var(--chin-edge); background: var(--chin-glass); box-shadow: var(--shadow-float);
@@ -50,10 +50,11 @@ body.dock-off .board { padding-bottom: calc(var(--gap) * 2); }
   transition: transform var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover), background-color var(--t-slow) var(--ease-hover); }
 
 
-/* 顶条 / 底坞：上下各一条，横跨舞台 */
+/* 顶条横跨舞台；滑条栏贴左、竖着排 */
 .lane { position: fixed; left: var(--gap); right: var(--gap); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 .lane.top { top: var(--gap); }
-.lane.bot { bottom: var(--gap); }
+/* 左：滑条栏，从顶部两行下面一直到底（--side-top 由脚本按顶部实际高度写） */
+.lane.side { top: var(--side-top, 120px); bottom: var(--gap); right: auto; width: var(--dock-w); align-items: stretch; }
 .bar { pointer-events: auto; display: flex; align-items: center; max-width: 100%; }
 #topbar { width: 100%; height: var(--top-h); padding: 0 8px 0 14px; gap: 2px; }
 #topbar .sp { flex: 1; }
@@ -78,10 +79,10 @@ body.dock-off .board { padding-bottom: calc(var(--gap) * 2); }
 /* 钉住只在静态时有：宽度收放，不突然出现 */
 .pinw { max-width: 360px; opacity: 1; overflow: hidden; transition: max-width var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover), padding var(--t-slow) var(--ease-out); }
 body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
-#dock { height: var(--dock-h); padding: 0 10px 0 8px; gap: 14px; overflow-x: auto; scrollbar-width: none; }
+#dock { flex-direction: column; align-items: stretch; max-height: 100%; padding: 12px 12px 14px; gap: 18px; overflow-y: auto; scrollbar-width: none; }
 #dock::-webkit-scrollbar { display: none; }
-body.dock-off #dock { transform: translateY(calc(100% + var(--gap) * 2)); opacity: 0; pointer-events: none; }
-.kgrp { flex: none; display: flex; align-items: flex-end; gap: 12px; }
+body.dock-off #dock { transform: translateX(calc(-100% - var(--gap) * 2)); opacity: 0; pointer-events: none; }
+.kgrp { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
 .kgrp:empty { display: none; }
 .dbtn { height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-sm); display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--hover);
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover), max-width var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover); }
@@ -107,7 +108,7 @@ body.dock-off #dock { transform: translateY(calc(100% + var(--gap) * 2)); opacit
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
 .mini:hover { background: var(--hover-2); color: var(--ink); }
 
-/* 弹层（改动 / 动作记录）：从底坞上方长出来 */
+/* 弹层（记录 / 键位）：从顶条往下长出来 */
 .pop { position: fixed; z-index: 20; width: 300px; max-height: 50vh; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;
   opacity: 0; transform: translateY(8px) scale(.98); transform-origin: bottom right; pointer-events: none; }
 .pop.down { transform: translateY(-8px) scale(.98); transform-origin: top right; width: 260px; padding: 14px; }
@@ -180,7 +181,7 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
   font: 600 10.5px var(--font-mono); color: var(--ink-2); }
 
 /* 刻度轨：照抄 ScaleTrack——每 tick 一道刻度，走过的染强调色，默认值下一粒刻痕，游标是带数的强调实心章 */
-.knob { flex: none; width: 184px; display: flex; flex-direction: column; gap: 5px; }
+.knob { flex: none; width: 100%; display: flex; flex-direction: column; gap: 5px; }
 .kh { display: flex; align-items: center; gap: 6px; padding: 0 2px; min-height: 18px; white-space: nowrap; }
 .kh .nm { flex: 1; font-size: 12.5px; color: var(--ink-2); }
 .kh .dl { display: inline-flex; align-items: center; gap: 5px; font: 500 11.5px var(--font-mono); color: var(--ink-4);
@@ -271,8 +272,8 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
   <div class="tg"><button class="dbtn" id="histT" data-pop="histPop"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
 </div><div class="vrow"><span class="vg" id="roundsG" hidden><span class="gl">轮<kbd class="ink-kbd">R</kbd></span><span class="seg" id="rounds"></span></span><span class="gl">档<kbd class="ink-kbd">←→</kbd></span><div class="seg" id="vars"></div><div class="label" id="label"></div></div></div>
 
-<!-- 下：底坞，滑块由 agent 按题目定（轮次共用 + 选中档私有），用户只管拉 -->
-<div class="lane bot"><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
+<!-- 左：滑条栏，滑块由 agent 按题目定（轮次共用 + 选中档私有），用户只管拉 -->
+<div class="lane side"><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
 
 <!-- 记录：交互动作与改动一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
 <div class="isl pop down" id="histPop">
@@ -289,7 +290,7 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
   <kbd class="ink-kbd">C</kbd><span>现状对选中档（再按回单看）</span>
   <kbd class="ink-kbd">A</kbd><span>平铺全部档（再按回单看）</span>
   <kbd class="ink-kbd">T</kbd><span>明暗 系统 → 亮 → 暗</span>
-  <kbd class="ink-kbd">I</kbd><span>收起 / 打开底坞</span>
+  <kbd class="ink-kbd">I</kbd><span>收起 / 打开滑条栏</span>
   <kbd class="ink-kbd">R</kbd><span>换轮次</span>
   <kbd class="ink-kbd">P</kbd><span>重播入场</span>
   <kbd class="ink-kbd">⌘Z</kbd><span>撤回改动（Ctrl+Z 同）</span>
@@ -482,7 +483,9 @@ function applyParams() {
 }
 /* 平铺：试每种列数，取比例最大的那种（不放大；同比例取列多的）；最大也低于 MIN_Z 就保底 MIN_Z 并滚动 */
 function applyZoom() {
-  board.style.paddingTop = document.querySelector(".lane.top").getBoundingClientRect().bottom + 12 + "px";   // 题签换行变高时舞台跟着让，不压格子
+  const topB = document.querySelector(".lane.top").getBoundingClientRect().bottom + 12;
+  board.style.paddingTop = topB + "px";   // 题签换行变高时舞台跟着让，不压格子
+  document.documentElement.style.setProperty("--side-top", topB + "px");   // 左侧滑条栏从顶部两行下面开始
   const n = stage.querySelectorAll(".tile").length || 1;
   const { w: fw, h } = tileWH(), th = h + (view === "one" ? 0 : LBL);
   const cs = getComputedStyle(board);
@@ -532,7 +535,7 @@ function paintKnob(el, val) {
   el.querySelector(".cur").textContent = val;
   el.querySelector(".track").setAttribute("aria-valuenow", val);
 }
-/* 底坞：滑块由 agent 写页面时决定（轮次 params 共用 + 档 params 私有），用户只管拉；选中档换了，私有那几条跟着换 */
+/* 滑条栏：滑块由 agent 写页面时决定（轮次 params 共用 + 档 params 私有），用户只管拉；选中档换了，私有那几条跟着换 */
 function renderKnobs() {
   $("knobs").innerHTML = (R().params ?? []).map((p) => knobHTML(p, "s")).join("") + (selV().params ?? []).map((p) => knobHTML(p, "o")).join("");
   document.querySelectorAll(".knob").forEach((el) => paintKnob(el, valOf(specOf(el), el.dataset.src)));
@@ -855,7 +858,7 @@ async function render() {
     paint(); a.cancel();
   } else paint();
 }
-/* 选档：单看 / 对照时格要换（淡出再入场）；平铺时只换焦点，格不重画，底坞的私有参数、形状图跟过去 */
+/* 选档：单看 / 对照时格要换（淡出再入场）；平铺时只换焦点，格不重画，滑条栏的私有参数、形状图跟过去 */
 function setV(i) {
   sel[round] = i; save("v" + round, i);
   if (view !== "all") return render();
@@ -881,7 +884,7 @@ const applyTheme = () => { document.documentElement.dataset.theme = themePref ==
 darkMQ.addEventListener("change", () => { if (themePref === "auto") { applyTheme(); syncChrome(); } });
 function setTheme(t) { themePref = t; save("t", t); applyTheme(); syncChrome(); }
 function toggleDock() { closePop(); document.body.classList.toggle("dock-off"); save("do", document.body.classList.contains("dock-off")); }
-board.addEventListener("transitionend", (e) => { if (e.target === board && e.propertyName === "padding-bottom") applyZoom(); });
+board.addEventListener("transitionend", (e) => { if (e.target === board && e.propertyName === "padding-left") applyZoom(); });
 
 /* ---- 输入 ---- */
 document.addEventListener("click", (e) => {
