@@ -7,7 +7,7 @@
   干什么：TOPIC 的多档对照（morii-compare 模板）。第 0 档 = 现状，1–N 档各一套完整方案。
          上下布局，生成的内容占满宽：顶条放所有切换（样本 / 看法 / 钉住 / 比例 / 明暗）与「记录」（交互动作 + 改动一条时间线），
          底坞放 agent 按题目定的滑块（轮次共用 + 选中档私有），用户只管拉。
-         所有档一次平铺（自动算列数与比例，放不下才保底比例滚动）；样本（稀 / 中 / 满）一次只看一条。
+         默认一次只看一档（单看，数字 / ← → 换档）；C 现状对选中，A 才平铺全部（自动算列数与比例，放不下保底比例滚动）——有必要才平铺。样本（稀 / 中 / 满）一次只看一条。
          台子与被比较物彻底分开：每格样本挂一个 Shadow DOM，档的样式只进自己的影子；台子控件照抄项目的
          SegControl（强调实心滑块）· ScaleTrack（刻度轨 + 带数游标 + 默认刻痕）· icons.ts · .ink-glass / .ink-kbd。
          看法 = 两颗开关，默认都开：交互（真点真用，底坞记动作）+ 拼装（零件框内按住拖）；都关 = 静态（可钉住状态）。
@@ -38,7 +38,7 @@ body { background: var(--bg-content); color: var(--ink-2); font: 13px/1.45 var(-
 
 /* 舞台：满铺点阵板，样本占满宽；只上下给顶条与底坞留位置，格子永远不被压 */
 .board { position: fixed; inset: 0; overflow: auto;
-  padding: calc(var(--top-h) + var(--gap) + 34px) 0 calc(var(--dock-h) + var(--gap) * 2) 0;
+  padding: calc(var(--top-h) + var(--gap) + 46px) 0 calc(var(--dock-h) + var(--gap) * 2) 0;
   background: var(--bg-content) radial-gradient(circle, var(--sep-strong) 1px, transparent 1.2px) 0 0 / var(--grid) var(--grid);
   transition: padding-bottom var(--t-slow) var(--ease-out), background-color var(--t-slow) var(--ease-hover); }
 body.dock-off .board { padding-bottom: calc(var(--gap) * 2); }
@@ -57,6 +57,18 @@ body.dock-off .board { padding-bottom: calc(var(--gap) * 2); }
 .bar { pointer-events: auto; display: flex; align-items: center; max-width: 100%; }
 #topbar { width: 100%; height: var(--top-h); padding: 0 8px 0 14px; gap: 2px; }
 #topbar .sp { flex: 1; }
+.vrow { pointer-events: auto; display: flex; align-items: center; justify-content: center; gap: 8px; max-width: 100%; }
+.vrow button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.vrow > .seg, .vg { flex: none; }
+.vg { display: flex; align-items: center; gap: 8px; margin-right: 6px; }
+.vg .seg button { font-family: var(--font); }
+.vrow > .seg button { min-width: 30px; padding: 0 8px; font-family: var(--font-mono); }
+.vrow > .label { flex: 0 1 auto; justify-content: flex-start; padding: 0 4px; }
+/* 顶条不许把段控压扁：放不下先藏组名（键位章留着），再藏题目小字 */
+#topbar > * { flex-shrink: 0; }
+#topbar > .sp { flex-shrink: 1; }
+@media (max-width: 1500px) { #topbar .gl { font-size: 0; gap: 0; } .brand small { display: none; } }
+@media (max-width: 1340px) { .zr span, .togs .st { display: none; } .brand h1 { max-width: 120px; overflow: hidden; text-overflow: ellipsis; } #topbar .seg button, #topbar .togs button { padding: 0 6px; } #topbar .tg { padding: 0 4px; } }
 .label { pointer-events: auto; min-height: 26px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 12px; font-size: 13px; color: var(--ink-2); }
 .label > b { font-weight: 650; color: var(--ink); }
 .label .hint2 { color: var(--ink-4); font-size: 12px; }
@@ -233,6 +245,7 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
 .tile .lbl { height: 22px; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: 500 13.5px var(--font);
   color: var(--ink-3); text-align: left; cursor: pointer; -webkit-user-select: none; user-select: none; transition: color var(--t-fast) var(--ease-hover); }
 .tile .lbl:hover { color: var(--ink); }
+body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在题签里 */
 .tile.sel .lbl { color: var(--ink); font-weight: 650; }
 .host { display: flex; }
 .lab-empty { margin: 80px auto; max-width: 520px; padding: 18px 20px; border-radius: var(--r-md); background: color-mix(in srgb, var(--crit) 10%, transparent); color: var(--ink); font-size: 13px; line-height: 1.6; }
@@ -245,18 +258,18 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
 
 <main class="board"><div class="stage" id="stage"></div></main>
 
-<!-- 上：一条顶条放所有「切换」——题目 · 轮次 · 样本 · 看法 · 钉住 ｜ 比例 · 明暗 · 键位；下面一行是选中档的题签 -->
+<!-- 上：一条顶条放「怎么看」——题目 · 样本 · 看法 · 钉住 ｜ 看几档 · 比例 · 明暗 · 记录 · 键位；第二行放「看哪个」——轮次 · 档 · 选中档的题签 -->
 <div class="lane top"><div class="isl bar" id="topbar">
   <div class="brand"><small>对照版</small><h1 id="topic"></h1></div>
-  <div class="tg" id="roundsG" hidden><div class="seg" id="rounds"></div></div>
   <div class="tg"><span class="gl">样本<kbd class="ink-kbd">S</kbd></span><div class="seg" id="specs"></div></div>
   <div class="tg"><span class="gl">看法<kbd class="ink-kbd">M</kbd></span><div class="togs" id="modes"></div></div>
   <div class="tg pinw"><span class="gl">钉住</span><div class="seg sub" id="pins"></div></div>
   <span class="sp"></span>
+  <div class="tg"><div class="seg sub" id="views"></div></div>
   <div class="tg"><span class="zr"><b id="zoomv"></b><span id="zoomn"></span></span><div class="seg sub" id="zooms"></div></div>
   <div class="tg"><div class="seg sub" id="themes"></div></div>
   <div class="tg"><button class="dbtn" id="histT" data-pop="histPop"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
-</div><div class="label" id="label"></div></div>
+</div><div class="vrow"><span class="vg" id="roundsG" hidden><span class="gl">轮<kbd class="ink-kbd">R</kbd></span><span class="seg" id="rounds"></span></span><span class="gl">档<kbd class="ink-kbd">←→</kbd></span><div class="seg" id="vars"></div><div class="label" id="label"></div></div></div>
 
 <!-- 下：底坞，滑块由 agent 按题目定（轮次共用 + 选中档私有），用户只管拉 -->
 <div class="lane bot"><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
@@ -270,9 +283,11 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
 </div>
 <div class="isl pop down" id="keysPop"><div class="keys">
   <kbd class="ink-kbd">0–9</kbd><span>选档</span>
+  <kbd class="ink-kbd">← →</kbd><span>上一档 / 下一档</span>
   <kbd class="ink-kbd">S</kbd><span>换样本</span>
   <kbd class="ink-kbd">M</kbd><span>轮换 两开 / 交互 / 拼装 / 静态</span>
-  <kbd class="ink-kbd">C</kbd><span>只看现状与选中档</span>
+  <kbd class="ink-kbd">C</kbd><span>现状对选中档（再按回单看）</span>
+  <kbd class="ink-kbd">A</kbd><span>平铺全部档（再按回单看）</span>
   <kbd class="ink-kbd">T</kbd><span>明暗 系统 → 亮 → 暗</span>
   <kbd class="ink-kbd">I</kbd><span>收起 / 打开底坞</span>
   <kbd class="ink-kbd">R</kbd><span>换轮次</span>
@@ -389,7 +404,7 @@ const raw = (k) => localStorage.getItem(KEY + k);
 let round = Math.min(load("r", ROUNDS.length - 1), ROUNDS.length - 1);
 const sel = ROUNDS.map((_, i) => load("v" + i, i === 0 ? 1 : 0));
 let spec = Math.min(load("s", 1), SPECS.length - 1);
-let pair = false;   // C：只看现状与选中档
+let view = load("w", "one");   // 看几档：one = 单看选中档（默认）· pair = 现状对选中（C）· all = 平铺全部（A）——有必要才平铺
 const flags = load("f", { live: true, build: true });
 const modeStr = () => FLAGS.filter(([id]) => flags[id]).map(([id]) => id).join(" ") || "static";
 const isStatic = () => !flags.live && !flags.build;
@@ -407,12 +422,12 @@ const S = () => SPECS[spec];
 const vk = (r, i) => r + "." + i;
 const selV = () => R().list[sel[round]];
 const selK = () => vk(round, sel[round]);
-/* 舞台上的格：默认本轮全部档；C 时只留现状（第一轮第 0 档）与选中档 */
+/* 舞台上的格：单看 = 只有选中档；对照 = 现状（第一轮第 0 档）+ 选中档；平铺 = 本轮全部档 */
 const tiles = () => {
   const all = R().list.map((v, i) => ({ r: round, i, v }));
-  if (!pair) return all;
-  const cur = { r: 0, i: 0, v: ROUNDS[0].list[0] };
-  return round === 0 && sel[0] === 0 ? [cur] : [cur, all[sel[round]]];
+  if (view === "all") return all;
+  const one = all[sel[round]];
+  return view === "one" || (round === 0 && sel[0] === 0) ? [one] : [{ r: 0, i: 0, v: ROUNDS[0].list[0] }, one];
 };
 const hosts = () => [...stage.querySelectorAll(".host")];
 const hostOf = (k) => stage.querySelector(`.host[data-vk="${k}"]`);
@@ -467,8 +482,9 @@ function applyParams() {
 }
 /* 平铺：试每种列数，取比例最大的那种（不放大；同比例取列多的）；最大也低于 MIN_Z 就保底 MIN_Z 并滚动 */
 function applyZoom() {
+  board.style.paddingTop = document.querySelector(".lane.top").getBoundingClientRect().bottom + 12 + "px";   // 题签换行变高时舞台跟着让，不压格子
   const n = stage.querySelectorAll(".tile").length || 1;
-  const { w: fw, h } = tileWH(), th = h + LBL;
+  const { w: fw, h } = tileWH(), th = h + (view === "one" ? 0 : LBL);
   const cs = getComputedStyle(board);
   const W = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), H = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   let best = { z: 0, c: 1 };
@@ -486,7 +502,7 @@ function applyZoom() {
   document.documentElement.style.setProperty("--cols", cols);
   $("zoomv").textContent = Math.round(zoom * 100) + "%";
   const zn = $("zoomn");
-  zn.textContent = over ? "放不下，滚动看" : fit ? `${cols} 列 × ${Math.ceil(n / cols)} 行` : "实际尺寸";
+  zn.textContent = over ? "放不下，滚动看" : !fit ? "实际尺寸" : n === 1 ? "单看" : `${cols} 列 × ${Math.ceil(n / cols)} 行`;
   zn.classList.toggle("warn", over);
 }
 function renderFig() {
@@ -754,6 +770,9 @@ function renderChrome() {
   $("topic").textContent = TOPIC;
   document.title = "对照版 · " + TOPIC;
   seg($("specs"), SPECS.map((x, i) => ["data-s", i, dens(i) + x.from]));
+  seg($("vars"), R().list.map((_, i) => ["data-v", i, String(i)]));
+  $("vars").querySelectorAll("button").forEach((b) => (b.title = R().list[b.dataset.v].name));
+  seg($("views"), [["data-w", "one", "单看"], ["data-w", "pair", "对照"], ["data-w", "all", "平铺"]]);
   $("roundsG").hidden = ROUNDS.length < 2;
   seg($("rounds"), ROUNDS.map((r, i) => ["data-r", i, r.name]));
   $("modes").innerHTML = FLAGS.map(([id, l, icon, tip]) => `<button data-flag="${id}" title="${tip}">${ic(icon, 15)}${l}</button>`).join("") + `<span class="st" title="两颗都关 = 静态：样本不响应指针，右边可钉住状态">静态</span>`;
@@ -766,22 +785,26 @@ function renderChrome() {
 /* 顶条下的题签：选中档的论点 · 零件 · 代价，右边当前样本 */
 function renderLabel() {
   const v = selV();
-  $("label").innerHTML = `<span class="badge on">${sel[round]}</span><b>${v.name}</b><span>${v.thesis}</span>` +
+  $("label").innerHTML = `<b>${v.name}</b><span>${v.thesis}</span>` +
     `<span class="pts">${v.parts.map(([k, t]) => `<span class="pt"><i>${k}</i><b>${t}</b></span>`).join("")}</span>` +
     (v.cost ? `<span class="cost"><span class="stamp">代价</span><span>${v.cost}</span></span>` : "") +
-    `<span class="hint2">${S().from}：${S().note}${pair ? "　｜　只看现状与选中档（C 退出）" : ""}</span>`;
+    `<span class="hint2">${S().from}：${S().note}${{ pair: "　｜　现状对选中档（C 回单看）", all: "　｜　平铺全部档（A 回单看）" }[view] ?? ""}</span>`;
 }
 function syncChrome() {
   stage.querySelectorAll(".tile").forEach((t) => { const on = t.dataset.vk === selK(); t.classList.toggle("sel", on); t.querySelector(".lbl").classList.toggle("on", on); });
   press("#specs button", (b) => Number(b.dataset.s) === spec);
+  press("#vars button", (b) => Number(b.dataset.v) === sel[round]);
+  press("#views button", (b) => b.dataset.w === view);
   press("#rounds button", (b) => Number(b.dataset.r) === round);
   press("#modes button", (b) => !!flags[b.dataset.flag]);
   press("#pins button", (b) => b.dataset.pin === pinned);
   press("#zooms button", (b) => (b.dataset.z === "fit") === fit);
   press("#themes button", (b) => b.dataset.th === themePref);
   document.body.dataset.mode = modeStr();
+  document.body.dataset.view = view;
   requestAnimationFrame(() => document.querySelectorAll(".seg").forEach(segSync));   // 钉住组宽度在过渡，下一帧再量
   renderLabel();
+  applyZoom();
 }
 
 /* 弹层：一次只开一个；点外面 / Esc 收起 */
@@ -832,14 +855,15 @@ async function render() {
     paint(); a.cancel();
   } else paint();
 }
-/* 选档只换焦点：格不重画，底坞的私有参数、形状图跟过去；C 模式下格要换 */
+/* 选档：单看 / 对照时格要换（淡出再入场）；平铺时只换焦点，格不重画，底坞的私有参数、形状图跟过去 */
 function setV(i) {
   sel[round] = i; save("v" + round, i);
-  if (pair) return render();
+  if (view !== "all") return render();
   renderKnobs(); syncChrome();
   if (openPop === "histPop") renderFig();
 }
 const setSpec = (i) => { spec = i; save("s", i); render(); };
+const setView = (w) => { view = w; save("w", w); render(); };
 const setRound = (r) => { round = r; save("r", r); renderChrome(); render(); };
 function setFlags(live, build) {
   const repaint = isStatic() && pinned !== "rest";
@@ -861,12 +885,13 @@ board.addEventListener("transitionend", (e) => { if (e.target === board && e.pro
 
 /* ---- 输入 ---- */
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-v],[data-s],[data-r],[data-flag],[data-pin],[data-th],[data-z],[data-pop],#resetP,#resetL,#copyJ,.tile");
+  const t = e.target.closest("[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-th],[data-z],[data-pop],#resetP,#resetL,#copyJ,.tile");
   if (openPop && !e.target.closest(".pop") && !t?.dataset.pop) closePop();
   if (!t) return;
   if (t.dataset.pop) return togglePop(t.dataset.pop, t);
   if (t.classList.contains("tile")) { const [r, i] = t.dataset.vk.split(".").map(Number); if (r === round && i !== sel[round]) setV(i); return; }   // 点到哪格就选哪格，交互照常
   if (t.dataset.v) return setV(Number(t.dataset.v));
+  if (t.dataset.w) return setView(t.dataset.w);
   if (t.dataset.s) return setSpec(Number(t.dataset.s));
   if (t.dataset.r) return setRound(Number(t.dataset.r));
   if (t.dataset.flag) return t.dataset.flag === "live" ? setFlags(!flags.live, flags.build) : setFlags(flags.live, !flags.build);
@@ -920,7 +945,9 @@ addEventListener("keydown", (e) => {
   if (/^[0-9]$/.test(e.key) && Number(e.key) < R().list.length) return setV(Number(e.key));
   const k = e.key.toLowerCase();
   if (k === "s") return setSpec((spec + 1) % SPECS.length);
-  if (k === "c") { pair = !pair; return render(); }
+  if (k === "c") return setView(view === "pair" ? "one" : "pair");
+  if (k === "a") return setView(view === "all" ? "one" : "all");
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const n = R().list.length; return setV((sel[round] + (e.key === "ArrowRight" ? 1 : n - 1)) % n); }
   if (k === "m") { const i = CYCLE.findIndex(([a, b]) => a === flags.live && b === flags.build); return setFlags(...CYCLE[(i + 1) % CYCLE.length]); }
   if (k === "r" && ROUNDS.length > 1) return setRound((round + 1) % ROUNDS.length);
   if (k === "t") return setTheme({ auto: "light", light: "dark", dark: "auto" }[themePref]);   // 系统 → 亮 → 暗 → 系统

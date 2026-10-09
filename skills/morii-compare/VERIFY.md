@@ -4,14 +4,14 @@
 模板的 localStorage 值一律 `JSON.stringify` 存（直接塞裸字符串，页面 `JSON.parse` 会抛错）；样本在 Shadow DOM 里，取元素走 `host.shadowRoot`。
 下面每段都是一发独立的 `ego-browser nodejs <<'EOF' … EOF`（heredoc 体是 ESM，`import` 不用 `require`）。
 
-## 1. 全景：每条样本 × 明暗（所有档本来就平铺在一屏里）
+## 1. 全景：每条样本 × 明暗（页面默认单看一档；验收全景先存 `w = "all"` 平铺全部，或按 `A`）
 
 ```js
 await useOrCreateTaskSpace('lab-<topic>');
 await openOrReuseTab('file:///绝对路径/docs/lab/<topic>.html');
 await cdp('Emulation.setDeviceMetricsOverride', { width: 1560, height: 940, deviceScaleFactor: 1, mobile: false });
 for (const theme of ['light', 'dark']) {
-  await js("localStorage.clear(); localStorage.setItem('lab.<topic>.t', JSON.stringify('" + theme + "')); location.reload()");
+  await js("localStorage.clear(); localStorage.setItem('lab.<topic>.t', JSON.stringify('" + theme + "')); localStorage.setItem('lab.<topic>.w', JSON.stringify('all')); location.reload()");
   await new Promise(r => setTimeout(r, 1500));
   for (let s = 0; s < 3; s++) {
     if (s) await js("dispatchEvent(new KeyboardEvent('keydown', { key: 's' }))");
