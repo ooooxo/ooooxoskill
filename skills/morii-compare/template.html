@@ -22,7 +22,7 @@
 /* ---- 可调参数 ---------------------------------------------------------- */
 :root {
     --top-h: 52px;     /* 顶条高（样本 / 看法 / 钉住） */
-  --dock-w: 212px;   /* 左侧滑条栏宽（agent 定的滑块；I 键收起） */
+  --dock-w: 272px;   /* 左栏宽：上「档」清单 + 下滑条（agent 定的滑块）；I 键收起 */
   --gap: 10px;       /* 岛离窗边 */
   --grid: 16px;      /* 舞台点阵间距（拼装吸附 = 它的一半，见脚本 SNAP） */
 }
@@ -38,7 +38,7 @@ body { background: var(--bg-content); color: var(--ink-2); font: 13px/1.45 var(-
 
 /* 舞台：满铺点阵板；上给顶条两行、左给滑条栏留位置，格子永远不被压 */
 .board { position: fixed; inset: 0; overflow: auto;
-  padding: calc(var(--top-h) + var(--gap) + 46px) 0 calc(var(--gap) * 2) calc(var(--dock-w) + var(--gap) * 2);
+  padding: calc(var(--top-h) + var(--gap) + 12px) 0 calc(var(--gap) * 2) calc(var(--dock-w) + var(--gap) * 2);
   background: var(--bg-content) radial-gradient(circle, var(--sep-strong) 1px, transparent 1.2px) 0 0 / var(--grid) var(--grid);
   transition: padding-left var(--t-slow) var(--ease-out), background-color var(--t-slow) var(--ease-hover); }
 body.dock-off .board { padding-left: 0; }
@@ -54,34 +54,46 @@ body.dock-off .board { padding-left: 0; }
 .lane { position: fixed; left: var(--gap); right: var(--gap); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
 .lane.top { top: var(--gap); }
 /* 左：滑条栏，从顶部两行下面一直到底（--side-top 由脚本按顶部实际高度写） */
-.lane.side { top: var(--side-top, 120px); bottom: var(--gap); right: auto; width: var(--dock-w); align-items: stretch; }
+.lane.side { top: var(--side-top, 72px); bottom: var(--gap); right: auto; width: var(--dock-w); align-items: stretch; gap: 10px; }
 .bar { pointer-events: auto; display: flex; align-items: center; max-width: 100%; }
 #topbar { width: 100%; height: var(--top-h); padding: 0 8px 0 14px; gap: 2px; }
 #topbar .sp { flex: 1; }
-.vrow { pointer-events: auto; display: flex; align-items: center; justify-content: center; gap: 8px; max-width: 100%; }
-.vrow button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
-.vrow > .seg, .vg { flex: none; }
-.vg { display: flex; align-items: center; gap: 8px; margin-right: 6px; }
-.vg .seg button { font-family: var(--font); }
-.vrow > .seg button { min-width: 30px; padding: 0 8px; font-family: var(--font-mono); }
-.vrow > .label { flex: 0 1 auto; justify-content: flex-start; padding: 0 4px; }
+/* 左栏顶：「档」清单——每档一行（编号章 + 名），选中那档就地展开：论点 · 零件（一行一对）· 代价 · 当前样本 */
+#vlist { flex: 0 1 auto; min-height: 0; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 8px 8px; overflow-y: auto; scrollbar-width: none; }
+#vlist::-webkit-scrollbar { display: none; }
+.vh { display: flex; align-items: center; gap: 8px; padding: 0 4px 2px; }
+.vh .sp { flex: 1; }
+.vh .seg button { min-height: 26px; padding: 0 8px; font-size: 12px; }
+.vl { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.vi { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); color: var(--ink-3); cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.vi:hover { background: var(--hover); color: var(--ink); }
+.vi.on { background: var(--hover); color: var(--ink); cursor: default; }
+.vi > b { min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vi.on > b { font-weight: 700; }
+.vd { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 9px; padding: 8px 0 4px; animation: in-up var(--t-slow) var(--ease-out); }
+.vd > p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
+.kv { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: 12px; line-height: 1.45; }
+.kv dt { color: var(--ink-4); white-space: nowrap; }
+.kv dd { margin: 0; font-weight: 600; color: var(--ink); }
+.vcost { display: flex; flex-direction: column; gap: 3px; padding: 8px 9px; border-radius: 9px; background: color-mix(in srgb, var(--warn) 11%, transparent); font-size: 12px; line-height: 1.55; color: var(--ink-2); }
+.vcost .stamp { align-self: flex-start; }
+.vspec { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; line-height: 1.5; color: var(--ink-4); }
+.vspec .tag { flex: none; }
 /* 顶条不许把段控压扁：放不下先藏组名（键位章留着），再藏题目小字 */
 #topbar > * { flex-shrink: 0; }
 #topbar > .sp { flex-shrink: 1; }
 @media (max-width: 1500px) { #topbar .gl { font-size: 0; gap: 0; } .brand small { display: none; } }
 @media (max-width: 1340px) { .zr span, .togs .st { display: none; } .brand h1 { max-width: 120px; overflow: hidden; text-overflow: ellipsis; } #topbar .seg button, #topbar .togs button { padding: 0 6px; } #topbar .tg { padding: 0 4px; } }
-.label { pointer-events: auto; min-height: 26px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 0 12px; font-size: 13px; color: var(--ink-2); }
-.label > b { font-weight: 650; color: var(--ink); }
-.label .hint2 { color: var(--ink-4); font-size: 12px; }
 .tg { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
 .gl { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
 .gl .ink-kbd { min-width: 18px; height: 18px; font-size: 10px; }
 /* 钉住只在静态时有：宽度收放，不突然出现 */
 .pinw { max-width: 360px; opacity: 1; overflow: hidden; transition: max-width var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover), padding var(--t-slow) var(--ease-out); }
 body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
-#dock { flex-direction: column; align-items: stretch; max-height: 100%; padding: 12px 12px 14px; gap: 18px; overflow-y: auto; scrollbar-width: none; }
+#dock { flex: none; flex-direction: column; align-items: stretch; max-height: 50%; padding: 12px 12px 14px; gap: 18px; overflow-y: auto; scrollbar-width: none; }
 #dock::-webkit-scrollbar { display: none; }
-body.dock-off #dock { transform: translateX(calc(-100% - var(--gap) * 2)); opacity: 0; pointer-events: none; }
+body.dock-off .lane.side > .isl { transform: translateX(calc(-100% - var(--gap) * 2)); opacity: 0; pointer-events: none; }
 .kgrp { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
 .kgrp:empty { display: none; }
 .dbtn { height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-sm); display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--hover);
@@ -270,10 +282,10 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
   <div class="tg"><span class="zr"><b id="zoomv"></b><span id="zoomn"></span></span><div class="seg sub" id="zooms"></div></div>
   <div class="tg"><div class="seg sub" id="themes"></div></div>
   <div class="tg"><button class="dbtn" id="histT" data-pop="histPop"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
-</div><div class="vrow"><span class="vg" id="roundsG" hidden><span class="gl">轮<kbd class="ink-kbd">R</kbd></span><span class="seg" id="rounds"></span></span><span class="gl">档<kbd class="ink-kbd">←→</kbd></span><div class="seg" id="vars"></div><div class="label" id="label"></div></div></div>
+</div></div>
 
-<!-- 左：滑条栏，滑块由 agent 按题目定（轮次共用 + 选中档私有），用户只管拉 -->
-<div class="lane side"><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
+<!-- 左：上「档」清单（轮次 · 每档名字，选中那档展开论点 / 零件 / 代价 / 样本），下滑条栏（agent 按题目定，用户只管拉） -->
+<div class="lane side"><div class="isl bar" id="vlist"><div class="vh" id="vhead"></div><ol class="vl" id="vl"></ol></div><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
 
 <!-- 记录：交互动作与改动一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
 <div class="isl pop down" id="histPop">
@@ -290,7 +302,7 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
   <kbd class="ink-kbd">C</kbd><span>现状对选中档（再按回单看）</span>
   <kbd class="ink-kbd">A</kbd><span>平铺全部档（再按回单看）</span>
   <kbd class="ink-kbd">T</kbd><span>明暗 系统 → 亮 → 暗</span>
-  <kbd class="ink-kbd">I</kbd><span>收起 / 打开滑条栏</span>
+  <kbd class="ink-kbd">I</kbd><span>收起 / 打开左栏（档清单 + 滑条）</span>
   <kbd class="ink-kbd">R</kbd><span>换轮次</span>
   <kbd class="ink-kbd">P</kbd><span>重播入场</span>
   <kbd class="ink-kbd">⌘Z</kbd><span>撤回改动（Ctrl+Z 同）</span>
@@ -773,11 +785,10 @@ function renderChrome() {
   $("topic").textContent = TOPIC;
   document.title = "对照版 · " + TOPIC;
   seg($("specs"), SPECS.map((x, i) => ["data-s", i, dens(i) + x.from]));
-  seg($("vars"), R().list.map((_, i) => ["data-v", i, String(i)]));
-  $("vars").querySelectorAll("button").forEach((b) => (b.title = R().list[b.dataset.v].name));
   seg($("views"), [["data-w", "one", "单看"], ["data-w", "pair", "对照"], ["data-w", "all", "平铺"]]);
-  $("roundsG").hidden = ROUNDS.length < 2;
-  seg($("rounds"), ROUNDS.map((r, i) => ["data-r", i, r.name]));
+  $("vhead").innerHTML = `<span class="gl">档<kbd class="ink-kbd">←→</kbd></span><span class="sp"></span>` +
+    (ROUNDS.length > 1 ? `<span class="gl"><kbd class="ink-kbd">R</kbd></span><div class="seg sub" id="rounds"></div>` : "");
+  if (ROUNDS.length > 1) seg($("rounds"), ROUNDS.map((r, i) => ["data-r", i, r.name]));
   $("modes").innerHTML = FLAGS.map(([id, l, icon, tip]) => `<button data-flag="${id}" title="${tip}">${ic(icon, 15)}${l}</button>`).join("") + `<span class="st" title="两颗都关 = 静态：样本不响应指针，右边可钉住状态">静态</span>`;
   seg($("pins"), (R().pins ?? [["rest", "常态"]]).map(([id, l]) => ["data-pin", id, l]));
   seg($("zooms"), [["data-z", "fit", "适配"], ["data-z", "1", "原尺寸"]]);
@@ -785,18 +796,21 @@ function renderChrome() {
   $("keysT").innerHTML = ic("help", 15);
   $("histF").innerHTML = `<button class="mini" id="resetP">${ic("reload", 13)}参数回默认</button><button class="mini" id="resetL">${ic("grid-view", 13)}零件归位</button>`;
 }
-/* 顶条下的题签：选中档的论点 · 零件 · 代价，右边当前样本 */
+/* 左栏「档」清单：每档一行（编号章 + 名 + 现状章），选中那档展开论点 · 零件（一行一对）· 代价 · 当前样本 */
 function renderLabel() {
-  const v = selV();
-  $("label").innerHTML = `<b>${v.name}</b><span>${v.thesis}</span>` +
-    `<span class="pts">${v.parts.map(([k, t]) => `<span class="pt"><i>${k}</i><b>${t}</b></span>`).join("")}</span>` +
-    (v.cost ? `<span class="cost"><span class="stamp">代价</span><span>${v.cost}</span></span>` : "") +
-    `<span class="hint2">${S().from}：${S().note}${{ pair: "　｜　现状对选中档（C 回单看）", all: "　｜　平铺全部档（A 回单看）" }[view] ?? ""}</span>`;
+  $("vl").innerHTML = R().list.map((v, i) => {
+    const on = i === sel[round];
+    const now = round === 0 && i === 0 ? `<span class="tag">现状</span>` : "";
+    const detail = on ? `<div class="vd"><p>${v.thesis}</p>` +
+      (v.parts.length ? `<dl class="kv">${v.parts.map(([k, t]) => `<dt>${k}</dt><dd>${t}</dd>`).join("")}</dl>` : "") +
+      (v.cost ? `<div class="vcost"><span class="stamp">代价</span><span>${v.cost}</span></div>` : "") +
+      `<div class="vspec"><span class="tag">${S().from}</span><span>${S().note}</span></div></div>` : "";
+    return `<li class="vi${on ? " on" : ""}" data-v="${i}"><span class="badge${on ? " on" : ""}">${i}</span><b>${v.name}</b>${now}${detail}</li>`;
+  }).join("");
 }
 function syncChrome() {
   stage.querySelectorAll(".tile").forEach((t) => { const on = t.dataset.vk === selK(); t.classList.toggle("sel", on); t.querySelector(".lbl").classList.toggle("on", on); });
   press("#specs button", (b) => Number(b.dataset.s) === spec);
-  press("#vars button", (b) => Number(b.dataset.v) === sel[round]);
   press("#views button", (b) => b.dataset.w === view);
   press("#rounds button", (b) => Number(b.dataset.r) === round);
   press("#modes button", (b) => !!flags[b.dataset.flag]);
@@ -893,7 +907,7 @@ document.addEventListener("click", (e) => {
   if (!t) return;
   if (t.dataset.pop) return togglePop(t.dataset.pop, t);
   if (t.classList.contains("tile")) { const [r, i] = t.dataset.vk.split(".").map(Number); if (r === round && i !== sel[round]) setV(i); return; }   // 点到哪格就选哪格，交互照常
-  if (t.dataset.v) return setV(Number(t.dataset.v));
+  if (t.dataset.v) return Number(t.dataset.v) === sel[round] ? undefined : setV(Number(t.dataset.v));   // 点展开那档自己不重画
   if (t.dataset.w) return setView(t.dataset.w);
   if (t.dataset.s) return setSpec(Number(t.dataset.s));
   if (t.dataset.r) return setRound(Number(t.dataset.r));
