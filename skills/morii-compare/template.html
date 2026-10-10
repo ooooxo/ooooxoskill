@@ -63,7 +63,12 @@ body.dock-off .board { padding-left: 0; }
 #vlist::-webkit-scrollbar { display: none; }
 .vh { display: flex; align-items: center; gap: 8px; padding: 0 4px 2px; }
 .vh .sp { flex: 1; }
-.vh .seg button { min-height: 26px; padding: 0 8px; font-size: 12px; }
+/* 轮次：段控里只放编号（悬停看全名），选中那轮的全名单独一行写在下面——名字再长也不挤进段控 */
+.vh .seg button { min-width: 28px; min-height: 26px; padding: 0 7px; font: 600 12px var(--font-mono); }
+.rname { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 4px 4px; }
+.rname:empty { display: none; }
+.rname i { flex: none; height: 18px; padding: 0 5px; border-radius: 5px; font: normal 600 10.5px/18px var(--font-mono); background: var(--accent-soft); color: var(--accent-ink); }
+.rname b { min-width: 0; font-size: 13px; font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vl { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
 .vi { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); color: var(--ink-3); cursor: pointer;
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
@@ -254,7 +259,8 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
 
 /* 平铺：列数与比例由脚本按舞台大小算（--cols / --zoom），间距与内边距和脚本里 GAP / PAD 一致 */
 .stage { zoom: var(--zoom, 1); display: grid; grid-template-columns: repeat(var(--cols, 3), var(--tile-w)); gap: 28px; padding: 24px 32px 32px; width: max-content; margin: 0 auto; }
-.tile { display: flex; flex-direction: column; gap: 10px; animation: in-up var(--t-slow) var(--ease-out) backwards; animation-delay: var(--d, 0ms); }
+.tile { display: flex; flex-direction: column; gap: 10px; }
+.intro .tile { animation: in-up var(--t-slow) var(--ease-out) backwards; animation-delay: var(--d, 0ms); }   /* 只在首屏与 P 重播时逐格入场；换档 / 样本 / 轮次直接换 */
 .tile .lbl { height: 22px; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: 500 13.5px var(--font);
   color: var(--ink-3); text-align: left; cursor: pointer; -webkit-user-select: none; user-select: none; transition: color var(--t-fast) var(--ease-hover); }
 .tile .lbl:hover { color: var(--ink); }
@@ -285,7 +291,7 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
 </div></div>
 
 <!-- 左：上「档」清单（轮次 · 每档名字，选中那档展开论点 / 零件 / 代价 / 样本），下滑条栏（agent 按题目定，用户只管拉） -->
-<div class="lane side"><div class="isl bar" id="vlist"><div class="vh" id="vhead"></div><ol class="vl" id="vl"></ol></div><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
+<div class="lane side"><div class="isl bar" id="vlist"><div class="vh" id="vhead"></div><div class="rname" id="rname"></div><ol class="vl" id="vl"></ol></div><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
 
 <!-- 记录：交互动作与改动一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
 <div class="isl pop down" id="histPop">
@@ -788,7 +794,7 @@ function renderChrome() {
   seg($("views"), [["data-w", "one", "单看"], ["data-w", "pair", "对照"], ["data-w", "all", "平铺"]]);
   $("vhead").innerHTML = `<span class="gl">档<kbd class="ink-kbd">←→</kbd></span><span class="sp"></span>` +
     (ROUNDS.length > 1 ? `<span class="gl"><kbd class="ink-kbd">R</kbd></span><div class="seg sub" id="rounds"></div>` : "");
-  if (ROUNDS.length > 1) seg($("rounds"), ROUNDS.map((r, i) => ["data-r", i, r.name]));
+  if (ROUNDS.length > 1) { seg($("rounds"), ROUNDS.map((r, i) => ["data-r", i, String(i + 1)])); $("rounds").querySelectorAll("button").forEach((b, i) => (b.title = ROUNDS[i].name)); }
   $("modes").innerHTML = FLAGS.map(([id, l, icon, tip]) => `<button data-flag="${id}" title="${tip}">${ic(icon, 15)}${l}</button>`).join("") + `<span class="st" title="两颗都关 = 静态：样本不响应指针，右边可钉住状态">静态</span>`;
   seg($("pins"), (R().pins ?? [["rest", "常态"]]).map(([id, l]) => ["data-pin", id, l]));
   seg($("zooms"), [["data-z", "fit", "适配"], ["data-z", "1", "原尺寸"]]);
@@ -813,6 +819,7 @@ function syncChrome() {
   press("#specs button", (b) => Number(b.dataset.s) === spec);
   press("#views button", (b) => b.dataset.w === view);
   press("#rounds button", (b) => Number(b.dataset.r) === round);
+  $("rname").innerHTML = ROUNDS.length > 1 ? `<i>R${round + 1}</i><b>${R().name}</b>` : "";
   press("#modes button", (b) => !!flags[b.dataset.flag]);
   press("#pins button", (b) => b.dataset.pin === pinned);
   press("#zooms button", (b) => (b.dataset.z === "fit") === fit);
@@ -860,19 +867,13 @@ function paint() {
   if (isStatic() && pinned !== "rest") requestAnimationFrame(() => hosts().forEach((h) => R().pin?.(h.shadowRoot, pinned, s)));
   renderKnobs(); syncChrome();
 }
-/* 换样本 / 轮次 / 钉住：旧的淡出、新的逐格入场（不许突然出现） */
-let gen = 0;
-async function render() {
-  const g = ++gen;
+/* 换样本 / 轮次 / 钉住 / 选档：直接换，不淡出不入场（甲方 2026-10-10：切换要干脆，别黑一下）；intro = 首屏与 P 重播才逐格入场 */
+function render(intro = false) {
   for (const a of settling.values()) a.stop();
-  if (stage.childElementCount) {
-    const a = stage.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, easing: "ease-in", fill: "forwards" });
-    await a.finished;
-    if (g !== gen) return;
-    paint(); a.cancel();
-  } else paint();
+  stage.classList.toggle("intro", intro);
+  paint();
 }
-/* 选档：单看 / 对照时格要换（淡出再入场）；平铺时只换焦点，格不重画，滑条栏的私有参数、形状图跟过去 */
+/* 选档：单看 / 对照时格要换（直接换）；平铺时只换焦点，格不重画，滑条栏的私有参数、形状图跟过去 */
 function setV(i) {
   sel[round] = i; save("v" + round, i);
   if (view !== "all") return render();
@@ -968,7 +969,7 @@ addEventListener("keydown", (e) => {
   if (k === "m") { const i = CYCLE.findIndex(([a, b]) => a === flags.live && b === flags.build); return setFlags(...CYCLE[(i + 1) % CYCLE.length]); }
   if (k === "r" && ROUNDS.length > 1) return setRound((round + 1) % ROUNDS.length);
   if (k === "t") return setTheme({ auto: "light", light: "dark", dark: "auto" }[themePref]);   // 系统 → 亮 → 暗 → 系统
-  if (k === "p") return render();
+  if (k === "p") return render(true);
   if (k === "i") return toggleDock();
   if (e.key === "Escape") { closePop(); hosts().forEach((h) => closeMenu(h.shadowRoot)); }
 });
@@ -981,7 +982,7 @@ if (!SPECS.length || !ROUNDS.length || ROUNDS.some((r) => !r.tile || !r.list?.le
   stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 SPECS（≥3 条样本）与 ROUNDS（每轮要有 tile 与 list）是空的。写法见 morii-compare 的 SKILL.md ④。</div>`;
   throw new Error("对照版：SPECS / ROUNDS 未填（或某轮缺 tile / list）");
 }
-renderChrome(); renderHist(); render();
+renderChrome(); renderHist(); render(true);
 </script>
 </body>
 </html>
