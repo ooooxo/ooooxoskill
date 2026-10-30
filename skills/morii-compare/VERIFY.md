@@ -37,7 +37,7 @@ writeFileSync('/tmp/lab-zoom.png', Buffer.from(s.data, 'base64'));
 - `scale` 写在 **`clip` 里面**；写成兄弟参数会挂，之后整个截图管线都会超时。
 - 不开 `captureBeyondViewport`（会把面的底色渲丢）。
 - 元素位置用 `js()` 取 `getBoundingClientRect()`，**返回 `JSON.stringify(...)` 的字符串**再 `JSON.parse`，对象直接回来常是 `{}`。
-- 样本里的元素：`document.querySelector('.host[data-vk="0.2"]').shadowRoot.querySelector('…')`（`vk` = 轮.档）。
+- 样本里的元素：`document.querySelector('.host[data-vk="0.0.2"]').shadowRoot.querySelector('…')`（`vk` = 界面.轮.档）。
 - 台子：顶条 `#topbar`、滑条栏 `#dock`，各裁一张 `scale: 2` 看刻度、刻痕、色块。
 
 ## 3. 动效逐帧（Morii 的验法：接管 rAF 与时钟，手动步进）
@@ -67,7 +67,7 @@ for (const f of [3, 6, 9, 13, 40]) {
 CDP 拖动时 `mouseMoved` 必须带 `button: 'left', buttons: 1`，否则页面收不到拖动。
 
 ```js
-const R = (q) => js(String.raw`(() => { const r = document.querySelector('.host[data-vk="0.2"]').shadowRoot.querySelector('${q}').getBoundingClientRect(); return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 }); })()`).then(JSON.parse);
+const R = (q) => js(String.raw`(() => { const r = document.querySelector('.host[data-vk="0.0.2"]').shadowRoot.querySelector('${q}').getBoundingClientRect(); return JSON.stringify({ x: r.x + r.width / 2, y: r.y + r.height / 2 }); })()`).then(JSON.parse);
 const b = await R('[data-act]');
 // 轻点：应该点到按钮（滑条栏「记录」+1），格子被选中
 await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: b.x, y: b.y, button: 'left', clickCount: 1 });
@@ -76,14 +76,14 @@ await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x, y: b.y, b
 await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x: b.x, y: b.y, button: 'left', clickCount: 1 });
 for (let i = 1; i <= 8; i++) await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: b.x + i * 15, y: b.y + i * 12, button: 'left', buttons: 1 });
 await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x: b.x + 120, y: b.y + 96, button: 'left', clickCount: 1 });
-console.log(await js("localStorage.getItem('lab.<topic>.L0.2')"));
+console.log(await js("localStorage.getItem('lab.<topic>.L0.0.2')"));
 ```
 
 撤回：发真键 `cdp('Input.dispatchKeyEvent', { type: 'keyDown', key: 'z', code: 'KeyZ', modifiers: 4, windowsVirtualKeyCode: 90 })`（4 = ⌘，8 = ⇧），
-每撤一步核一次存储（`ps<轮>` / `L<轮>.<档>`）和刻度轨游标上的数；两次改动之间隔开 500ms 以上，不然会并成一步。
+每撤一步核一次存储（`ps<界面>.<轮>` / `L<界面>.<轮>.<档>`）和刻度轨游标上的数；两次改动之间隔开 500ms 以上，不然会并成一步。
 记录：点一下样本 + 拉一条刻度轨 + 挪一个零件 → 顶条「记录」弹层里三条按时间混排（字形 · 章 · 改前 → 改后 / 坐标 · 等宽时刻）；
 ⌘Z 一下最后那条变灰，再做一次新改动灰条消失。滑条栏：选中有私有参数的档（数字键），它那几条出现在共用的后面；换到没有的档就消失。
-拼装（默认关，先按 `M` 开到两开）：拖一颗按钮、一枚标签、一段字，各自单独挪（`L<轮>.<档>` 里各一条，没命名的 id 是 `@样本:路径`）；按住 ⌥ 拖，抓的是最近的具名组；
+拼装（默认关，先按 `M` 开到两开）：拖一颗按钮、一枚标签、一段字，各自单独挪（`L<界面>.<轮>.<档>` 里各一条，没命名的 id 是 `@样本:路径`）；按住 ⌥ 拖，抓的是最近的具名组；
 改大小：悬停零件让罩右下角拉手露出来（`.lab-hud > .sz`），按住拉手拖，那条多出 `w / h`；再挪它，`w / h` 还在；⌘Z 回到原尺寸。
 再验两条：打开 ⋯ 菜单后拉滑条栏刻度轨，菜单还开着（参数只改变量不重画）；按三下 `M` 到静态，顶条长出「钉住」，钉「菜单开」每档都摆出来。
 
