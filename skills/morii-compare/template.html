@@ -4,16 +4,15 @@
 <meta charset="utf-8">
 <title>对照版 · TOPIC</title>
 <!--
-  干什么：TOPIC 的多档对照（morii-compare 模板）。第 0 档 = 现状，1–N 档各一套完整方案。
-         上下布局，生成的内容占满宽：顶条放所有切换（样本 / 看法 / 钉住 / 比例 / 明暗）与「记录」（交互动作 + 改动一条时间线），
-         滑条栏放 agent 按题目定的滑块（轮次共用 + 选中档私有），用户只管拉。
-         默认一次只看一档（单看，数字 / ← → 换档）；C 现状对选中，A 才平铺全部（自动算列数与比例，放不下保底比例滚动）——有必要才平铺。样本（稀 / 中 / 满）一次只看一条。
-         台子与被比较物彻底分开：每格样本挂一个 Shadow DOM，档的样式只进自己的影子；台子控件照抄项目的
-         SegControl（强调实心滑块）· ScaleTrack（刻度轨 + 带数游标 + 默认刻痕）· icons.ts · .ink-glass / .ink-kbd。
-         看法 = 两颗开关，默认都开：交互（真点真用，滑条栏记动作）+ 拼装（零件框内按住拖）；都关 = 静态（可钉住状态）。
-  怎么跑：/usr/bin/open 这个文件。数字选档 · S 样本 · M 轮换看法 · C 只看现状与选中档 · T 明暗（默认跟随系统）· I 收起滑条栏 ·
-         R 轮次 · P 重播 · ⌘Z / Ctrl+Z 撤回、⇧⌘Z / Ctrl+Y 重做（不占界面，撤回过的记录变灰）。刻度轨可拖、可点、← → 微调，双击回默认。
-  需要什么：下面 <link> 指向项目 token 源（只吃自定义属性，影子里照样继承）。改题目只动脚本第 ② 段（TOPIC / KEY / SPECS / CSS / ROUNDS），写法见 morii-compare 的 SKILL.md ④。
+  干什么：TOPIC 的多档对照（morii-compare 模板）。比几个界面就写几个界面，每个界面有自己的样本、自己的一套档（第 0 档 = 现状）。
+         顶条 = 怎么看；左栏 = 界面 · 轮次 · 档；右栏 = agent 定的滑块（I 收起）；右下角 = 发送。
+         默认单看一档；C 现状对选中，A 本界面全部档，G 全部界面并排（每格头上一排档号，各切各的）。
+         标注（F）：点哪个组件就在哪儿落一枚点、写一句要改什么；发送把标注 + 各界面选的档 + 参数 + 布局交给等着的 agent（⌘⏎）。
+         经对照版服务（serve.mjs，跑在容器里）打开：页面一改自动刷新，agent 的回话出现在右下角；直接打开文件也能看，发送变成拷进剪贴板。
+         台子与被比较物彻底分开：每格样本挂一个 Shadow DOM，档的样式只进自己的影子。
+  怎么跑：lab.sh <项目根> 起服务，浏览器开它打印的地址 + /docs/lab/<topic>.html（见 SKILL.md ⑦）；数字 / ← → 档 · ↑ ↓ 界面 · S 样本 · R 轮次 · F 标注 ·
+         M 看法 · C / A / G 看几档 · T 明暗 · I 滑块 · P 重播 · ⌘Z / ⇧⌘Z 撤回重做 · ⌘⏎ 发送 · ? 键位。
+  需要什么：下面 <link> 指向项目 token 源（只吃自定义属性，影子里照样继承）。改题目只动脚本第 ② 段（TOPIC / KEY / CSS / PAGES），写法见 morii-compare 的 SKILL.md ④。
 -->
 <link rel="stylesheet" href="../../src/styles/tokens.css">
 <!-- 首帧前先按系统明暗定底色（暗色系统不闪白）；存过的手选值由脚本随后接管 -->
@@ -21,8 +20,9 @@
 <style>
 /* ---- 可调参数 ---------------------------------------------------------- */
 :root {
-    --top-h: 52px;     /* 顶条高（样本 / 看法 / 钉住） */
-  --dock-w: 272px;   /* 左栏宽：上「档」清单 + 下滑条（agent 定的滑块）；I 键收起 */
+  --top-h: 52px;     /* 顶条高 */
+  --list-w: 248px;   /* 左栏宽：界面 · 轮次 · 档 */
+  --dock-w: 264px;   /* 右栏宽：滑块 + 发送 */
   --gap: 10px;       /* 岛离窗边 */
   --grid: 16px;      /* 舞台点阵间距（拼装吸附 = 它的一半，见脚本 SNAP） */
 }
@@ -33,15 +33,16 @@
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg-content); color: var(--ink-2); font: 13px/1.45 var(--font); overflow: hidden; -webkit-font-smoothing: antialiased; }
 .ic { flex: none; display: block; }
-.isl button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.isl button, .fab { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+.isl textarea { -webkit-user-select: text; user-select: text; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-/* 舞台：满铺点阵板；上给顶条两行、左给滑条栏留位置，格子永远不被压 */
+/* 舞台：满铺点阵板；上让顶条、左让清单、右让滑块，格子永远不被压 */
 .board { position: fixed; inset: 0; overflow: auto;
-  padding: calc(var(--top-h) + var(--gap) + 12px) 0 calc(var(--gap) * 2) calc(var(--dock-w) + var(--gap) * 2);
+  padding: calc(var(--top-h) + var(--gap) + 12px) calc(var(--dock-w) + var(--gap) * 2) calc(var(--gap) * 2) calc(var(--list-w) + var(--gap) * 2);
   background: var(--bg-content) radial-gradient(circle, var(--sep-strong) 1px, transparent 1.2px) 0 0 / var(--grid) var(--grid);
-  transition: padding-left var(--t-slow) var(--ease-out), background-color var(--t-slow) var(--ease-hover); }
-body.dock-off .board { padding-left: 0; }
+  transition: padding-right var(--t-slow) var(--ease-out), background-color var(--t-slow) var(--ease-hover); }
+body.dock-off .board, body.no-dock .board { padding-right: 0; }
 
 /* 玻璃：料照抄 base.css 的 .ink-glass（前端 ADR 0076），影用 --shadow-float */
 .isl { z-index: 10; border-radius: var(--r-md); border: 0.5px solid var(--chin-edge); background: var(--chin-glass); box-shadow: var(--shadow-float);
@@ -49,33 +50,48 @@ body.dock-off .board { padding-left: 0; }
   -webkit-user-select: none; user-select: none; cursor: default;
   transition: transform var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover), background-color var(--t-slow) var(--ease-hover); }
 
-
-/* 顶条横跨舞台；滑条栏贴左、竖着排 */
-.lane { position: fixed; left: var(--gap); right: var(--gap); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+/* 顶条横跨舞台；左栏、右栏从顶条下面一直到底（--side-top 由脚本按顶条实际高度写） */
+.lane { position: fixed; left: var(--gap); right: var(--gap); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none; }
 .lane.top { top: var(--gap); }
-/* 左：滑条栏，从顶部两行下面一直到底（--side-top 由脚本按顶部实际高度写） */
-.lane.side { top: var(--side-top, 72px); bottom: var(--gap); right: auto; width: var(--dock-w); align-items: stretch; gap: 10px; }
+.lane.side { top: var(--side-top, 72px); bottom: var(--gap); right: auto; width: var(--list-w); align-items: stretch; }
+.lane.right { top: var(--side-top, 72px); bottom: var(--gap); left: auto; width: var(--dock-w); align-items: stretch; }
+body.no-dock #dock, body.no-dock #dockT { display: none; }
+body.dock-off #dock { transform: translateX(calc(100% + var(--gap) * 2)); opacity: 0; pointer-events: none; }
 .bar { pointer-events: auto; display: flex; align-items: center; max-width: 100%; }
-#topbar { width: 100%; height: var(--top-h); padding: 0 8px 0 14px; gap: 2px; }
+#topbar { width: 100%; height: var(--top-h); padding: 0 8px 0 16px; gap: 2px; }
 #topbar .sp { flex: 1; }
-/* 左栏顶：「档」清单——每档一行（编号章 + 名），选中那档就地展开：论点 · 零件（一行一对）· 代价 · 当前样本 */
-#vlist { flex: 0 1 auto; min-height: 0; flex-direction: column; align-items: stretch; gap: 6px; padding: 10px 8px 8px; overflow-y: auto; scrollbar-width: none; }
-#vlist::-webkit-scrollbar { display: none; }
-.vh { display: flex; align-items: center; gap: 8px; padding: 0 4px 2px; }
-.vh .sp { flex: 1; }
-/* 轮次：段控里只放编号（悬停看全名），选中那轮的全名单独一行写在下面——名字再长也不挤进段控 */
-.vh .seg button { min-width: 28px; min-height: 26px; padding: 0 7px; font: 600 12px var(--font-mono); }
-.rname { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 4px 4px; }
-.rname:empty { display: none; }
-.rname i { flex: none; height: 18px; padding: 0 5px; border-radius: 5px; font: normal 600 10.5px/18px var(--font-mono); background: var(--accent-soft); color: var(--accent-ink); }
-.rname b { min-width: 0; font-size: 13px; font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vl { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
-.vi { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); color: var(--ink-3); cursor: pointer;
+#topbar > * { flex-shrink: 0; }
+#topbar > .sp { flex-shrink: 1; }
+@media (max-width: 1340px) { .brand { max-width: 140px; overflow: hidden; text-overflow: ellipsis; } #topbar .seg button, #topbar .togs button { padding: 0 7px; } #topbar .tg { padding: 0 4px; } }
+.tg { display: flex; align-items: center; gap: 4px; padding: 0 6px; }
+.brand { margin: 0 10px 0 0; font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+/* 钉住只在静态时有：宽度收放，不突然出现 */
+.pinw { max-width: 360px; opacity: 1; overflow: hidden; transition: max-width var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover), padding var(--t-slow) var(--ease-out); }
+body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
+.isl .tbtn { height: 30px; padding: 0 9px; border-radius: var(--r-xs); font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap;
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
-.vi:hover { background: var(--hover); color: var(--ink); }
-.vi.on { background: var(--hover); color: var(--ink); cursor: default; }
-.vi > b { min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vi.on > b { font-weight: 700; }
+.isl .tbtn:hover { background: var(--hover-2); color: var(--ink); }
+.isl .tbtn.warn { color: var(--warn); }
+
+/* 左栏一座岛：界面（多个才有）→ 轮次（多轮才有，点开全部）→ 档（选中那档展开论点 · 零件 · 代价） */
+#nav { flex: 0 1 auto; min-height: 0; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; overflow-y: auto; scrollbar-width: none; }
+#nav::-webkit-scrollbar { display: none; }
+#pl:not(:empty) { padding-bottom: 8px; border-bottom: 1px solid var(--sep); }
+.rrow:empty { display: none; }
+.isl .rbtn { width: 100%; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 6px; border-radius: var(--r-sm); text-align: left;
+  transition: background-color var(--t-fast) var(--ease-hover); }
+.isl .rbtn:hover, .isl .rbtn.open { background: var(--hover); }
+.rbtn b { flex: 1; min-width: 0; font-size: 13px; font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rbtn .badge { min-width: 26px; }
+.vl { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.vi, .pi { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); color: var(--ink-3); cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.pi { grid-template-columns: 1fr auto; }
+.vi:hover, .pi:hover { background: var(--hover); color: var(--ink); }
+.vi.on, .pi.on { background: var(--hover); color: var(--ink); cursor: default; }
+.vi > b, .pi > b { min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vi.on > b, .pi.on > b { font-weight: 700; }
+.pi .badge { min-width: 20px; height: 20px; font-size: 10.5px; }
 .vd { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 9px; padding: 8px 0 4px; animation: in-up var(--t-slow) var(--ease-out); }
 .vd > p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink-2); }
 .kv { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; font-size: 12px; line-height: 1.45; }
@@ -83,29 +99,34 @@ body.dock-off .board { padding-left: 0; }
 .kv dd { margin: 0; font-weight: 600; color: var(--ink); }
 .vcost { display: flex; flex-direction: column; gap: 3px; padding: 8px 9px; border-radius: 9px; background: color-mix(in srgb, var(--warn) 11%, transparent); font-size: 12px; line-height: 1.55; color: var(--ink-2); }
 .vcost .stamp { align-self: flex-start; }
-.vspec { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; line-height: 1.5; color: var(--ink-4); }
-.vspec .tag { flex: none; }
-/* 顶条不许把段控压扁：放不下先藏组名（键位章留着），再藏题目小字 */
-#topbar > * { flex-shrink: 0; }
-#topbar > .sp { flex-shrink: 1; }
-@media (max-width: 1500px) { #topbar .gl { font-size: 0; gap: 0; } .brand small { display: none; } }
-@media (max-width: 1340px) { .zr span, .togs .st { display: none; } .brand h1 { max-width: 120px; overflow: hidden; text-overflow: ellipsis; } #topbar .seg button, #topbar .togs button { padding: 0 6px; } #topbar .tg { padding: 0 4px; } }
-.tg { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
-.gl { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--ink-3); white-space: nowrap; }
-.gl .ink-kbd { min-width: 18px; height: 18px; font-size: 10px; }
-/* 钉住只在静态时有：宽度收放，不突然出现 */
-.pinw { max-width: 360px; opacity: 1; overflow: hidden; transition: max-width var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover), padding var(--t-slow) var(--ease-out); }
-body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
-#dock { flex: none; flex-direction: column; align-items: stretch; max-height: 50%; padding: 12px 12px 14px; gap: 18px; overflow-y: auto; scrollbar-width: none; }
+
+/* 右栏：上 = 滑块（agent 定，用户只管拉）；下 = 发出去的东西（agent 回话 · 标注清单）+ 发送 */
+#dock { flex: 0 1 auto; min-height: 0; flex-direction: column; align-items: stretch; padding: 12px 12px 14px; gap: 18px; overflow-y: auto; scrollbar-width: none; }
 #dock::-webkit-scrollbar { display: none; }
-body.dock-off .lane.side > .isl { transform: translateX(calc(-100% - var(--gap) * 2)); opacity: 0; pointer-events: none; }
+#dock:has(.kgrp:empty) { visibility: hidden; }
 .kgrp { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
-.kgrp:empty { display: none; }
-.dbtn { height: 34px; padding: 0 8px 0 10px; border-radius: var(--r-sm); display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ink-2); background: var(--hover);
-  transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover), max-width var(--t-slow) var(--ease-out), opacity var(--t-fast) var(--ease-hover); }
+.out { margin-top: auto; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-height: 0; }
+.tray { pointer-events: auto; width: 100%; max-height: 44vh; padding: 6px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; scrollbar-width: none; }
+.reply { display: flex; align-items: flex-start; gap: 4px; padding: 8px 4px 8px 10px; border-radius: 10px; background: var(--accent-soft); }
+.reply:empty, .nl:empty { display: none; }
+.reply p { flex: 1; margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
+.reply .ibtn { width: 24px; height: 24px; }
+.nl li { cursor: pointer; transition: background-color var(--t-fast) var(--ease-hover); }
+.nl li:hover { background: var(--hover-2); }
+.nl li.sent { opacity: .45; }
+/* 发送：反差色悬浮键，浮在右下角；有没发的标注时带个数 */
+.fab { pointer-events: auto; height: 44px; padding: 0 18px 0 15px; border-radius: 22px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 650; background: var(--ink); color: var(--bg-content); box-shadow: var(--shadow-float);
+  transition: transform var(--t-press) var(--ease-out), opacity var(--t-fast) var(--ease-hover); }
+.fab:active:not(:disabled) { transform: scale(var(--press)); }
+.fab:disabled { opacity: .3; cursor: default; }
+.fab .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font: 650 11px/20px var(--font-mono); text-align: center; background: var(--accent); color: var(--on-accent); }
+.dbtn { height: 30px; padding: 0 6px 0 8px; border-radius: var(--r-xs); display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
 .dbtn:hover, .dbtn.open { background: var(--hover-2); color: var(--ink); }
 .dbtn .badge { min-width: 20px; height: 20px; font-size: 10.5px; }
-.kh .tag, .kh .badge { min-width: 0; height: 18px; line-height: 18px; font-size: 10px; padding: 0 5px; border-radius: 5px; }
+.kh .badge { min-width: 0; height: 18px; line-height: 18px; font-size: 10px; padding: 0 5px; border-radius: 5px; }
+
 /* 记录弹层：顶上形状图（改后实面 vs 默认虚影），底下一行改动类动作 */
 #histPop { width: 340px; }
 #histPop .fig { width: auto; height: 116px; }
@@ -119,17 +140,36 @@ body.dock-off .lane.side > .isl { transform: translateX(calc(-100% - var(--gap) 
 .hist li.danger .nm { color: var(--crit); }
 .hist li.undone { opacity: .45; }
 .hist li.undone .nm { text-decoration: line-through; }
+.hist li.say { background: var(--accent-soft); }
+.hist li.say .nm, .hist li.note .nm { flex: 0 1 auto; min-width: 0; }
 .chg .nm { flex: 0 1 auto; }
 .pfoot { display: flex; gap: 6px; }
 .mini { height: 28px; padding: 0 10px 0 8px; border-radius: 8px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-3); background: var(--hover);
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
 .mini:hover { background: var(--hover-2); color: var(--ink); }
 
-/* 弹层（记录 / 键位）：从顶条往下长出来 */
-.pop { position: fixed; z-index: 20; width: 300px; max-height: 50vh; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px;
-  opacity: 0; transform: translateY(8px) scale(.98); transform-origin: bottom right; pointer-events: none; }
-.pop.down { transform: translateY(-8px) scale(.98); transform-origin: top right; width: 260px; padding: 14px; }
+/* 弹层（记录 / 键位 / 轮次）：从按钮往下长出来 */
+.pop { position: fixed; z-index: 20; width: 260px; max-height: 70vh; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+  opacity: 0; transform: translateY(-8px) scale(.98); transform-origin: top right; pointer-events: none; }
+.pop.left { transform-origin: top left; }
 .pop.open { opacity: 1; transform: none; pointer-events: auto; }
+#roundPop { width: 300px; padding: 6px; gap: 2px; }
+.rl { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.rl li { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 8px 0 6px; border-radius: var(--r-sm); color: var(--ink-2); cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-hover); }
+.rl li:hover { background: var(--hover); }
+.rl li.on { background: var(--hover-2); color: var(--ink); }
+.rl li b { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl .badge { min-width: 26px; }
+/* 标注小框：贴着那枚点长出来，回车存、Esc 放弃、点外面也存 */
+.cmp { position: fixed; z-index: 25; width: 300px; padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  opacity: 0; transform: scale(.97); transform-origin: top left; pointer-events: none; }
+.cmp.open { opacity: 1; transform: none; pointer-events: auto; }
+.cmp .ch { display: flex; align-items: center; gap: 7px; min-height: 26px; }
+.cmp .ch .nm { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp textarea { width: 100%; display: block; resize: none; border: 0; outline: none; border-radius: var(--r-sm); background: var(--hover); color: var(--ink);
+  font: 13px/1.55 var(--font); padding: 8px 10px; field-sizing: content; min-height: 56px; max-height: 220px; }
+.cmp textarea:focus { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
 
 /* 节：图标 + 名 + 右侧等宽元信息 / 图标钮 */
 .sh { display: flex; align-items: center; gap: 8px; min-height: 26px; padding-left: 2px; }
@@ -142,23 +182,22 @@ body.dock-off .lane.side > .isl { transform: translateX(calc(-100% - var(--gap) 
 .ibtn:active { transform: scale(var(--press)); }
 .ibtn.ok { color: var(--accent); }
 .ibtn.err { color: var(--crit); }
+.ibtn.open, .ibtn[aria-pressed="true"] { background: var(--hover-2); color: var(--ink); }
 
 /* 编号章：等宽实心小章，选中填强调色（ParamField / SegControl 的「强调实心」） */
 .badge { flex: none; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 7px; display: inline-grid; place-items: center;
   font: 650 11.5px/1 var(--font-mono); background: var(--hover-2); color: var(--ink-3);
   transition: background-color var(--t-med) var(--ease-hover), color var(--t-med) var(--ease-hover); }
 .on > .badge, .badge.on { background: var(--accent); color: var(--on-accent); }
-.tag { flex: none; font: 500 10.5px/18px var(--font-mono); padding: 0 6px; border-radius: 6px; background: var(--hover-2); color: var(--ink-3); }
+.tag { flex: none; font: 500 10.5px/18px var(--font-mono); padding: 0 6px; border-radius: 6px; background: var(--hover-2); color: var(--ink-3); white-space: nowrap; }
 
-/* 开关组（交互 / 拼装各自独立开关，都关 = 静态）：开着的那颗强调实心 */
+/* 开关组（交互 / 拼装各自独立开关，都关 = 静态；标注是单独一颗）：开着的那颗强调实心 */
 .togs { display: flex; gap: 2px; padding: 2px; border-radius: var(--r-sm); background: var(--hover); }
 .togs button { min-height: 30px; padding: 0 10px; border-radius: var(--r-xs); display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); white-space: nowrap;
   transition: background-color var(--t-med) var(--ease-hover), color var(--t-med) var(--ease-hover), transform var(--t-press) var(--ease-out); }
 .togs button:hover { background: var(--hover-2); color: var(--ink); }
 .togs button:active { transform: scale(var(--press)); }
 .togs button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 650; }
-.togs .st { font: 600 11px/1 var(--font-mono); padding: 0 8px; display: inline-flex; align-items: center; color: var(--ink-4); transition: color var(--t-fast) var(--ease-hover); }
-body[data-mode="static"] .togs .st { color: var(--warn); }
 /* 段控：照抄 SegControl 默认款——一条轨道，强调色块滑到选中那格 */
 .seg { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 2px; border-radius: var(--r-sm); background: var(--hover); }
 .seg .thumb { position: absolute; top: 0; left: 0; border-radius: var(--r-xs); background: var(--accent); pointer-events: none; }
@@ -169,29 +208,10 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
 .seg button[aria-pressed="true"] { color: var(--on-accent); font-weight: 650; }
 .seg button:not([aria-pressed="true"]):hover { background: var(--hover-2); color: var(--ink); }
 .seg button:active:not([aria-pressed="true"]) { transform: scale(var(--press)); }
-/* 次要段控（钉住 / 比例 / 明暗）：色块是浮起的一片面板，不抢主键的强调色 */
+/* 次要段控（样本 / 钉住 / 看几档）：色块是浮起的一片面板，不抢主键的强调色 */
 .seg.sub .thumb { background: var(--bg-content); box-shadow: var(--shadow-sm); }
 .seg.sub button[aria-pressed="true"] { color: var(--ink); }
-/* 密度字形：稀一根、中两根、满四根 */
-.dens { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
-.dens i { width: 3px; border-radius: 1.5px; background: currentColor; }
-.dens i:nth-child(1) { height: 6px; } .dens i:nth-child(2) { height: 12px; } .dens i:nth-child(3) { height: 9px; } .dens i:nth-child(4) { height: 12px; }
 
-
-
-/* 左岛 */
-.brand { flex: none; display: flex; flex-direction: column; gap: 0; padding-right: 14px; }
-.ibtn.open { background: var(--hover-2); color: var(--ink); }
-
-
-.brand small { font: 500 10.5px var(--font-mono); color: var(--ink-4); }
-.brand h1 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; }
-
-.pts { display: flex; flex-wrap: wrap; gap: 4px; }
-.pt { display: inline-flex; height: 22px; border-radius: 7px; overflow: hidden; font-size: 11.5px; line-height: 22px; }
-.pt i { font-style: normal; padding: 0 6px; background: var(--hover-2); color: var(--ink-3); }
-.pt b { font-weight: 550; padding: 0 7px; background: var(--hover); color: var(--ink); }
-.cost { margin: 0; display: flex; gap: 6px; align-items: flex-start; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
 .stamp { flex: none; font: 650 10.5px/18px var(--font); padding: 0 6px; border-radius: 6px; background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
 .keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; font-size: 11.5px; color: var(--ink-3); }
 .ink-kbd { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 6px; background: var(--hover-2); display: inline-flex; align-items: center; justify-content: center;
@@ -229,43 +249,32 @@ body[data-mode="static"] .togs .st { color: var(--warn); }
 .fig-face { border-radius: 6px; background: var(--panel-strong); box-shadow: var(--shadow-sm); transition: all var(--t-med) var(--ease-out); }
 .fig-dim { position: absolute; right: 0; bottom: -14px; font: 600 9.5px var(--font-mono); color: var(--ink-3); white-space: nowrap; }
 
-/* 改动清单：名 · 改前 → 改后 · 增量；布局一行两枚坐标章 */
+/* 清单行（记录 / 标注）：章 · 名 · 改前 → 改后 · 增量 */
 .chg { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
 .chg li { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 10px; border-radius: 9px; background: var(--hover); animation: in-up var(--t-slow) var(--ease-out) backwards; }
 .chg .nm { flex: 1; min-width: 0; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nl .nm { flex: 1; }
 .chg .was { font: 500 12px var(--font-mono); color: var(--ink-4); }
 .chg .arr { color: var(--ink-4); font-size: 11px; }
 .chg .now { font: 650 12px var(--font-mono); color: var(--ink); }
 .chg em { font: normal 650 11px/17px var(--font-mono); padding: 0 5px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-ink); }
 .chg .xy { font: 600 11px/18px var(--font-mono); padding: 0 6px; border-radius: 6px; background: var(--hover-2); color: var(--ink-2); }
 .chg li.empty { background: none; color: var(--ink-3); padding: 0 2px; }
-.chg li.empty .ic { color: var(--accent); }
-
-/* 比例读数：大号等宽百分比 + 列 × 行 */
-.zr { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.zr b { font: 700 15px/1 var(--font-mono); color: var(--ink); }
-.zr span { font-size: 11.5px; color: var(--ink-3); }
-.zr span.warn { color: var(--warn); }
-
-/* 动作记录：编号章 + 样本章 + 动作 + 等宽时刻 */
-.log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
-.log li { display: flex; align-items: center; gap: 7px; min-height: 30px; padding: 0 8px 0 5px; border-radius: 9px; background: var(--hover); color: var(--ink-2);
-  animation: in-up var(--t-slow) var(--ease-out) backwards; }
-.log .badge { min-width: 20px; height: 20px; font-size: 10.5px; }
-.log li.danger .act { color: var(--crit); }
-.log .act { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.log time { font: 500 10.5px var(--font-mono); color: var(--ink-4); }
-.log li.empty { background: none; color: var(--ink-3); padding: 0 2px; }
 
 /* 平铺：列数与比例由脚本按舞台大小算（--cols / --zoom），间距与内边距和脚本里 GAP / PAD 一致 */
 .stage { zoom: var(--zoom, 1); display: grid; grid-template-columns: repeat(var(--cols, 3), var(--tile-w)); gap: 28px; padding: 24px 32px 32px; width: max-content; margin: 0 auto; }
 .tile { display: flex; flex-direction: column; gap: 10px; }
-.intro .tile { animation: in-up var(--t-slow) var(--ease-out) backwards; animation-delay: var(--d, 0ms); }   /* 只在首屏与 P 重播时逐格入场；换档 / 样本 / 轮次直接换 */
-.tile .lbl { height: 22px; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: 500 13.5px var(--font);
-  color: var(--ink-3); text-align: left; cursor: pointer; -webkit-user-select: none; user-select: none; transition: color var(--t-fast) var(--ease-hover); }
-.tile .lbl:hover { color: var(--ink); }
-body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在题签里 */
+.intro .tile { animation: in-up var(--t-slow) var(--ease-out) backwards; animation-delay: var(--d, 0ms); }   /* 只在首屏与 P 重播时逐格入场；换档 / 界面 / 轮次直接换 */
+.tile .lbl { height: 24px; display: flex; align-items: center; gap: 8px; font: 500 13.5px var(--font); color: var(--ink-3); cursor: pointer; -webkit-user-select: none; user-select: none; }
+body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在左栏 */
 .tile.sel .lbl { color: var(--ink); font-weight: 650; }
+/* 全部界面并排：格头 = 界面名 + 一排档号（各切各的） */
+.lbl .tn { padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; white-space: nowrap; }
+.lbl .chips { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--hover); }
+.lbl .chip { min-width: 22px; height: 20px; padding: 0 4px; border: 0; border-radius: 6px; background: none; font: 650 11px/20px var(--font-mono); color: var(--ink-3); cursor: pointer;
+  transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
+.lbl .chip:hover { background: var(--hover-2); color: var(--ink); }
+.lbl .chip.on { background: var(--accent); color: var(--on-accent); }
 .host { display: flex; }
 .lab-empty { margin: 80px auto; max-width: 520px; padding: 18px 20px; border-radius: var(--r-md); background: color-mix(in srgb, var(--crit) 10%, transparent); color: var(--ink); font-size: 13px; line-height: 1.6; }
 .lab-empty b { color: var(--crit); }
@@ -273,47 +282,57 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
 @keyframes in-up { from { opacity: 0; transform: translateY(6px); } }
 </style>
 </head>
-<body data-mode="live build">
+<body data-mode="live">
 
 <main class="board"><div class="stage" id="stage"></div></main>
 
-<!-- 上：一条顶条放「怎么看」——题目 · 样本 · 看法 · 钉住 ｜ 看几档 · 比例 · 明暗 · 记录 · 键位；第二行放「看哪个」——轮次 · 档 · 选中档的题签 -->
+<!-- 顶条：怎么看——题目 · 看法 · 标注 · 钉住 ｜ 样本 · 看几档 · 比例 · 明暗 · 记录 · 滑块 · 键位 -->
 <div class="lane top"><div class="isl bar" id="topbar">
-  <div class="brand"><small>对照版</small><h1 id="topic"></h1></div>
-  <div class="tg"><span class="gl">样本<kbd class="ink-kbd">S</kbd></span><div class="seg" id="specs"></div></div>
-  <div class="tg"><span class="gl">看法<kbd class="ink-kbd">M</kbd></span><div class="togs" id="modes"></div></div>
-  <div class="tg pinw"><span class="gl">钉住</span><div class="seg sub" id="pins"></div></div>
+  <h1 class="brand" id="topic"></h1>
+  <div class="tg"><div class="togs" id="modes"></div></div>
+  <div class="tg"><div class="togs"><button id="noteT" title="标注（F）：点哪个组件就在哪儿记一句要改什么"></button></div></div>
+  <div class="tg pinw"><div class="seg sub" id="pins"></div></div>
   <span class="sp"></span>
+  <div class="tg"><div class="seg sub" id="specs"></div></div>
   <div class="tg"><div class="seg sub" id="views"></div></div>
-  <div class="tg"><span class="zr"><b id="zoomv"></b><span id="zoomn"></span></span><div class="seg sub" id="zooms"></div></div>
-  <div class="tg"><div class="seg sub" id="themes"></div></div>
-  <div class="tg"><button class="dbtn" id="histT" data-pop="histPop"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
+  <div class="tg"><button class="tbtn mono" id="zoomT"></button><button class="tbtn" id="themeT"></button></div>
+  <div class="tg"><button class="dbtn" id="histT" data-pop="histPop" title="记录"></button><button class="ibtn" id="dockT" title="滑块（I）" aria-label="滑块"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
 </div></div>
 
-<!-- 左：上「档」清单（轮次 · 每档名字，选中那档展开论点 / 零件 / 代价 / 样本），下滑条栏（agent 按题目定，用户只管拉） -->
-<div class="lane side"><div class="isl bar" id="vlist"><div class="vh" id="vhead"></div><div class="rname" id="rname"></div><ol class="vl" id="vl"></ol></div><div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div></div>
+<!-- 左：界面 · 轮次 · 档 -->
+<div class="lane side"><div class="isl bar" id="nav"><ol class="vl" id="pl"></ol><div class="rrow" id="rrow"></div><ol class="vl" id="vl"></ol></div></div>
+<!-- 右：滑块（不常用，I 收起）；右下角：agent 回话 · 标注清单 · 发送 -->
+<div class="lane right">
+  <div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div>
+  <div class="out"><div class="isl tray" id="tray" hidden><div class="reply" id="reply"></div><ul class="chg nl" id="nl"></ul></div><button class="fab" id="fab" title="发给 agent（⌘⏎）"></button></div>
+</div>
 
-<!-- 记录：交互动作与改动一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
-<div class="isl pop down" id="histPop">
+<!-- 记录：交互动作、改动、标注、发送与 agent 回话一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
+<div class="isl pop" id="histPop">
   <div class="fig"><div class="fig-box" id="fig"></div></div>
   <div class="sh" id="histH"></div>
   <ul class="chg hist" id="hist"></ul>
   <div class="pfoot" id="histF"></div>
 </div>
-<div class="isl pop down" id="keysPop"><div class="keys">
-  <kbd class="ink-kbd">0–9</kbd><span>选档</span>
-  <kbd class="ink-kbd">← →</kbd><span>上一档 / 下一档</span>
-  <kbd class="ink-kbd">S</kbd><span>换样本</span>
-  <kbd class="ink-kbd">M</kbd><span>轮换 两开 / 交互 / 拼装 / 静态</span>
-  <kbd class="ink-kbd">C</kbd><span>现状对选中档（再按回单看）</span>
-  <kbd class="ink-kbd">A</kbd><span>平铺全部档（再按回单看）</span>
+<div class="isl pop left" id="roundPop"><ol class="rl" id="roundL"></ol></div>
+<div class="isl cmp" id="cmp"><div class="ch" id="cmpH"></div><textarea id="cmpT" rows="2" placeholder="这里要改什么…"></textarea></div>
+<div class="isl pop" id="keysPop"><div class="keys">
+  <kbd class="ink-kbd">0–9</kbd><span>选档（← → 上一档 / 下一档）</span>
+  <kbd class="ink-kbd">↑ ↓</kbd><span>换界面</span>
+  <kbd class="ink-kbd">S</kbd><span>换样本（⇧S 倒着）</span>
+  <kbd class="ink-kbd">R</kbd><span>换轮次（⇧R 倒着）</span>
+  <kbd class="ink-kbd">F</kbd><span>标注：点哪儿记哪儿</span>
+  <kbd class="ink-kbd">⌘⏎</kbd><span>发给 agent</span>
+  <kbd class="ink-kbd">C</kbd><span>现状对选中档</span>
+  <kbd class="ink-kbd">A</kbd><span>本界面全部档</span>
+  <kbd class="ink-kbd">G</kbd><span>全部界面并排，各切各的档</span>
+  <kbd class="ink-kbd">M</kbd><span>交互 / 两开 / 拼装 / 静态</span>
+  <kbd class="ink-kbd">⌥</kbd><span>拼装 / 标注时抓整组</span>
   <kbd class="ink-kbd">T</kbd><span>明暗 系统 → 亮 → 暗</span>
-  <kbd class="ink-kbd">I</kbd><span>收起 / 打开左栏（档清单 + 滑条）</span>
-  <kbd class="ink-kbd">R</kbd><span>换轮次</span>
+  <kbd class="ink-kbd">I</kbd><span>收起 / 打开滑块</span>
   <kbd class="ink-kbd">P</kbd><span>重播入场</span>
-  <kbd class="ink-kbd">⌘Z</kbd><span>撤回改动（Ctrl+Z 同）</span>
-  <kbd class="ink-kbd">⇧⌘Z</kbd><span>重做（Ctrl+Y 同）</span>
-  <kbd class="ink-kbd">Esc</kbd><span>关菜单 / 弹层</span>
+  <kbd class="ink-kbd">⌘Z</kbd><span>撤回（⇧⌘Z 重做）</span>
+  <kbd class="ink-kbd">Esc</kbd><span>关菜单 / 弹层，退出标注</span>
 </div></div>
 
 <script type="module">
@@ -332,56 +351,75 @@ const ICON = {
   "reload": "<path d=\"M17.66 10.93L17.88 11.74L17.98 12.56L17.96 13.38L17.78 14.32L17.51 15.08L17.05 15.9L16.56 16.54L15.89 17.17L15.25 17.62L14.44 18.01L13.59 18.27L12.71 18.4L11.84 18.39L10.99 18.25L10.17 17.99L9.3 17.55L8.51 16.97L7.92 16.36L7.42 15.67L7.04 14.9L6.78 14.08L6.65 13.23L6.66 12.36L6.81 11.5L7.1 10.68L7.52 9.91L8.05 9.21L8.7 8.6L9.44 8.11L10.25 7.75L11.12 7.53L12.02 7.45L12.4 7.39L12.74 7.24L13.04 7.01L13.27 6.71L13.41 6.35L13.45 5.98L13.39 5.6L13.24 5.26L13.01 4.96L12.71 4.73L12.35 4.59L11.98 4.55L11.22 4.59L10.64 4.66L9.88 4.82L9.32 4.98L8.59 5.26L8.06 5.51L7.39 5.9L6.9 6.23L6.3 6.72L5.87 7.12L5.35 7.7L4.99 8.17L4.57 8.83L4.29 9.35L3.84 10.44L3.63 11.2L3.51 11.79L3.42 12.57L3.4 13.17L3.44 13.96L3.52 14.55L3.8 15.71L4.07 16.46L4.33 17L4.94 18.03L5.43 18.66L5.83 19.1L6.73 19.9L7.73 20.56L8.26 20.84L9 21.14L9.57 21.31L10.35 21.49L10.94 21.56L11.73 21.6L12.91 21.52L13.5 21.41L14.25 21.21L14.81 21.01L15.51 20.69L16.02 20.41L16.67 19.98L17.12 19.62L17.68 19.09L18.06 18.67L18.53 18.07L18.84 17.59L19.2 16.93L19.5 16.24L19.74 15.53L20 14.25L20.06 12.96L19.92 11.68L19.76 10.96L19.54 10.27L19.43 10.04L19.25 9.84L19.03 9.7L18.78 9.62L18.52 9.6L18.27 9.66L18.04 9.77L17.84 9.95L17.7 10.17L17.62 10.42L17.6 10.68Z\"/><path stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linejoin=\"round\" d=\"M11.8 2.6 16.4 6l-4.6 3.4Z\"/>"
 };
 const ic = (n, s = 16) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ICON[n] ?? ""}</svg>`;
-/* 零件套壳：render 里每个零件用 part(id, 名, html) 包一层，拼装时才拖得动、右下角拉得动大小；cls 给壳本身加类（例：绝对定位的浮层零件） */
-const part = (id, name, html, cls = "") => `<div class="shell ${cls}" data-part="${id}" data-name="${name}"><span class="pn">${name}</span>${html}<span class="sz" aria-hidden="true"></span></div>`;
+/* 零件命名（可选）：拼装与标注不靠命名——点到哪个小组件就是哪个（按钮 / 图标 / 字 / 标签，台子自动认）。
+   命名只为两件事：跨档同名（记录 / 发给 agent 的 JSON 里叫同一个名字、换样本也认得）与 ⌥ 抓整组。
+   pa(id, 名) 是属性，直接写在元素上：<button ${pa("send", "发送")}>；part(id, 名, html, cls?) 是给一组外面套一层壳 */
+const pa = (id, name) => `data-part="${id}" data-name="${name}"`;
+const part = (id, name, html, cls = "") => `<div class="shell ${cls}" ${pa(id, name)}>${html}</div>`;
 
 /* ================= ② 题目（只改这一段；写法见 morii-compare SKILL.md ④） =================
    这里故意是空的：样本、样式、档都由你按题目现写，别从别的对照页抄内容。没填就会在舞台上报错。 */
 const TOPIC = "TOPIC";
 const KEY = "lab.TOPIC.";   // localStorage 前缀，每个题目一个
 
-/* 样本 ≥3 条（稀 / 中 / 满），照项目真 schema 抄形状。台子只读 from（顶条上的字）与 note（题签里的一句），其余字段随题目 */
-const SPECS = [];
-
-/* 所有档共用的样本样式（只进影子，不进台子；只吃 token 与 var(--p-*)）。档自己的写各档 css 字段 */
+/* 所有界面共用的样本样式（只进影子，不进台子；只吃 token 与 var(--p-*)）。界面自己的写界面 css，档自己的写档 css */
 const CSS = ``;
 
-/* 轮次。每轮：
-   name    轮名
-   tile    { w, h } 每格多大：数字（px），或共用参数的 key（跟着滑块变）
-   params  共用滑块 [{ key, label, min, max, step, tick, def, unit }] → 影子里 var(--p-<key>)；由你定，2–6 条
-   pins    静态看法下可钉住的状态 [[id, 名], …]，配 pin(root, id, spec) 把样本摆成那样
-   menu    (spec, btn) => [{ label, danger }]：带 data-menu 的按钮弹出的菜单
-   on      (act, { root, spec, btn, log }) => void：带 data-act 的按钮被点时的真行为（不写就只记一笔）
-   figure  (v, d, box) => HTML：记录弹层顶上的示意图，v 当前值 / d 默认值（可不写）
-   list    档 [{ name, thesis, parts: [[键, 值], …], cost, css, params, render(spec) => HTML }]，第一轮第 0 档 = 现状 */
-const ROUNDS = [];
+/* 界面：比几个不同的界面就写几项（只比一个就写一项）。每个界面有自己的样本、自己的一套档——档的设计各界面各不相同。
+   name    左栏界面清单上的名字
+   specs   样本 ≥3 条（稀 / 中 / 满），照项目真 schema 抄形状；台子只读 from（顶条样本段控上的字）与 note
+   css     这个界面所有档共用的样式（可不写）
+   rounds  轮次，一轮一项、下一轮追加在末尾。每轮：
+     name    轮名
+     tile    { w, h } 每格多大：数字（px），或共用参数的 key（跟着滑块变）
+     params  共用滑块 [{ key, label, min, max, step, tick, def, unit }] → 影子里 var(--p-<key>)；由你定，2–6 条
+     pins    静态看法下可钉住的状态 [[id, 名], …]，配 pin(root, id, spec) 把样本摆成那样
+     menu    (spec, btn) => [{ label, danger }]：带 data-menu 的按钮弹出的菜单
+     on      (act, { root, spec, btn, log }) => void：带 data-act 的元素被点时的真行为（不写就只记一笔）
+     figure  (v, d, box) => HTML：记录弹层顶上的示意图，v 当前值 / d 默认值（可不写）
+     list    档 [{ name, thesis, parts: [[键, 值], …], cost, css, params, render(spec) => HTML }]，第一轮第 0 档 = 现状 */
+const PAGES = [];
 
 /* ================= ③ 台子（不用改） ================= */
-/* 台子给每格影子的底：尺寸、根、壳、名牌、菜单、看法（样本自己的样式在 ② 的 CSS 与各档 css） */
+/* ② 也可以只写 SPECS + ROUNDS（单界面的老写法），台子包成一个界面 */
+const PAGES_ = typeof PAGES !== "undefined" ? PAGES : [{ name: TOPIC, specs: SPECS, rounds: ROUNDS }];
+const SHARED_CSS = typeof CSS === "string" ? CSS : "";
+/* 台子给每格影子的底：尺寸、根、壳、名牌、标注点、菜单、看法（样本自己的样式在 ② 的 CSS、界面 css 与各档 css） */
 const CHROME_CSS = `
-:host { flex: none; display: flex; width: var(--tile-w); height: var(--tile-h); color: var(--ink); font-family: var(--font); -webkit-user-select: text; user-select: text; cursor: auto; }
+:host { position: relative; flex: none; display: flex; width: var(--tile-w); height: var(--tile-h); color: var(--ink); font-family: var(--font); -webkit-user-select: text; user-select: text; cursor: auto; }
 * { box-sizing: border-box; }
 button { font: inherit; color: inherit; }
 .ic { flex: none; display: block; }
 .root { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-:host([data-mode="static"]) .root * { pointer-events: none; }   /* 静态：样本不响应，根留着接点击（选档） */
+:host([data-mode="static"]:not([data-note])) .root * { pointer-events: none; }   /* 静态：样本不响应，根留着接点击（选档）；标注时照样本自己的命中走 */
 :host(.dragging) { -webkit-user-select: none; user-select: none; cursor: grabbing; }
-.shell { position: relative; border-radius: 10px; transition: background-color var(--t-fast) var(--ease-hover), box-shadow var(--t-fast) var(--ease-hover); }
-:host([data-mode~="build"]) .shell { cursor: grab; }
-:host([data-mode~="build"]) .shell:hover, .shell.drag { background: color-mix(in srgb, var(--accent) 7%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent); }
-.shell.drag { cursor: grabbing; z-index: 25; box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), var(--shadow-md); }
-.pn { position: absolute; right: 6px; top: 0; translate: 0 -50%; z-index: 30; height: 16px; padding: 0 5px; border-radius: 5px; pointer-events: none;
-  font: 600 9.5px/16px var(--font-mono); white-space: nowrap; background: var(--accent); color: var(--on-accent); opacity: 0; transition: opacity var(--t-fast) var(--ease-hover); }
-:host([data-mode~="build"]) .shell:hover > .pn, .shell.drag > .pn { opacity: 1; }
-/* 改大小：右下角一枚拉手，拼装开着、悬停才露；拉过的零件内容撑满壳 */
-.sz { position: absolute; right: -5px; bottom: -5px; z-index: 31; width: 12px; height: 12px; border-radius: 4px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg-content);
-  cursor: nwse-resize; touch-action: none; opacity: 0; pointer-events: none; transition: opacity var(--t-fast) var(--ease-hover), transform var(--t-press) var(--ease-out); }
-:host([data-mode~="build"]) .shell:hover > .sz, .shell.drag > .sz { opacity: 1; pointer-events: auto; }
-.sz:active { transform: scale(1.2); }
-.shell.sized { transition: width var(--t-med) var(--ease-out), height var(--t-med) var(--ease-out), background-color var(--t-fast) var(--ease-hover), box-shadow var(--t-fast) var(--ease-hover); }
-.shell.sized.drag { transition: none; }
-.shell.sized > :not(.pn):not(.sz) { width: 100%; height: 100%; }
+:host([data-mode~="build"]) .root { cursor: grab; }
+:host([data-mode~="build"]) img { -webkit-user-drag: none; }
+:host([data-note]) { -webkit-user-select: none; user-select: none; }
+:host([data-note]) .root, :host([data-note]) .root * { cursor: crosshair !important; }
+.shell { position: relative; }
+.shell.sized > * { width: 100%; height: 100%; }   /* 套壳的组拉过大小：内容撑满壳 */
+/* 拼装 / 标注罩：一枚浮在影子顶上的框，跟着指针下那个小组件走（名牌 + 右下角拉手），零件本身不加任何东西 */
+.lab-hud { position: absolute; z-index: 30; pointer-events: none; border-radius: 6px; display: none;
+  background: color-mix(in srgb, var(--accent) 7%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.lab-hud.on { display: block; }
+.lab-hud.drag { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), var(--shadow-md); }
+.lab-hud > .pn { position: absolute; right: 0; bottom: 100%; margin-bottom: 3px; height: 16px; padding: 0 5px; border-radius: 5px;
+  font: 600 9.5px/16px var(--font-mono); white-space: nowrap; background: var(--accent); color: var(--on-accent); }
+.lab-hud > .sz { position: absolute; right: -5px; bottom: -5px; width: 12px; height: 12px; border-radius: 4px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg-content);
+  cursor: nwse-resize; touch-action: none; pointer-events: auto; transition: transform var(--t-press) var(--ease-out); }
+.lab-hud > .sz:active { transform: scale(1.2); }
+:host([data-note]) .lab-hud > .sz { display: none; }
+/* 标注点：一枚带号的水滴，尖角落在点下去的位置；发出去的变灰，agent 回话后消失 */
+.lab-pins { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: clip; overflow-clip-margin: 28px; }   /* 跟着组件滑出格子的点剪掉 */
+.lab-pin { position: absolute; min-width: 24px; height: 24px; padding: 0 7px; border: 0; border-radius: 12px 12px 12px 3px; translate: 0 -100%; transform-origin: 0 100%;
+  display: grid; place-items: center; font: 650 11.5px/1 var(--font-mono); background: var(--accent); color: var(--on-accent); cursor: pointer; pointer-events: auto;
+  box-shadow: 0 0 0 2px var(--bg-content), var(--shadow-md); animation: pin-in var(--t-med) var(--ease-out);
+  transition: transform var(--t-press) var(--ease-out), background-color var(--t-fast) var(--ease-hover); }
+.lab-pin:hover, .lab-pin.on { transform: scale(1.15); }
+.lab-pin.sent { background: var(--ink-4); }
+.lab-pin[hidden] { display: none; }   /* 组件此刻看不见（抽屉收起、页签切走）：点也藏起来 */
+@keyframes pin-in { from { transform: scale(.3); opacity: 0; } }
 .menu { position: absolute; z-index: 40; min-width: 150px; padding: 4px; border-radius: var(--r-sm); background: var(--panel); box-shadow: var(--shadow-md), 0 0 0 1px var(--sep);
   display: flex; flex-direction: column; animation: menu-in var(--t-fast) var(--ease-out); }
 .menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-xs); background: none; font-size: var(--fs-label); color: var(--ink-2); text-align: left; }
@@ -390,17 +428,20 @@ button { font: inherit; color: inherit; }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
 `;
 
-/* 看法 = 两颗独立开关，默认都开；都关 = 静态（样本不响应指针，可钉住悬停 / 菜单开来对照） */
+/* 看法 = 两颗独立开关，默认只开交互（拼装要用时再开）；都关 = 静态（样本不响应指针，可钉住悬停 / 菜单开来对照）。标注是另一颗，开着时盖过看法 */
 const FLAGS = [
-  ["live", "交互", "play", "真点真用：按钮、⋯ 菜单、编辑都能用，每一下进「记录」；拉刻度轨不重画，开着的菜单不会被冲掉"],
-  ["build", "拼装", "grid-view", "零件框内任意处按住拖动（过 4px 才算拖，轻点照常点按钮），右下角拉手改大小；吸 8px 格，Shift 不吸，双击框归位"],
+  ["live", "交互", "play", "交互：按钮、⋯ 菜单、编辑都能真用，每一下进「记录」"],
+  ["build", "拼装", "grid-view", "拼装：点到哪个小组件就拖哪个，⌥ 抓整组；右下角拉手改大小；吸 8px 格，Shift 不吸，双击归位"],
 ];
+/* 拼装 / 标注认的「一个组件」：控件整颗不拆（按钮里的图标随按钮走），svg 整枚；其余点到哪个元素就是哪个 */
+const ATOM = "button, a, input, select, textarea, [role=button]";
 const DRAG_PX = 4;
 const SNAP = 8;
 const SPRING = { k: 420, z: 0.78 };
-const GAP = 28, PAD_X = 32, PAD_Y = 16 + 24, LBL = 32;   // 与 .stage / .tile 的 CSS 一致
+const GAP = 28, PAD_X = 32, PAD_Y = 16 + 24, LBL = 34;   // 与 .stage / .tile 的 CSS 一致
 const MIN_Z = 0.6;     // 平铺缩到这以下就算「放不下」：保底这个比例，按宽排列、纵向滚动
 const MERGE_MS = 500;  // 同一项改动连着来（双击回默认、连按方向键）并成一条记录 / 一步撤回
+const SERVED = location.protocol.startsWith("http");   // 经对照版服务打开：自动刷新、发给 agent；直接开文件：发送 = 拷进剪贴板
 
 /* 弹簧（k 刚度、z 阻尼比，dt 钳在 1/30） */
 const step = (p, to, { k, z }, dt) => { p.v += (-k * (p.x - to) - 2 * z * Math.sqrt(k) * p.v) * dt; p.x += p.v * dt; };
@@ -416,48 +457,67 @@ function frame(t) {
 }
 function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(frame); } }
 
-/* 状态 */
+/* 状态：存储键都带全地址（界面 g · 轮 r · 档 i），撤回快照换了界面也认得
+   g 当前界面 · r<g> 轮 · v<g>.<r> 选中档 · s<g> 样本 · ps<g>.<r> 共用参数 · pv<g.r.i> 档私有参数 · L<g.r.i> 布局 */
 const load = (k, d) => { const v = localStorage.getItem(KEY + k); return v === null ? d : JSON.parse(v); };
 const save = (k, v) => localStorage.setItem(KEY + k, JSON.stringify(v));
 const raw = (k) => localStorage.getItem(KEY + k);
-let round = Math.min(load("r", ROUNDS.length - 1), ROUNDS.length - 1);
-const sel = ROUNDS.map((_, i) => load("v" + i, i === 0 ? 1 : 0));
-let spec = Math.min(load("s", 1), SPECS.length - 1);
-let view = load("w", "one");   // 看几档：one = 单看选中档（默认）· pair = 现状对选中（C）· all = 平铺全部（A）——有必要才平铺
-const flags = load("f", { live: true, build: true });
+let pg = Math.min(load("g", 0), PAGES_.length - 1);
+const rnd = (g = pg) => Math.min(load("r" + g, PAGES_[g].rounds.length - 1), PAGES_[g].rounds.length - 1);
+const selI = (g = pg, r = rnd(g)) => Math.min(load(`v${g}.${r}`, r === 0 ? 1 : 0), PAGES_[g].rounds[r].list.length - 1);
+const spc = (g = pg) => Math.min(load("s" + g, 1), PAGES_[g].specs.length - 1);
+let view = load("w", "one");   // 看几档：one 单看（默认）· pair 现状对选中（C）· all 本界面全部档（A）· pages 全部界面并排（G）
+if (view === "pages" && PAGES_.length < 2) view = "one";
+const flags = load("f", { live: true, build: false });
 const modeStr = () => FLAGS.filter(([id]) => flags[id]).map(([id]) => id).join(" ") || "static";
 const isStatic = () => !flags.live && !flags.build;
 let pinned = "rest";
 let fit = load("z", true);
-let zoom = 1, cols = 1;
-const pos = {};       // { "轮.档": { 零件: {x, y} } }
+let zoom = 1, cols = 1, dims = { w: 0, h: 0 };
+const pos = {};       // { "g.r.i": { 零件: {x, y} } }；零件 = 具名 id，或没命名的自动 id「@样本:路径」
 const settling = new Map();
-const history = [];   // 记录：交互动作（act）与改动（chg）按时间混排；撤回 / 重做只认 chg
+/* 记录：交互动作（act）、改动（chg）、标注（note）、发送（send）、agent 回话（say）按时间混排；撤回 / 重做只认 chg。
+   存 sessionStorage：agent 改完页面自动刷新，记录与撤回照样接得上 */
+const history = JSON.parse(sessionStorage.getItem(KEY + "h") ?? "[]").map((h) => ({ ...h, t: new Date(h.t), ts: 0 }));
+let noting = load("nt", false);   // 标注开着：点哪个组件就在哪儿打点
+let notes = load("n", []);        // 标注 [{ id, no, k: "g.r.i", s, part, idx, tag, name, css, text, html, fx, fy, x, y, note, state: open|sent, batch }]
+let draft = null, editing = null; // 正在写的那条（draft = 还没存的新标注）
+let said = null, reloadPending = false;
 
 const $ = (id) => document.getElementById(id);
 const stage = $("stage"), board = document.querySelector(".board");
-const R = () => ROUNDS[round];
-const S = () => SPECS[spec];
-const vk = (r, i) => r + "." + i;
-const selV = () => R().list[sel[round]];
-const selK = () => vk(round, sel[round]);
-/* 舞台上的格：单看 = 只有选中档；对照 = 现状（第一轮第 0 档）+ 选中档；平铺 = 本轮全部档 */
+const PG = () => PAGES_[pg];   // 不叫 P：② 里常有 const P = window.PK 之类
+const R = () => PG().rounds[rnd()];
+const S = () => PG().specs[spc()];
+const vk = (g, r, i) => `${g}.${r}.${i}`;
+const at3 = (k) => k.split(".").map(Number);
+const selV = () => R().list[selI()];
+const selK = () => vk(pg, rnd(), selI());
+const roundOfK = (k) => { const [g, r] = at3(k); return PAGES_[g].rounds[r]; };
+const varOf = (k) => { const [g, r, i] = at3(k); return PAGES_[g].rounds[r].list[i]; };
+const vname = (g, r, i) => `${i} ${PAGES_[g].rounds[r].list[i].name}`;
+const multi = () => PAGES_.length > 1;
+const isPages = () => view === "pages" && multi();
+/* 舞台上的格：单看 = 选中档；对照 = 本界面现状 + 选中档；全档 = 本界面本轮全部档；全部界面 = 每个界面各自选中的那档 */
 const tiles = () => {
-  const all = R().list.map((v, i) => ({ r: round, i, v }));
-  if (view === "all") return all;
-  const one = all[sel[round]];
-  return view === "one" || (round === 0 && sel[0] === 0) ? [one] : [{ r: 0, i: 0, v: ROUNDS[0].list[0] }, one];
+  if (isPages()) return PAGES_.map((_, g) => ({ g, r: rnd(g), i: selI(g), s: spc(g) }));
+  const g = pg, r = rnd(), i = selI(), s = spc();
+  if (view === "all") return R().list.map((_, j) => ({ g, r, i: j, s }));
+  if (view === "one" || (r === 0 && i === 0)) return [{ g, r, i, s }];
+  return [{ g, r: 0, i: 0, s }, { g, r, i, s }];
 };
 const hosts = () => [...stage.querySelectorAll(".host")];
-const hostOf = (k) => stage.querySelector(`.host[data-vk="${k}"]`);
-const varOf = (k) => { const [r, i] = k.split(".").map(Number); return ROUNDS[r].list[i]; };
-const shared = () => load("ps" + round, {});
+const hostsOf = (k) => [...stage.querySelectorAll(`.host[data-vk="${k}"]`)];
+const sOf = (root) => Number(root.host.dataset.sp);   // 这格画的是哪条样本
+const specOfRoot = (root) => PAGES_[at3(root.host.dataset.vk)[0]].specs[sOf(root)];
+const sk = (g = pg, r = rnd(g)) => `ps${g}.${r}`;
+const shared = (g = pg, r = rnd(g)) => load(sk(g, r), {});
 const own = (k) => load("pv" + k, {});
 /* 参数来源：s = 轮次共用，o = 档私有（读选中档的那份） */
 const specBy = (src, key) => (src === "s" ? R().params ?? [] : selV().params ?? []).find((x) => x.key === key);
 const specOf = (el) => specBy(el.dataset.src, el.dataset.k);
 const valOf = (p, src) => (src === "o" ? own(selK()) : shared())[p.key] ?? p.def;
-const storeOf = (src) => (src === "o" ? "pv" + selK() : "ps" + round);
+const storeOf = (src) => (src === "o" ? "pv" + selK() : sk());
 /* 选中档的全部参数：当前值与默认值各一份（形状图、拷 JSON 用） */
 function values() {
   const v = {}, d = {};
@@ -469,11 +529,16 @@ function values() {
 /* ---- 小件 ---- */
 const sh = (icon, title, meta = "", act = "") => `${ic(icon, 16)}<h3>${title}</h3>${meta}${act}`;
 const ibtn = (id, icon, label) => `<button class="ibtn" id="${id}" title="${label}" aria-label="${label}">${ic(icon, 15)}</button>`;
-const dens = (i) => `<span class="dens">${"<i></i>".repeat([1, 2, 4][i] ?? i + 1)}</span>`;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const hms = (d) => [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
 const signed = (d) => (d > 0 ? "+" : "−") + +Math.abs(d).toFixed(4);
+function flash(btn, ok, html) {
+  const was = btn.innerHTML;
+  btn.classList.add("flash", ok ? "ok" : "err"); btn.innerHTML = html ?? ic(ok ? "check" : "close", 15);
+  setTimeout(() => { btn.classList.remove("flash", "ok", "err"); btn.innerHTML = was; paintOut(); }, 1400);
+}
 /* 段控：渲染一次，之后只改 aria-pressed 再 segSync（色块滑过去） */
-const seg = (el, items) => { el.innerHTML = `<i class="thumb"></i>` + items.map(([attr, val, html]) => `<button ${attr}="${val}">${html}</button>`).join(""); };
+const seg = (el, items) => { el.innerHTML = `<i class="thumb"></i>` + items.map(([attr, val, html, title]) => `<button ${attr}="${val}"${title ? ` title="${esc(title)}"` : ""}>${html}</button>`).join(""); };
 function segSync(el) {
   const t = el.querySelector(".thumb"), b = el.querySelector('button[aria-pressed="true"]');
   if (!t) return;
@@ -486,26 +551,29 @@ function segSync(el) {
 }
 const press = (sel_, test) => document.querySelectorAll(sel_).forEach((b) => b.setAttribute("aria-pressed", String(test(b))));
 
-/* ---- 参数：共用的写在舞台上，档私有的写在各自的格上（影子继承） ---- */
-/* 每格尺寸：tile 里写数字，或写共用参数的 key */
-const tileWH = () => Object.fromEntries(["w", "h"].map((a) => { const x = R().tile[a]; return [a, typeof x === "number" ? x : valOf(specBy("s", x), "s")]; }));
+/* ---- 参数：共用的与档私有的都写在各自的格上（影子继承）；格的尺寸也按各自那一轮 ---- */
+const tileWH = (g, r) => { const rd = PAGES_[g].rounds[r]; return Object.fromEntries(["w", "h"].map((a) => { const x = rd.tile[a]; return [a, typeof x === "number" ? x : shared(g, r)[x] ?? rd.params.find((p) => p.key === x).def]; })); };
 function applyParams() {
-  const sv = shared(), t = tileWH();
-  stage.style.cssText = [`--tile-w: ${t.w}px`, `--tile-h: ${t.h}px`, ...(R().params ?? []).map((p) => `--p-${p.key}: ${sv[p.key] ?? p.def}${p.unit}`)].join(";");
+  dims = { w: 0, h: 0 };
   for (const h of hosts()) {
-    const ov = own(h.dataset.vk);
-    h.style.cssText = (varOf(h.dataset.vk).params ?? []).map((p) => `--p-${p.key}: ${ov[p.key] ?? p.def}${p.unit}`).join(";");
+    const [g, r] = at3(h.dataset.vk), sv = shared(g, r), ov = own(h.dataset.vk), t = tileWH(g, r);
+    dims = { w: Math.max(dims.w, t.w), h: Math.max(dims.h, t.h) };
+    h.style.cssText = [`--tile-w: ${t.w}px`, `--tile-h: ${t.h}px`,
+      ...(PAGES_[g].rounds[r].params ?? []).map((p) => `--p-${p.key}: ${sv[p.key] ?? p.def}${p.unit}`),
+      ...(varOf(h.dataset.vk).params ?? []).map((p) => `--p-${p.key}: ${ov[p.key] ?? p.def}${p.unit}`)].join(";");
   }
+  stage.style.cssText = `--tile-w: ${dims.w}px; --tile-h: ${dims.h}px`;
   applyZoom();
+  placePins();
   if (openPop === "histPop") renderFig();
 }
 /* 平铺：试每种列数，取比例最大的那种（不放大；同比例取列多的）；最大也低于 MIN_Z 就保底 MIN_Z 并滚动 */
 function applyZoom() {
   const topB = document.querySelector(".lane.top").getBoundingClientRect().bottom + 12;
-  board.style.paddingTop = topB + "px";   // 题签换行变高时舞台跟着让，不压格子
-  document.documentElement.style.setProperty("--side-top", topB + "px");   // 左侧滑条栏从顶部两行下面开始
+  board.style.paddingTop = topB + "px";
+  document.documentElement.style.setProperty("--side-top", topB + "px");   // 左右两栏从顶条下面开始
   const n = stage.querySelectorAll(".tile").length || 1;
-  const { w: fw, h } = tileWH(), th = h + (view === "one" ? 0 : LBL);
+  const fw = dims.w, th = dims.h + (view === "one" ? 0 : LBL);
   const cs = getComputedStyle(board);
   const W = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), H = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   let best = { z: 0, c: 1 };
@@ -521,10 +589,10 @@ function applyZoom() {
   zoom = best.z; cols = best.c;
   document.documentElement.style.setProperty("--zoom", zoom);
   document.documentElement.style.setProperty("--cols", cols);
-  $("zoomv").textContent = Math.round(zoom * 100) + "%";
-  const zn = $("zoomn");
-  zn.textContent = over ? "放不下，滚动看" : !fit ? "实际尺寸" : n === 1 ? "单看" : `${cols} 列 × ${Math.ceil(n / cols)} 行`;
-  zn.classList.toggle("warn", over);
+  const zt = $("zoomT");
+  zt.textContent = Math.round(zoom * 100) + "%";
+  zt.classList.toggle("warn", over);
+  zt.title = over ? "放不下，保底 60% 滚动看" : fit ? "适配窗口（点一下看原尺寸）" : "原尺寸（点一下适配窗口）";
 }
 function renderFig() {
   const box = $("fig"), { v, d } = values();
@@ -536,7 +604,7 @@ function renderFig() {
 const frac = (p, v) => (v - p.min) / (p.max - p.min);
 const at = (f) => `left:calc(var(--pad) + (100% - var(--pad) * 2) * ${f})`;
 function knobHTML(p, src) {
-  const scope = src === "s" ? `<span class="tag">共用</span>` : `<span class="badge on">${sel[round]}</span>`;
+  const scope = src === "o" ? `<span class="badge on" title="只有第 ${selI()} 档有">${selI()}</span>` : "";
   const tick = p.tick ?? p.step, n = Math.round((p.max - p.min) / tick);
   const ticks = Array.from({ length: n + 1 }, (_, i) => `<span class="tick${i === 0 || i === n ? " end" : ""}" data-tk="${p.min + i * tick}" style="${at(i / n)}"></span>`).join("");
   return `<div class="knob" data-k="${p.key}" data-src="${src}">
@@ -553,11 +621,12 @@ function paintKnob(el, val) {
   el.querySelector(".cur").textContent = val;
   el.querySelector(".track").setAttribute("aria-valuenow", val);
 }
-/* 滑条栏：滑块由 agent 写页面时决定（轮次 params 共用 + 档 params 私有），用户只管拉；选中档换了，私有那几条跟着换 */
+/* 滑块：由 agent 写页面时决定（轮次 params 共用 + 档 params 私有），用户只管拉；跟着当前界面、选中档换 */
 function renderKnobs() {
   $("knobs").innerHTML = (R().params ?? []).map((p) => knobHTML(p, "s")).join("") + (selV().params ?? []).map((p) => knobHTML(p, "o")).join("");
   document.querySelectorAll(".knob").forEach((el) => paintKnob(el, valOf(specOf(el), el.dataset.src)));
 }
+const hasKnobs = () => PAGES_.some((p) => p.rounds.some((r) => r.params?.length || r.list.some((v) => v.params?.length)));
 function setParam(el, val) {
   const p = specOf(el);
   val = +Math.min(p.max, Math.max(p.min, Math.round((val - p.min) / p.step) * p.step + p.min)).toFixed(4);
@@ -567,6 +636,7 @@ function setParam(el, val) {
   save(store, o);
   paintKnob(el, val);
   applyParams();
+  paintOut();
 }
 function trackAt(tr, p, x) {
   const r = tr.getBoundingClientRect(), pad = parseFloat(getComputedStyle(tr).paddingLeft);
@@ -580,13 +650,14 @@ function commit() {
   if (!pending) return;
   const { label, d, before } = pending;
   pending = null;
+  if (reloadPending) queueMicrotask(reloadSoon);   // 拖到一半来了新版本：这一下记完再刷新
   const after = Object.fromEntries(Object.keys(before).map((k) => [k, raw(k)]));
   if (Object.keys(before).every((k) => before[k] === after[k])) return;
   for (let i = history.length - 1; i >= 0; i--) if (history[i].undone) history.splice(i, 1);   // 撤回过的再也够不着了，拿掉
   const last = history.findLast((h) => h.kind === "chg"), now = performance.now();
   if (last && last.label === label && now - last.ts < MERGE_MS && Object.keys(before).every((k) => k in last.before)) Object.assign(last, { after, ts: now, t: new Date() });
   else history.push({ kind: "chg", label, d, before, after, ts: now, t: new Date(), undone: false });
-  renderHist();
+  renderHist(); paintOut();
 }
 const txn = (keys, label, fn, d) => { begin(keys, label, d); fn(); commit(); };
 function restore(snap) {
@@ -595,7 +666,7 @@ function restore(snap) {
     if (k.startsWith("L")) moves.push([k.slice(1), JSON.parse(raw(k) ?? "{}"), v === null ? {} : JSON.parse(v)]);
     if (v === null) localStorage.removeItem(KEY + k); else localStorage.setItem(KEY + k, v);
   }
-  applyParams(); renderKnobs();
+  applyParams(); renderKnobs(); syncChrome();
   for (const [k, cur, to] of moves) for (const id of new Set([...Object.keys(cur), ...Object.keys(to), ...Object.keys(pos[k] ?? {})])) {
     settle(k, id, { x: to[id]?.x ?? 0, y: to[id]?.y ?? 0 });
     setSize(k, id, to[id]?.w ?? null, to[id]?.h ?? null);
@@ -608,11 +679,15 @@ function undo(redo = false) {
   e.undone = !redo;
   renderHist();
 }
-function logAct(i, act, danger = false) { history.push({ kind: "act", i, from: S().from, act, danger, t: new Date() }); renderHist(); }
+const note = (h) => { history.push({ ...h, t: new Date() }); renderHist(); };
+const logAct = (i, act, from, danger = false) => note({ kind: "act", i, from, act, danger });
 /* 一条记录长什么样：字形 + 章 + 名 + 改前 → 改后 / 坐标章 + 等宽时刻；撤回过的变灰 */
 function rowHTML(h) {
   const tm = `<time>${hms(h.t)}</time>`, un = h.undone ? `<span class="tag">已撤回</span>` : "";
   if (h.kind === "act") return `<li class="${h.danger ? "danger" : ""}">${ic("play", 13)}<span class="badge">${h.i}</span><span class="tag">${h.from}</span><span class="nm">${h.act}</span>${tm}</li>`;
+  if (h.kind === "note") return `<li class="note">${ic("pen", 13)}<span class="badge on">${h.no}</span><span class="nm">${esc(h.label)}</span>${tm}</li>`;
+  if (h.kind === "send") return `<li>${ic("export", 13)}<span class="nm">${h.label}</span>${tm}</li>`;
+  if (h.kind === "say") return `<li class="say">${ic("check", 13)}<span class="nm" title="${esc(h.text)}">${esc(h.text)}</span>${tm}</li>`;
   const cls = h.undone ? "undone" : "";
   if (h.d.type === "param") {
     const get = (snap) => JSON.parse(snap[h.d.store] ?? "{}")[h.d.key] ?? h.d.def;
@@ -622,43 +697,80 @@ function rowHTML(h) {
   if (h.d.type === "move" || h.d.type === "size") {
     const q = JSON.parse(h.after["L" + h.d.k] ?? "{}")[h.d.id] ?? {};
     const xy = h.d.type === "size" ? (q.w != null ? `<span class="xy">w ${q.w}</span><span class="xy">h ${q.h}</span>` : "") : (q.x || q.y ? `<span class="xy">x ${q.x ?? 0}</span><span class="xy">y ${q.y ?? 0}</span>` : "");
-    return `<li class="${cls}">${ic("grid-view", 13)}<span class="badge">${h.d.k.split(".")[1]}</span><span class="nm">${h.label}</span>${xy || `<span class="xy">原样</span>`}${un}${tm}</li>`;
+    return `<li class="${cls}">${ic("grid-view", 13)}<span class="badge">${at3(h.d.k)[2]}</span><span class="nm">${h.label}</span>${xy || `<span class="xy">原样</span>`}${un}${tm}</li>`;
   }
   return `<li class="${cls}">${ic("pen", 13)}<span class="nm">${h.label}</span>${un}${tm}</li>`;
 }
 function renderHist() {
+  sessionStorage.setItem(KEY + "h", JSON.stringify(history));
   const n = history.filter((h) => !h.undone).length;
-  $("histT").innerHTML = `${ic("list-ordered", 15)}记录<span class="badge${n ? " on" : ""}">${n}</span>`;
+  $("histT").innerHTML = `${ic("list-ordered", 15)}<span class="badge${n ? " on" : ""}">${n}</span>`;
   $("histH").innerHTML = sh("list-ordered", "记录", `<span class="meta">${n} 条</span>`, ibtn("copyJ", "export", "拷选中档的参数与布局 JSON"));
-  $("hist").innerHTML = history.length ? [...history].reverse().map(rowHTML).join("") : `<li class="empty">还没有记录：点样本、拉滑块、挪零件，每一下都记在这里</li>`;
+  $("hist").innerHTML = history.length ? [...history].reverse().map(rowHTML).join("") : `<li class="empty">点样本、拉滑块、挪零件、打标注，每一下都记在这里</li>`;
 }
 function copyJSON(btn) {
   const { v } = values();
   const units = Object.fromEntries([...(R().params ?? []), ...(selV().params ?? [])].map((p) => [p.key, p.unit]));
-  const json = JSON.stringify({ 档: sel[round] + " " + selV().name, 参数: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x + units[k]])), 布局: load("L" + selK(), {}) }, null, 2);
-  const flash = (cls, icon) => { btn.classList.add(cls); btn.innerHTML = ic(icon, 15); setTimeout(() => { btn.classList.remove(cls); btn.innerHTML = ic("export", 15); }, 1400); };
-  navigator.clipboard.writeText(json).then(() => flash("ok", "check"), (err) => { console.error("拷 JSON 失败", err); flash("err", "close"); });
+  const json = JSON.stringify({ 界面: PG().name, 档: vname(pg, rnd(), selI()), 参数: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x + units[k]])), 布局: load("L" + selK(), {}) }, null, 2);
+  navigator.clipboard.writeText(json).then(() => flash(btn, true), (err) => { flash(btn, false); throw err; });
 }
 
-/* ---- 拼装：位移写在壳的 translate 上、大小写在壳的 width / height 上，按档各存各的 L<轮.档> = { 零件: { x, y, w, h } } ---- */
-function putL(L, id, patch) {   // 合进一个零件的布局；位移归零、大小置空的字段拿掉，空了整条拿掉
+/* ---- 拼装：位移写在零件的 translate 上、大小写在 width / height 上，按档各存各的 L<g.r.i> = { 零件: { x, y, w, h, n } } ----
+   零件 = 指针下那个小组件（pick）：控件整颗、svg 整枚，其余点到哪个元素就是哪个；⌥ 抓最近的具名组（data-part）。
+   具名的跨档、跨样本同名；没命名的认「@样本:路径」，只在那条样本上生效。n = 名字，记录与拷 JSON 用 */
+function pick(t, face, group) {
+  if (!face.contains(t) || t === face || t.closest(".menu, [contenteditable]")) return null;
+  let el = t.closest(ATOM) ?? t.closest("svg") ?? t;
+  if (group) el = el.closest("[data-part]") ?? el;
+  if (el === face || !face.contains(el) || (el.parentElement === face && !el.dataset.part)) return null;   // 样本外框不算零件
+  return el;
+}
+const walk = (face, path) => { let n = face; for (const i of path.split(".")) n = n?.children[i]; return n ?? null; };
+const pathOf = (el, face) => { const p = []; for (let n = el; n !== face; n = n.parentElement) p.unshift([...n.parentElement.children].indexOf(n)); return p.join("."); };
+const idOf = (el, face) => el.dataset.part || `@${sOf(face.getRootNode())}:${pathOf(el, face)}`;
+const nameOf = (el) => el.dataset.name || el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent.trim().replace(/\s+/g, " ").slice(0, 12) || el.tagName.toLowerCase();
+function partEls(k, id) {
+  const at_ = id.startsWith("@") ? id.slice(1).split(":") : null;
+  return hostsOf(k).flatMap((h) => {
+    const face = h.shadowRoot.querySelector(".root");
+    if (!at_) return [...face.querySelectorAll(`[data-part="${id}"]`)];
+    const n = Number(at_[0]) === Number(h.dataset.sp) && walk(face, at_[1]);
+    return n ? [n] : [];
+  });
+}
+const unInline = (el) => { if (getComputedStyle(el).display === "inline") el.style.display = "inline-block"; };   // 行内元素吃不到 translate / 宽高
+/* 拼装罩：跟着当前那个零件走（悬停、拖动、调大小、撤回都重量一次） */
+function showHud(root, el) {
+  const hud = root.querySelector(".lab-hud");
+  root.cur = el;
+  hud.classList.toggle("on", !!el);
+  if (!el) return;
+  const hr = root.host.getBoundingClientRect(), r = el.getBoundingClientRect();
+  Object.assign(hud.style, { left: (r.left - hr.left) / zoom + "px", top: (r.top - hr.top) / zoom + "px", width: r.width / zoom + "px", height: r.height / zoom + "px" });
+  hud.firstChild.textContent = nameOf(el);
+}
+function hudFollow(k) {
+  for (const h of hostsOf(k)) if (h.shadowRoot.cur) showHud(h.shadowRoot, h.shadowRoot.cur);
+  placePins();
+}
+function putL(L, id, patch) {   // 合进一个零件的布局；位移归零、大小置空的字段拿掉，只剩名字就整条拿掉
   const q = { ...L[id], ...patch };
   for (const a of ["x", "y"]) if (!q[a]) delete q[a];
   for (const a of ["w", "h"]) if (q[a] == null) delete q[a];
-  if (Object.keys(q).length) L[id] = q; else delete L[id];
+  if (["x", "y", "w", "h"].some((a) => a in q)) L[id] = q; else delete L[id];
   return L;
 }
 function setSize(k, id, w, h) {
-  const host = hostOf(k);
-  if (host) for (const el of host.shadowRoot.querySelectorAll(`.shell[data-part="${id}"]`)) {
-    el.classList.toggle("sized", w != null);
+  for (const el of partEls(k, id)) {
+    unInline(el); el.classList.toggle("sized", w != null);
     el.style.width = w == null ? "" : w + "px"; el.style.height = h == null ? "" : h + "px";
   }
+  hudFollow(k);
 }
 function setPos(k, id, x, y) {
   (pos[k] ??= {})[id] = { x, y };
-  const h = hostOf(k);
-  if (h) for (const el of h.shadowRoot.querySelectorAll(`.shell[data-part="${id}"]`)) el.style.translate = `${x}px ${y}px`;
+  for (const el of partEls(k, id)) { unInline(el); el.style.translate = `${x}px ${y}px`; }
+  hudFollow(k);
 }
 function saveLayout(k) {
   const L = load("L" + k, {});
@@ -666,8 +778,8 @@ function saveLayout(k) {
   save("L" + k, L);
 }
 function settle(k, id, to) {
-  const sk = k + "|" + id;
-  settling.get(sk)?.stop();
+  const key = k + "|" + id;
+  settling.get(key)?.stop();
   const from = pos[k]?.[id] ?? { x: 0, y: 0 };
   const sx = { x: from.x, v: 0 }, sy = { x: from.y, v: 0 };
   const a = {
@@ -678,61 +790,250 @@ function settle(k, id, to) {
       if (done) { a.stop(); saveLayout(k); }
       return !done;
     },
-    stop() { anims.delete(a); settling.delete(sk); },
+    stop() { anims.delete(a); settling.delete(key); },
   };
-  settling.set(sk, a); anims.add(a); kick();
+  settling.set(key, a); anims.add(a); kick();
 }
-/* 框内按下先「待拖」：过 DRAG_PX 才接管成拖动（抓指针、关菜单、禁选字），没过就当普通一点 */
+/* 拖动时把各格的 iframe 设成不接指针：否则光标划过实验页，事件被 iframe 吃掉，拖动就卡住 */
+const shield = (on) => document.querySelectorAll(".host").forEach((h) => h.shadowRoot?.querySelectorAll("iframe").forEach((f) => (f.style.pointerEvents = on ? "none" : "")));
+/* 按下先「待拖」：过 DRAG_PX 才接管成拖动（抓指针、关菜单、禁选字），没过就当普通一点 */
 let swallow = false;
-function armDrag(e, shell, k, root) {
-  const id = shell.dataset.part, sx = e.clientX, sy = e.clientY, pid = e.pointerId;
-  let o = null, x = 0, y = 0;
+function armDrag(e, el, k, root) {
+  const hud = root.querySelector(".lab-hud"), id = idOf(el, root.querySelector(".root")), n = nameOf(el);
+  const sx = e.clientX, sy = e.clientY, pid = e.pointerId;
+  let o = null, x = 0, y = 0, done = false;
   const move = (ev) => {
+    if (ev.buttons === 0) return up(ev);   // 在窗外 / iframe 上松开了：补一次松手
     if (!o) {
       if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < DRAG_PX) return;
       settling.get(k + "|" + id)?.stop();
       o = pos[k]?.[id] ?? { x: 0, y: 0 };
-      shell.setPointerCapture(pid); shell.classList.add("drag"); root.host.classList.add("dragging");
+      el.setPointerCapture(pid); shield(true); showHud(root, el); hud.classList.add("drag"); root.host.classList.add("dragging");
       getSelection().removeAllRanges(); closeMenu(root);
-      begin(["L" + k], shell.dataset.name + " 挪位", { type: "move", k, id });
+      begin(["L" + k], n + " 挪位", { type: "move", k, id });
     }
     ev.preventDefault();
     x = o.x + (ev.clientX - sx) / zoom; y = o.y + (ev.clientY - sy) / zoom;
     setPos(k, id, x, y);
   };
   const up = (ev) => {
+    if (done) return; done = true;
     removeEventListener("pointermove", move, true); removeEventListener("pointerup", up, true); removeEventListener("pointercancel", up, true);
     if (!o) return;
+    shield(false);
     swallow = true; setTimeout(() => (swallow = false), 0);
-    shell.classList.remove("drag"); root.host.classList.remove("dragging");
-    const snap = (n) => Math.round(ev.shiftKey ? n : Math.round(n / SNAP) * SNAP);
+    hud.classList.remove("drag"); root.host.classList.remove("dragging");
+    const snap = (v) => Math.round(ev.shiftKey ? v : Math.round(v / SNAP) * SNAP);
     const to = { x: snap(x), y: snap(y) };
-    save("L" + k, putL(load("L" + k, {}), id, to)); commit();   // 落点先记下（撤回认它），弹簧只管画过去
+    save("L" + k, putL(load("L" + k, {}), id, { ...to, n })); commit();   // 落点先记下（撤回认它），弹簧只管画过去
     settle(k, id, to);
   };
   addEventListener("pointermove", move, true); addEventListener("pointerup", up, true); addEventListener("pointercancel", up, true);
 }
 
-/* 右下角拉手改大小：从当前尺寸起，按 8px 吸（Shift 不吸），松手记一条 */
-function armResize(e, grip, k, root) {
+/* 罩右下角拉手改大小：从当前尺寸起，按 8px 吸（Shift 不吸），松手记一条 */
+function armResize(e, el, k, root) {
   e.preventDefault(); e.stopPropagation();
-  const shell = grip.parentElement, id = shell.dataset.part, r0 = shell.getBoundingClientRect();
+  const grip = e.target, hud = grip.parentElement, id = idOf(el, root.querySelector(".root")), n = nameOf(el), r0 = el.getBoundingClientRect();
   const w0 = r0.width / zoom, h0 = r0.height / zoom, sx = e.clientX, sy = e.clientY;
   let w = w0, h = h0;
-  begin(["L" + k], shell.dataset.name + " 调大小", { type: "size", k, id });
-  grip.setPointerCapture(e.pointerId); shell.classList.add("drag"); root.host.classList.add("dragging"); closeMenu(root);
+  begin(["L" + k], n + " 调大小", { type: "size", k, id });
+  grip.setPointerCapture(e.pointerId); shield(true); hud.classList.add("drag"); root.host.classList.add("dragging"); closeMenu(root);
+  let done = false;
   const move = (ev) => {
-    const snap = (n) => Math.max(16, Math.round(ev.shiftKey ? n : Math.round(n / SNAP) * SNAP));
+    if (ev.buttons === 0) return up();
+    const snap = (v) => Math.max(8, Math.round(ev.shiftKey ? v : Math.round(v / SNAP) * SNAP));
     w = snap(w0 + (ev.clientX - sx) / zoom); h = snap(h0 + (ev.clientY - sy) / zoom);
     setSize(k, id, w, h);
   };
   const up = () => {
-    grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+    if (done) return; done = true; shield(false);
+    grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); grip.removeEventListener("lostpointercapture", up);
     swallow = true; setTimeout(() => (swallow = false), 0);
-    shell.classList.remove("drag"); root.host.classList.remove("dragging");
-    save("L" + k, putL(load("L" + k, {}), id, { w, h })); commit();
+    hud.classList.remove("drag"); root.host.classList.remove("dragging");
+    save("L" + k, putL(load("L" + k, {}), id, { w, h, n })); commit();
   };
-  grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
+  grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up); grip.addEventListener("lostpointercapture", up);
+}
+
+/* ---- 标注：点绑在组件上——记的是哪个组件（具名 / 路径 + 标签）和点在它里面的比例位置，不是格内坐标 ----
+   组件动（抽屉滑出、页签切换、拼装挪位）点就跟着动，组件看不见点就藏；认组件同拼装（pick），点到外框 / 空白就认外框 / 整格。
+   只有组件找不到了（agent 改了结构）才落回记下的格内坐标 */
+const pickNote = (t, face, group) => pick(t, face, group) ?? (face.contains(t) ? [...face.children].find((c) => c.contains(t)) ?? face : null);
+const cssPath = (el, face) => { const p = []; for (let n = el; n !== face; n = n.parentElement) p.unshift(n.tagName.toLowerCase() + (n.classList[0] ? "." + n.classList[0] : "")); return p.join(" > ") || ".root"; };
+function noteEl(face, n) {
+  const byPart = () => (n.part ? face.querySelector(`[data-part="${n.part}"]`) : null);
+  if (!n.idx) return n.part ? byPart() : face;
+  const el = walk(face, n.idx);
+  return el && el.tagName === n.tag && (!n.part || el.dataset.part === n.part) ? el : byPart();
+}
+function placePinsIn(h) {
+  const all = draft ? [...notes, draft] : notes;
+  const root = h.shadowRoot, layer = root.querySelector(".lab-pins"), face = root.querySelector(".root"), hr = h.getBoundingClientRect();
+  const have = new Map([...layer.children].map((b) => [b.dataset.note, b]));
+  for (const n of all.filter((x) => x.k === h.dataset.vk && x.s === Number(h.dataset.sp))) {
+    let b = have.get(n.id);
+    have.delete(n.id);
+    if (!b) { b = document.createElement("button"); b.dataset.note = n.id; layer.append(b); }
+    const el = noteEl(face, n), r = el?.getBoundingClientRect();
+    b.className = `lab-pin ${n.state}${editing?.id === n.id ? " on" : ""}`;
+    b.textContent = n.no; b.title = n.note;
+    b.hidden = !!el && el !== face && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    b.style.left = (el ? (r.left - hr.left + n.fx * r.width) / zoom : n.x) + "px";
+    b.style.top = (el ? (r.top - hr.top + n.fy * r.height) / zoom : n.y) + "px";
+  }
+  for (const b of have.values()) b.remove();
+}
+const placePins = () => hosts().forEach(placePinsIn);
+/* 点跟着组件动：格里起了过渡 / 动画、或 DOM / 类名 / 行内样式变了，就逐帧重量这一格的点，动画停了就停（无限循环的动画不算，不然停不下来） */
+const moving = (root) => root.getAnimations().some((a) => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity);
+function follow(root) {
+  let on = false;
+  const tick = () => { placePinsIn(root.host); if (moving(root)) requestAnimationFrame(tick); else on = false; };
+  const go = () => { if (!on && root.querySelector(".lab-pin")) { on = true; requestAnimationFrame(tick); } };
+  root.addEventListener("transitionrun", go); root.addEventListener("animationstart", go);
+  new MutationObserver(go).observe(root.querySelector(".root"), { subtree: true, childList: true, attributes: true, characterData: true });
+}
+const pinEl = (id) => hosts().map((h) => h.shadowRoot.querySelector(`.lab-pin[data-note="${id}"]`)).find(Boolean);
+function newNote(el, e, root, k) {
+  closeComposer(true);
+  const face = root.querySelector(".root"), r = el.getBoundingClientRect(), hr = root.host.getBoundingClientRect();
+  draft = {
+    id: Date.now().toString(36), no: Math.max(0, ...notes.map((n) => n.no)) + 1, k, s: sOf(root),
+    part: el.dataset.part ?? "", idx: el === face ? "" : pathOf(el, face), tag: el.tagName, name: el === face ? "整格" : nameOf(el), css: cssPath(el, face),
+    text: el.textContent.trim().replace(/\s+/g, " ").slice(0, 80), html: el.outerHTML.replace(/\s+/g, " ").slice(0, 320),
+    fx: r.width ? (e.clientX - r.left) / r.width : 0, fy: r.height ? (e.clientY - r.top) / r.height : 0,
+    x: (e.clientX - hr.left) / zoom, y: (e.clientY - hr.top) / zoom, note: "", state: "open",
+  };
+  showHud(root, null);
+  openComposer(draft);
+}
+/* 写标注的小框：贴着那枚点，回车存、⇧回车换行、Esc 放弃、点外面也存；输入法选字时的回车不算 */
+const cmp = $("cmp"), cmpT = $("cmpT");
+function openComposer(n) {
+  if (editing && editing !== n) closeComposer(true);
+  closePop();
+  editing = n;
+  placePins();
+  $("cmpH").innerHTML = `<span class="badge on">${n.no}</span><span class="nm">${esc(n.name)}</span>` + (n === draft ? "" : ibtn("cmpDel", "close", "删掉这条标注"));
+  cmpT.value = n.note;
+  cmp.classList.add("open");
+  const pin = pinEl(n.id), r = (pin.hidden ? pin.getRootNode().host : pin).getBoundingClientRect(), w = cmp.offsetWidth, h = cmp.offsetHeight;   // 组件此刻看不见：贴着格子开
+  cmp.style.left = Math.max(8, r.right + 10 + w > innerWidth - 8 ? r.left - 10 - w : r.right + 10) + "px";
+  cmp.style.top = Math.max(8, Math.min(r.top - 6, innerHeight - h - 8)) + "px";
+  cmpT.focus();
+}
+function closeComposer(keep) {
+  if (!editing) return;
+  const n = editing, text = cmpT.value.trim();
+  editing = null; cmp.classList.remove("open"); cmpT.blur();
+  if (keep && text && n === draft) { notes.push({ ...n, note: text }); save("n", notes); note({ kind: "note", no: n.no, label: `${n.name}：${text}` }); }
+  else if (keep && text && text !== n.note) { n.note = text; save("n", notes); note({ kind: "note", no: n.no, label: `改 · ${text}` }); }
+  draft = null;
+  placePins(); paintOut();
+  if (reloadPending) reloadSoon();
+}
+function dropNote(n) {
+  editing = null; cmp.classList.remove("open"); cmpT.blur();
+  notes = notes.filter((x) => x !== n); save("n", notes);
+  note({ kind: "note", no: n.no, label: "删掉" });
+  placePins(); paintOut();
+  if (reloadPending) reloadSoon();
+}
+/* 从清单点一条：它不在台上就换到它那个界面、那一轮、那一档、那条样本再打开 */
+function openNote(id) {
+  const n = notes.find((x) => x.id === id);
+  if (!pinEl(id)) {
+    const [g, r, i] = at3(n.k);
+    pg = g; save("g", g); save("r" + g, r); save(`v${g}.${r}`, i); save("s" + g, n.s);
+    renderChrome(); render();
+  }
+  openComposer(n);
+}
+function setNoting(on) {
+  noting = on; save("nt", on);
+  if (!on) closeComposer(true);
+  hosts().forEach((h) => { h.toggleAttribute("data-note", on); showHud(h.shadowRoot, null); });
+  syncChrome();
+}
+
+/* ---- 发送：标注 + 每个界面选的档 + 改过的参数与布局，一批交出去 ----
+   经服务打开就 POST 给 /__lab/send（agent 挂在 /__lab/wait 上，立刻醒）；直接开文件就拷进剪贴板，贴回对话 */
+function changes() {
+  const params = {}, layout = {};
+  const fmt = (p, v) => `${p.label}：${v}${p.unit}（默认 ${p.def}${p.unit}）`;
+  const take = (ps, vals) => Object.fromEntries((ps ?? []).filter((p) => p.key in vals).map((p) => [p.key, fmt(p, vals[p.key])]));
+  PAGES_.forEach((p, g) => {
+    const r = rnd(g), rd = p.rounds[r], pre = multi() ? p.name + " · " : "";
+    const sp = take(rd.params, shared(g, r));
+    if (Object.keys(sp).length) params[pre + "共用"] = sp;
+    rd.list.forEach((v, i) => {
+      const op = take(v.params, own(vk(g, r, i))), L = load("L" + vk(g, r, i), {});
+      if (Object.keys(op).length) params[pre + vname(g, r, i)] = op;
+      if (Object.keys(L).length) layout[pre + vname(g, r, i)] = L;
+    });
+  });
+  return { params, layout };
+}
+const picked = () => Object.fromEntries(PAGES_.map((p, g) => [p.name, `R${rnd(g) + 1} · ${vname(g, rnd(g), selI(g))}`]));
+const stateKey = () => JSON.stringify({ picked: picked(), ...changes() });   // 上一次发出去的样子；没标注又没改动就不让发
+function payload() {
+  const { params, layout } = changes();
+  return {
+    页: location.pathname, 题目: TOPIC,
+    在看: { 界面: PG().name, 轮: `R${rnd() + 1} ${R().name}`, 档: vname(pg, rnd(), selI()), 样本: S().from },
+    选档: picked(),
+    标注: notes.filter((n) => n.state === "open").map((n) => { const [g, r, i] = at3(n.k); return { 号: n.no, 界面: PAGES_[g].name, 档: `R${r + 1} · ${vname(g, r, i)}`, 样本: PAGES_[g].specs[n.s].from, 组件: n.name, 具名: n.part || undefined, 路径: n.css, 原文: n.text, html: n.html, 要改: n.note }; }),
+    参数: params, 布局: layout,
+  };
+}
+const worth = () => notes.some((n) => n.state === "open") || stateKey() !== load("sent", "");
+async function sendAll() {
+  if (editing) closeComposer(true);
+  if (!worth()) return;
+  const b = payload(), fab = $("fab");
+  let batch = 0;
+  if (SERVED) {
+    const r = await fetch("/__lab/send", { method: "POST", body: JSON.stringify(b) });
+    if (!r.ok) { flash(fab, false, `${ic("close", 16)}没发出去`); throw new Error(`发给 agent 失败：${r.status} ${await r.text()}`); }
+    ({ batch } = await r.json());
+  } else await navigator.clipboard.writeText(JSON.stringify(b, null, 2));
+  for (const n of notes) if (n.state === "open") Object.assign(n, { state: "sent", batch });
+  save("n", notes); save("sent", stateKey());
+  if (said) save("sv", said.at);   // 发了新的，上一句回话收起
+  note({ kind: "send", label: `${SERVED ? "发给" : "拷给"} agent · ${b.标注.length} 条标注` });
+  placePins(); paintOut();
+  flash(fab, true, `${ic("check", 16)}${SERVED ? "已发" : "已拷"}`);
+}
+/* 右下角：agent 还没收起的回话 · 标注清单（没发的在前，发出去的变灰）· 发送键（有没发的标注带个数） */
+function paintOut() {
+  const open = notes.filter((n) => n.state === "open").length, reply = said && said.at > load("sv", "");
+  $("reply").innerHTML = reply ? `<p>${esc(said.text)}</p>${ibtn("replyX", "close", "收起")}` : "";
+  $("nl").innerHTML = [...notes].sort((a, b) => (a.state === b.state ? a.no - b.no : a.state === "open" ? -1 : 1))
+    .map((x) => `<li data-note="${x.id}" class="${x.state}"><span class="badge on">${x.no}</span><span class="nm">${esc(x.note)}</span></li>`).join("");
+  $("tray").hidden = !reply && !notes.length;
+  const fab = $("fab");
+  if (fab.classList.contains("flash")) return;
+  fab.innerHTML = `${ic("export", 16)}${SERVED ? "发送" : "拷贝"}${open ? `<span class="n">${open}</span>` : ""}`;
+  fab.disabled = !worth();
+}
+/* agent 回话：头一回听到记一笔、清掉它答过的那批标注点；回话留在右下角，收起或下次发送才走 */
+function hear(m) {
+  if (!m || m.page !== location.pathname) return;
+  said = m;
+  if (m.at > load("ss", "")) {
+    save("ss", m.at);
+    note({ kind: "say", text: m.text });
+    notes = notes.filter((n) => !(n.state === "sent" && n.batch <= m.batch)); save("n", notes);
+    placePins();
+  }
+  paintOut();
+}
+/* 页面文件改了就刷新：正写标注 / 正拖着就等写完、松手再刷；滚动位置带过去，不重播入场 */
+function reloadSoon() {
+  if (editing || pending) return void (reloadPending = true);
+  sessionStorage.setItem(KEY + "re", JSON.stringify([board.scrollLeft, board.scrollTop]));
+  location.reload();
 }
 
 /* ---- 锚定层（影子里） ---- */
@@ -746,7 +1047,7 @@ function openMenu(root, btn) {
   const face = root.querySelector(".root");
   const m = document.createElement("div");
   m.className = "menu";
-  m.innerHTML = (R().menu?.(S(), btn) ?? []).map((x) => `<button data-act="${x.label}" class="${x.danger ? "danger" : ""}">${x.label}</button>`).join("");
+  m.innerHTML = (roundOfK(root.host.dataset.vk).menu?.(specOfRoot(root), btn) ?? []).map((x) => `<button data-act="${x.label}" class="${x.danger ? "danger" : ""}">${x.label}</button>`).join("");
   face.appendChild(m);
   const z = zoom, fr = face.getBoundingClientRect(), br = btn.getBoundingClientRect();
   const f = { width: fr.width / z, height: fr.height / z }, r = { right: (br.right - fr.left) / z, top: (br.top - fr.top) / z, bottom: (br.bottom - fr.top) / z };
@@ -755,90 +1056,121 @@ function openMenu(root, btn) {
   m.style.top = (below + m.offsetHeight > f.height - 8 ? r.top - 6 - m.offsetHeight : below) + "px";
 }
 
-/* ---- 交互：影子里的事件，按看法分流 ---- */
+/* ---- 交互：影子里的事件，按看法分流；标注与标注点抢在最前（捕获），开着标注时样本不响应、不拖 ---- */
+let noteSkip = false;   // 这一下按下是为了收起正在写的标注，不再落新点
 function wire(root, k) {
-  const s = S(), i = k.split(".")[1];
+  const rd = roundOfK(k), s = specOfRoot(root), i = at3(k)[2], face = root.querySelector(".root");
+  root.addEventListener("pointerdown", (e) => {
+    if (!noting && !e.target.closest(".lab-pin")) return;
+    e.stopPropagation();
+    if (noting) e.preventDefault();
+  }, true);
+  root.addEventListener("click", (e) => {
+    const pin = e.target.closest(".lab-pin");
+    if (!pin && !noting) return;
+    e.preventDefault(); e.stopPropagation();
+    if (pin) return openNote(pin.dataset.note);
+    if (noteSkip) return (noteSkip = false);
+    const el = pickNote(e.target, face, e.altKey);
+    if (el) newNote(el, e, root, k);
+  }, true);
   root.addEventListener("click", (e) => {
     if (!flags.live) return;
     if (swallow) { swallow = false; e.stopPropagation(); return; }   // 刚拖完松手的那下不算点
-    const b = e.target.closest("button");
+    const b = e.target.closest("button, [data-act]");
     const open = root.querySelector(".menu:not(.closing)");
     if (b?.matches("[data-menu]")) return open ? closeMenu(root) : openMenu(root, b);
     if (open) closeMenu(root);
     const act = b?.dataset.act;
     if (act === undefined) return;
-    R().on?.(act, { root, spec: s, btn: b, log: (text) => logAct(i, text) });
-    logAct(i, act, b.classList.contains("danger"));
+    rd.on?.(act, { root, spec: s, btn: b, log: (text) => logAct(i, text, s.from) });
+    logAct(i, act, s.from, b.classList.contains("danger"));
   });
+  root.addEventListener("pointermove", (e) => {
+    if ((!flags.build && !noting) || root.host.classList.contains("dragging") || e.target.closest(".lab-hud, .lab-pins")) return;
+    showHud(root, noting ? pickNote(e.target, face, e.altKey) : pick(e.target, face, e.altKey));
+  });
+  root.host.addEventListener("pointerleave", () => { if (!root.host.classList.contains("dragging")) showHud(root, null); });
   root.addEventListener("pointerdown", (e) => {
-    const g = flags.build && e.button === 0 && e.target.closest(".sz");
-    if (g) return armResize(e, g, k, root);
-    const sh = flags.build && e.button === 0 && !e.target.closest("[contenteditable], .menu") && e.target.closest(".shell");
-    if (sh) armDrag(e, sh, k, root);
+    if (!flags.build || e.button !== 0) return;
+    if (e.target.matches(".lab-hud > .sz")) return root.cur && armResize(e, root.cur, k, root);
+    const el = pick(e.target, face, e.altKey);
+    if (el) armDrag(e, el, k, root);
   });
   root.addEventListener("dblclick", (e) => {
-    const sh = flags.build && !e.target.closest("button") && e.target.closest(".shell");
-    if (!sh) return;
-    const L = load("L" + k, {}), id = sh.dataset.part;
+    const el = flags.build && !noting && pick(e.target, face, e.altKey);
+    if (!el) return;
+    const L = load("L" + k, {}), id = idOf(el, face);
     if (!L[id]) return;
-    txn(["L" + k], sh.dataset.name + " 归位", () => { delete L[id]; save("L" + k, L); }, { type: "move", k, id });   // 位置与大小一起回原样
+    txn(["L" + k], nameOf(el) + " 归位", () => { delete L[id]; save("L" + k, L); }, { type: "move", k, id });   // 位置与大小一起回原样
     settle(k, id, { x: 0, y: 0 }); setSize(k, id, null, null);
   });
 }
 
 /* ---- 渲染 ---- */
+const THEME = { auto: "系统", light: "亮", dark: "暗" };
 function renderChrome() {
   $("topic").textContent = TOPIC;
   document.title = "对照版 · " + TOPIC;
-  seg($("specs"), SPECS.map((x, i) => ["data-s", i, dens(i) + x.from]));
-  seg($("views"), [["data-w", "one", "单看"], ["data-w", "pair", "对照"], ["data-w", "all", "平铺"]]);
-  $("vhead").innerHTML = `<span class="gl">档<kbd class="ink-kbd">←→</kbd></span><span class="sp"></span>` +
-    (ROUNDS.length > 1 ? `<span class="gl"><kbd class="ink-kbd">R</kbd></span><div class="seg sub" id="rounds"></div>` : "");
-  if (ROUNDS.length > 1) { seg($("rounds"), ROUNDS.map((r, i) => ["data-r", i, String(i + 1)])); $("rounds").querySelectorAll("button").forEach((b, i) => (b.title = ROUNDS[i].name)); }
-  $("modes").innerHTML = FLAGS.map(([id, l, icon, tip]) => `<button data-flag="${id}" title="${tip}">${ic(icon, 15)}${l}</button>`).join("") + `<span class="st" title="两颗都关 = 静态：样本不响应指针，右边可钉住状态">静态</span>`;
-  seg($("pins"), (R().pins ?? [["rest", "常态"]]).map(([id, l]) => ["data-pin", id, l]));
-  seg($("zooms"), [["data-z", "fit", "适配"], ["data-z", "1", "原尺寸"]]);
-  seg($("themes"), [["data-th", "auto", "系统"], ["data-th", "light", "亮"], ["data-th", "dark", "暗"]]);
+  seg($("specs"), PG().specs.map((x, i) => ["data-s", i, x.from, x.note]));
+  $("specs").parentElement.hidden = PG().specs.length < 2;
+  seg($("views"), [["data-w", "one", "单看", "单看选中档"], ["data-w", "pair", "对照", "现状对选中档（C）"], ["data-w", "all", "全档", "本界面全部档（A）"], ...(multi() ? [["data-w", "pages", "全部界面", "全部界面并排，各切各的档（G）"]] : [])]);
+  $("modes").innerHTML = FLAGS.map(([id, l, icon, tip]) => `<button data-flag="${id}" title="${tip}（M 轮换；两颗都关 = 静态）">${ic(icon, 15)}${l}</button>`).join("");
+  $("noteT").innerHTML = `${ic("pen", 15)}标注`;
+  seg($("pins"), (R().pins ?? [["rest", "常态"]]).map(([id, l]) => ["data-pin", id, l, "静态时钉住的状态"]));
   $("keysT").innerHTML = ic("help", 15);
+  $("dockT").innerHTML = ic("sliders", 15);
+  document.body.classList.toggle("no-dock", !hasKnobs());
   $("histF").innerHTML = `<button class="mini" id="resetP">${ic("reload", 13)}参数回默认</button><button class="mini" id="resetL">${ic("grid-view", 13)}零件归位</button>`;
 }
-/* 左栏「档」清单：每档一行（编号章 + 名 + 现状章），选中那档展开论点 · 零件（一行一对）· 代价 · 当前样本 */
-function renderLabel() {
+/* 左栏：界面（行尾是它选中的档）· 轮次按钮（点开全部轮次）· 档（选中那档展开论点 · 零件 · 代价） */
+function renderNav() {
+  $("pl").innerHTML = multi() ? PAGES_.map((p, g) => `<li class="pi${g === pg ? " on" : ""}" data-g="${g}"><b>${p.name}</b><span class="badge${g === pg ? " on" : ""}">${selI(g)}</span></li>`).join("") : "";
+  $("rrow").innerHTML = PG().rounds.length > 1 ? `<button class="rbtn" id="roundT" data-pop="roundPop" title="轮次（R / ⇧R）"><span class="badge on">R${rnd() + 1}</span><b>${R().name}</b></button>` : "";
+  $("roundL").innerHTML = PG().rounds.map((r, i) => `<li data-r="${i}" class="${i === rnd() ? "on" : ""}"><span class="badge${i === rnd() ? " on" : ""}">R${i + 1}</span><b>${r.name}</b></li>`).join("");
   $("vl").innerHTML = R().list.map((v, i) => {
-    const on = i === sel[round];
-    const now = round === 0 && i === 0 ? `<span class="tag">现状</span>` : "";
+    const on = i === selI();
+    const now = rnd() === 0 && i === 0 ? `<span class="tag">现状</span>` : "";
     const detail = on ? `<div class="vd"><p>${v.thesis}</p>` +
       (v.parts.length ? `<dl class="kv">${v.parts.map(([k, t]) => `<dt>${k}</dt><dd>${t}</dd>`).join("")}</dl>` : "") +
-      (v.cost ? `<div class="vcost"><span class="stamp">代价</span><span>${v.cost}</span></div>` : "") +
-      `<div class="vspec"><span class="tag">${S().from}</span><span>${S().note}</span></div></div>` : "";
+      (v.cost ? `<div class="vcost"><span class="stamp">代价</span><span>${v.cost}</span></div>` : "") + `</div>` : "";
     return `<li class="vi${on ? " on" : ""}" data-v="${i}"><span class="badge${on ? " on" : ""}">${i}</span><b>${v.name}</b>${now}${detail}</li>`;
   }).join("");
 }
+/* 格头：全部界面并排时 = 界面名 + 一排档号（各切各的）；全档 / 对照时 = 档号 + 档名 */
+function lblHTML(t) {
+  const rd = PAGES_[t.g].rounds[t.r];
+  if (isPages()) return `<button class="tn" data-g="${t.g}">${PAGES_[t.g].name}</button><span class="chips">${rd.list.map((x, j) => `<button class="chip${j === t.i ? " on" : ""}" data-g="${t.g}" data-ci="${j}" title="${esc(x.name)}">${j}</button>`).join("")}</span>`;
+  return `<span class="badge">${t.i}</span><span>${rd.list[t.i].name}</span>${t.r === 0 && t.i === 0 ? `<span class="tag">现状</span>` : ""}`;
+}
 function syncChrome() {
-  stage.querySelectorAll(".tile").forEach((t) => { const on = t.dataset.vk === selK(); t.classList.toggle("sel", on); t.querySelector(".lbl").classList.toggle("on", on); });
-  press("#specs button", (b) => Number(b.dataset.s) === spec);
+  stage.querySelectorAll(".tile").forEach((t) => t.classList.toggle("sel", t.dataset.vk === selK()));
+  press("#specs button", (b) => Number(b.dataset.s) === spc());
   press("#views button", (b) => b.dataset.w === view);
-  press("#rounds button", (b) => Number(b.dataset.r) === round);
-  $("rname").innerHTML = ROUNDS.length > 1 ? `<i>R${round + 1}</i><b>${R().name}</b>` : "";
   press("#modes button", (b) => !!flags[b.dataset.flag]);
+  press("#noteT", () => noting);
+  press("#dockT", () => !document.body.classList.contains("dock-off"));
   press("#pins button", (b) => b.dataset.pin === pinned);
-  press("#zooms button", (b) => (b.dataset.z === "fit") === fit);
-  press("#themes button", (b) => b.dataset.th === themePref);
+  $("themeT").textContent = THEME[themePref];
+  $("themeT").title = `明暗（T）：系统 → 亮 → 暗${themePref === "auto" ? `｜系统 = 浏览器现在报的：${darkMQ.matches ? "暗" : "亮"}` : ""}`;
   document.body.dataset.mode = modeStr();
   document.body.dataset.view = view;
   requestAnimationFrame(() => document.querySelectorAll(".seg").forEach(segSync));   // 钉住组宽度在过渡，下一帧再量
-  renderLabel();
+  renderNav();
+  paintOut();
   applyZoom();
 }
 
-/* 弹层：一次只开一个；点外面 / Esc 收起 */
+/* 弹层：一次只开一个；点外面 / Esc 收起；左栏的从按钮左边往下长，顶条的从按钮右边往下长 */
 let openPop = null;
 function togglePop(id, btn) {
   const was = openPop;
   closePop();
   if (was === id) return;
   const el = $(id), r = btn.getBoundingClientRect();
-  el.style.right = innerWidth - r.right + "px"; el.style.top = r.bottom + 8 + "px";   // 弹层都从顶条往下长
+  if (el.classList.contains("left")) Object.assign(el.style, { left: r.left + "px", right: "auto" });
+  else Object.assign(el.style, { right: innerWidth - r.right + "px", left: "auto" });
+  el.style.top = r.bottom + 8 + "px";
   el.classList.add("open"); btn.classList.add("open"); openPop = id;
   if (id === "histPop") renderFig();
 }
@@ -850,97 +1182,131 @@ function closePop() {
 }
 
 function paint() {
-  const s = S();
-  stage.innerHTML = tiles().map((t, n) => `<div class="tile" data-vk="${vk(t.r, t.i)}" style="--d:${n * 30}ms">
-    <button class="lbl" data-v="${t.r === round ? t.i : ""}"><span class="badge">${t.i}</span><span>${t.v.name}</span>${t.r === 0 && t.i === 0 ? `<span class="tag">现状</span>` : ""}</button>
-    <div class="host" data-vk="${vk(t.r, t.i)}"></div></div>`).join("");
+  stage.innerHTML = tiles().map((t, n) => `<div class="tile" data-vk="${vk(t.g, t.r, t.i)}" style="--d:${n * 30}ms"><div class="lbl">${lblHTML(t)}</div>
+    <div class="host" data-vk="${vk(t.g, t.r, t.i)}" data-sp="${t.s}"></div></div>`).join("");
   for (const k of Object.keys(pos)) delete pos[k];
   for (const h of hosts()) {
     const k = h.dataset.vk, v = varOf(k);
     const root = h.attachShadow({ mode: "open" });
-    root.innerHTML = `<style>${CHROME_CSS}${CSS}${v.css ?? ""}</style><div class="root">${v.render(s)}</div>`;
+    root.innerHTML = `<style>${CHROME_CSS}${SHARED_CSS}${PAGES_[at3(k)[0]].css ?? ""}${v.css ?? ""}</style><div class="root">${v.render(specOfRoot(root))}</div><div class="lab-hud"><span class="pn"></span><span class="sz"></span></div><div class="lab-pins"></div>`;
     h.dataset.mode = modeStr();
+    h.toggleAttribute("data-note", noting);
     wire(root, k);
-    for (const [id, p] of Object.entries(load("L" + k, {}))) { setPos(k, id, p.x ?? 0, p.y ?? 0); if (p.w != null) setSize(k, id, p.w, p.h); }
+    follow(root);
   }
+  for (const k of new Set(hosts().map((h) => h.dataset.vk))) for (const [id, p] of Object.entries(load("L" + k, {}))) { setPos(k, id, p.x ?? 0, p.y ?? 0); if (p.w != null) setSize(k, id, p.w, p.h); }
   applyParams();
-  if (isStatic() && pinned !== "rest") requestAnimationFrame(() => hosts().forEach((h) => R().pin?.(h.shadowRoot, pinned, s)));
+  if (isStatic() && pinned !== "rest") requestAnimationFrame(() => hosts().forEach((h) => roundOfK(h.dataset.vk).pin?.(h.shadowRoot, pinned, specOfRoot(h.shadowRoot))));
   renderKnobs(); syncChrome();
 }
-/* 换样本 / 轮次 / 钉住 / 选档：直接换，不淡出不入场（甲方 2026-10-10：切换要干脆，别黑一下）；intro = 首屏与 P 重播才逐格入场 */
+/* 换界面 / 样本 / 轮次 / 钉住 / 选档：直接换，不淡出不入场（甲方 2026-10-10：切换要干脆，别黑一下）；intro = 首屏与 P 重播才逐格入场 */
 function render(intro = false) {
   for (const a of settling.values()) a.stop();
   stage.classList.toggle("intro", intro);
   paint();
 }
-/* 选档：单看 / 对照时格要换（直接换）；平铺时只换焦点，格不重画，滑条栏的私有参数、形状图跟过去 */
+/* 选档：全档时只换焦点（格不重画，滑块、形状图跟过去）；其余直接换 */
 function setV(i) {
-  sel[round] = i; save("v" + round, i);
+  save(`v${pg}.${rnd()}`, i);
   if (view !== "all") return render();
   renderKnobs(); syncChrome();
   if (openPop === "histPop") renderFig();
 }
-const setSpec = (i) => { spec = i; save("s", i); render(); };
+/* 全部界面并排时点格头的档号：那个界面换成那一档，焦点也挪过去 */
+function setSel(g, i) { pg = g; save("g", g); save(`v${g}.${rnd(g)}`, i); renderChrome(); render(); }
+/* 换界面：全部界面并排时每个界面都在台上，只换焦点 */
+function setPg(g) { pg = g; save("g", g); renderChrome(); if (isPages()) { renderKnobs(); syncChrome(); } else render(); }
+const setSpec = (s) => { save("s" + pg, s); render(); };
 const setView = (w) => { view = w; save("w", w); render(); };
-const setRound = (r) => { round = r; save("r", r); renderChrome(); render(); };
+const setRound = (r) => { save("r" + pg, r); renderChrome(); render(); };
 function setFlags(live, build) {
   const repaint = isStatic() && pinned !== "rest";
   flags.live = live; flags.build = build; save("f", flags);
   if (!isStatic()) pinned = "rest";
-  hosts().forEach((h) => { h.dataset.mode = modeStr(); if (!live) closeMenu(h.shadowRoot); });
+  hosts().forEach((h) => { h.dataset.mode = modeStr(); if (!live) closeMenu(h.shadowRoot); if (!build) showHud(h.shadowRoot, null); });
   if (repaint) render(); else syncChrome();
 }
-/* M：两开 → 只交互 → 只拼装 → 静态 → 两开 */
-const CYCLE = [[true, true], [true, false], [false, true], [false, false]];
+/* M：只交互（默认）→ 两开 → 只拼装 → 静态 → 只交互 */
+const CYCLE = [[true, false], [true, true], [false, true], [false, false]];
 /* 明暗：默认「系统」跟随系统（系统切换时跟着变），手选亮 / 暗后记住 */
 const darkMQ = matchMedia("(prefers-color-scheme: dark)");
 let themePref = load("t", "auto");
 const applyTheme = () => { document.documentElement.dataset.theme = themePref === "auto" ? (darkMQ.matches ? "dark" : "light") : themePref; };
 darkMQ.addEventListener("change", () => { if (themePref === "auto") { applyTheme(); syncChrome(); } });
 function setTheme(t) { themePref = t; save("t", t); applyTheme(); syncChrome(); }
-function toggleDock() { closePop(); document.body.classList.toggle("dock-off"); save("do", document.body.classList.contains("dock-off")); }
-board.addEventListener("transitionend", (e) => { if (e.target === board && e.propertyName === "padding-left") applyZoom(); });
+const nextTheme = () => setTheme({ auto: "light", light: "dark", dark: "auto" }[themePref]);   // 系统 → 亮 → 暗 → 系统
+function toggleDock() { closePop(); document.body.classList.toggle("dock-off"); save("do", document.body.classList.contains("dock-off")); syncChrome(); }
+board.addEventListener("transitionend", (e) => { if (e.target === board && e.propertyName.startsWith("padding")) { applyZoom(); placePins(); } });
 
 /* ---- 输入 ---- */
+/* 写着标注时按到别处：先把它存了收起（这一下不再落新点） */
+document.addEventListener("pointerdown", (e) => {
+  const path = e.composedPath();
+  noteSkip = !!editing && !path.includes(cmp) && !path.some((n) => n.classList?.contains("lab-pin"));
+  if (noteSkip) closeComposer(true);
+}, true);
 document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-th],[data-z],[data-pop],#resetP,#resetL,#copyJ,.tile");
+  const t = e.target.closest("[data-ci],[data-g],[data-note],[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-pop],#noteT,#dockT,#zoomT,#themeT,#fab,#replyX,#cmpDel,#resetP,#resetL,#copyJ,.tile");
   if (openPop && !e.target.closest(".pop") && !t?.dataset.pop) closePop();
   if (!t) return;
   if (t.dataset.pop) return togglePop(t.dataset.pop, t);
-  if (t.classList.contains("tile")) { const [r, i] = t.dataset.vk.split(".").map(Number); if (r === round && i !== sel[round]) setV(i); return; }   // 点到哪格就选哪格，交互照常
-  if (t.dataset.v) return Number(t.dataset.v) === sel[round] ? undefined : setV(Number(t.dataset.v));   // 点展开那档自己不重画
+  if (t.dataset.ci) return setSel(Number(t.dataset.g), Number(t.dataset.ci));
+  if (t.dataset.g) return Number(t.dataset.g) === pg ? undefined : setPg(Number(t.dataset.g));
+  if (t.dataset.note) return openNote(t.dataset.note);
+  if (t.classList.contains("tile")) {   // 点到哪格就选哪格，交互照常
+    const [g, r, i] = at3(t.dataset.vk);
+    if (g !== pg) return setPg(g);
+    if (r === rnd() && i !== selI()) setV(i);
+    return;
+  }
+  if (t.dataset.v) return Number(t.dataset.v) === selI() ? undefined : setV(Number(t.dataset.v));   // 点展开那档自己不重画
   if (t.dataset.w) return setView(t.dataset.w);
-  if (t.dataset.s) return setSpec(Number(t.dataset.s));
-  if (t.dataset.r) return setRound(Number(t.dataset.r));
+  if (t.dataset.s) return Number(t.dataset.s) === spc() ? undefined : setSpec(Number(t.dataset.s));
+  if (t.dataset.r) { closePop(); return setRound(Number(t.dataset.r)); }
   if (t.dataset.flag) return t.dataset.flag === "live" ? setFlags(!flags.live, flags.build) : setFlags(flags.live, !flags.build);
+  if (t.id === "noteT") return setNoting(!noting);
+  if (t.id === "dockT") return toggleDock();
+  if (t.id === "zoomT") { fit = !fit; save("z", fit); return applyZoom(); }
+  if (t.id === "themeT") return nextTheme();
+  if (t.id === "fab") return sendAll();
+  if (t.id === "replyX") { save("sv", said.at); return paintOut(); }
+  if (t.id === "cmpDel") return dropNote(editing);
   if (t.dataset.pin) { pinned = t.dataset.pin; return render(); }
-  if (t.dataset.th) return setTheme(t.dataset.th);
-  if (t.dataset.z) { fit = t.dataset.z === "fit"; save("z", fit); applyZoom(); return syncChrome(); }
   if (t.id === "resetP") {
-    txn(["ps" + round, ...R().list.map((_, i) => "pv" + vk(round, i))], "参数全部回默认", () => { save("ps" + round, {}); R().list.forEach((_, i) => save("pv" + vk(round, i), {})); });
+    txn([sk(), ...R().list.map((_, i) => "pv" + vk(pg, rnd(), i))], "参数全部回默认", () => { save(sk(), {}); R().list.forEach((_, i) => save("pv" + vk(pg, rnd(), i), {})); });
     applyParams(); return renderKnobs();
   }
   if (t.id === "resetL") {
-    const ks = hosts().map((h) => h.dataset.vk), parts = (k) => Object.keys(load("L" + k, {}));
+    const ks = [...new Set(hosts().map((h) => h.dataset.vk))], parts = (k) => Object.keys(load("L" + k, {}));
     const was = Object.fromEntries(ks.map((k) => [k, parts(k)]));
     txn(ks.map((k) => "L" + k), "零件全部归位", () => ks.forEach((k) => save("L" + k, {})));
     return ks.forEach((k) => was[k].forEach((id) => { settle(k, id, { x: 0, y: 0 }); setSize(k, id, null, null); }));
   }
   if (t.id === "copyJ") return copyJSON(t);
 });
+cmpT.addEventListener("keydown", (e) => {
+  if (e.isComposing || e.keyCode === 229) return;
+  if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); closeComposer(true); }
+  if (e.key === "Escape") { e.preventDefault(); closeComposer(false); }
+});
 const dock = $("dock");
 const knobLabel = (el) => specOf(el).label;
-const knobD = (el) => { const p = specOf(el); return { type: "param", store: storeOf(el.dataset.src), key: p.key, def: p.def, scope: el.querySelector(".kh > .tag, .kh > .badge").outerHTML }; };
+const knobD = (el) => { const p = specOf(el); return { type: "param", store: storeOf(el.dataset.src), key: p.key, def: p.def, scope: el.querySelector(".kh > .badge")?.outerHTML ?? "" }; };
 dock.addEventListener("pointerdown", (e) => {
   const tr = e.target.closest(".track");
   if (!tr || e.button !== 0) return;
   const el = tr.closest(".knob"), p = specOf(el);
-  tr.setPointerCapture(e.pointerId); tr.classList.add("live");
+  tr.setPointerCapture(e.pointerId); tr.classList.add("live"); shield(true);
   begin([storeOf(el.dataset.src)], knobLabel(el), knobD(el));
   setParam(el, trackAt(tr, p, e.clientX));
-  const move = (ev) => setParam(el, trackAt(tr, p, ev.clientX));
-  const up = () => { commit(); tr.classList.remove("live"); tr.removeEventListener("pointermove", move); tr.removeEventListener("pointerup", up); tr.removeEventListener("pointercancel", up); };
-  tr.addEventListener("pointermove", move); tr.addEventListener("pointerup", up); tr.addEventListener("pointercancel", up);
+  let done = false;
+  const move = (ev) => { if (ev.buttons === 0) return up(); setParam(el, trackAt(tr, p, ev.clientX)); };
+  const up = () => {
+    if (done) return; done = true; shield(false);
+    commit(); tr.classList.remove("live");
+    for (const [t, f] of [["pointermove", move], ["pointerup", up], ["pointercancel", up], ["lostpointercapture", up]]) tr.removeEventListener(t, f);
+  };
+  for (const [t, f] of [["pointermove", move], ["pointerup", up], ["pointercancel", up], ["lostpointercapture", up]]) tr.addEventListener(t, f);
 });
 dock.addEventListener("dblclick", (e) => { const el = e.target.closest(".knob"); if (el) txn([storeOf(el.dataset.src)], knobLabel(el), () => setParam(el, specOf(el).def), knobD(el)); });
 dock.addEventListener("keydown", (e) => {
@@ -953,36 +1319,50 @@ dock.addEventListener("keydown", (e) => {
   txn([storeOf(el.dataset.src)], knobLabel(el), () => setParam(el, next), knobD(el));
 });
 addEventListener("keydown", (e) => {
-  /* ⌘Z / Ctrl+Z 撤回，⇧⌘Z / Ctrl+Y 重做；正在改名（contenteditable）时让给原生撤回 */
+  const tgt = e.composedPath()[0], typing = !!tgt.matches?.("input, textarea, [contenteditable]");
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); return sendAll(); }
+  /* ⌘Z / Ctrl+Z 撤回，⇧⌘Z / Ctrl+Y 重做；正在打字时让给原生撤回 */
   const zk = e.key.toLowerCase();
-  if ((e.metaKey || e.ctrlKey) && !e.altKey && (zk === "z" || zk === "y") && !e.composedPath()[0].matches?.("[contenteditable]")) {
-    e.preventDefault();
-    return undo(zk === "y" || e.shiftKey);
-  }
-  if (e.metaKey || e.ctrlKey || e.altKey || e.composedPath()[0].matches?.("input, textarea, [contenteditable]")) return;
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && (zk === "z" || zk === "y") && !typing) { e.preventDefault(); return undo(zk === "y" || e.shiftKey); }
+  if (e.metaKey || e.ctrlKey || e.altKey || typing) return;
   if (/^[0-9]$/.test(e.key) && Number(e.key) < R().list.length) return setV(Number(e.key));
-  const k = e.key.toLowerCase();
-  if (k === "s") return setSpec((spec + 1) % SPECS.length);
+  const k = e.key.toLowerCase(), n = R().list.length, np = PAGES_.length;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") return setV((selI() + (e.key === "ArrowRight" ? 1 : n - 1)) % n);
+  if ((e.key === "ArrowUp" || e.key === "ArrowDown") && np > 1) { e.preventDefault(); return setPg((pg + (e.key === "ArrowDown" ? 1 : np - 1)) % np); }
+  if (k === "s") return setSpec((spc() + (e.shiftKey ? PG().specs.length - 1 : 1)) % PG().specs.length);
+  if (k === "r" && PG().rounds.length > 1) return setRound((rnd() + (e.shiftKey ? PG().rounds.length - 1 : 1)) % PG().rounds.length);
+  if (k === "f") return setNoting(!noting);
   if (k === "c") return setView(view === "pair" ? "one" : "pair");
   if (k === "a") return setView(view === "all" ? "one" : "all");
-  if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const n = R().list.length; return setV((sel[round] + (e.key === "ArrowRight" ? 1 : n - 1)) % n); }
+  if (k === "g" && multi()) return setView(view === "pages" ? "one" : "pages");
   if (k === "m") { const i = CYCLE.findIndex(([a, b]) => a === flags.live && b === flags.build); return setFlags(...CYCLE[(i + 1) % CYCLE.length]); }
-  if (k === "r" && ROUNDS.length > 1) return setRound((round + 1) % ROUNDS.length);
-  if (k === "t") return setTheme({ auto: "light", light: "dark", dark: "auto" }[themePref]);   // 系统 → 亮 → 暗 → 系统
+  if (k === "t") return nextTheme();
   if (k === "p") return render(true);
   if (k === "i") return toggleDock();
-  if (e.key === "Escape") { closePop(); hosts().forEach((h) => closeMenu(h.shadowRoot)); }
+  if (e.key === "Escape") { if (openPop) return closePop(); hosts().forEach((h) => closeMenu(h.shadowRoot)); if (noting) setNoting(false); }
 });
 
-addEventListener("resize", () => { closePop(); applyZoom(); syncChrome(); });
+addEventListener("resize", () => { closePop(); applyZoom(); syncChrome(); placePins(); });
 document.body.classList.toggle("dock-off", load("do", false));
 applyTheme();
 /* 题目没填就大声报错，不画空台子 */
-if (!SPECS.length || !ROUNDS.length || ROUNDS.some((r) => !r.tile || !r.list?.length)) {
-  stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 SPECS（≥3 条样本）与 ROUNDS（每轮要有 tile 与 list）是空的。写法见 morii-compare 的 SKILL.md ④。</div>`;
-  throw new Error("对照版：SPECS / ROUNDS 未填（或某轮缺 tile / list）");
+if (!PAGES_.length || PAGES_.some((p) => !p.specs?.length || !p.rounds?.length || p.rounds.some((r) => !r.tile || !r.list?.length))) {
+  stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 PAGES 是空的（每个界面要有 specs ≥3 条样本与 rounds，每轮要有 tile 与 list）。写法见 morii-compare 的 SKILL.md ④。</div>`;
+  throw new Error("对照版：PAGES 未填（或某界面缺 specs / rounds，某轮缺 tile / list）");
 }
-renderChrome(); renderHist(); render(true);
+if (raw("sent") === null) save("sent", stateKey());   // 刚打开的样子算「发过」：没标注、没改动时发送键不亮
+const re = sessionStorage.getItem(KEY + "re");
+sessionStorage.removeItem(KEY + "re");
+renderChrome(); renderHist(); render(!re);
+if (re) { const [x, y] = JSON.parse(re); board.scrollTo(x, y); }
+document.fonts.ready.then(placePins);
+/* 对照版服务：agent 回话、文件改了就刷新；断了 EventSource 自己重连 */
+if (SERVED) {
+  const es = new EventSource("/__lab/events");
+  es.addEventListener("state", (e) => hear(JSON.parse(e.data).say));
+  es.addEventListener("say", (e) => hear(JSON.parse(e.data)));
+  es.addEventListener("reload", reloadSoon);
+}
 </script>
 </body>
 </html>

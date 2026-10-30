@@ -1,0 +1,23 @@
+# 干什么：对照版服务（serve.mjs 跑在容器里）——托管项目目录、对照页一改自动刷新、标注排队等 agent 来取；没人用了自己关。
+# 怎么跑：别直接起，用同目录 lab.sh <项目根>（算项目名、分端口、幂等）；关：lab.sh <项目根> stop
+# 需要什么：Docker。LAB_ROOT 必填；LAB_PORT 宿主端口（lab.sh 自动分）；LAB_WATCH 默认 docs/lab（盯哪个子目录刷新）；LAB_IDLE_MIN 默认 15（闲多久自己关）。
+services:
+  lab:
+    image: node:22-alpine
+    command: ["node", "/app/serve.mjs", "/srv"]
+    volumes:
+      - ${LAB_ROOT:?LAB_ROOT 要指向项目根}:/srv:ro
+      - ./serve.mjs:/app/serve.mjs:ro
+    environment:
+      LAB_ROOT_HOST: ${LAB_ROOT}
+      LAB_WATCH: ${LAB_WATCH:-docs/lab}
+      LAB_URL: http://127.0.0.1:${LAB_PORT:-4777}
+      LAB_IDLE_MIN: ${LAB_IDLE_MIN:-15}
+    ports:
+      - "127.0.0.1:${LAB_PORT:-4777}:4777"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4777/__lab/ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    restart: on-failure   # 闲久了自己退出（exit 0）就不再拉起；崩了才重启
