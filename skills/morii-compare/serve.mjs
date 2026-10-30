@@ -19,21 +19,19 @@ const MIME = {
 
 if (!fs.statSync(WATCH).isDirectory()) throw new Error(`LAB_WATCH 不是目录：${WATCH}`);
 
-/* 状态：页面（SSE）· 挂着等的 agent · 还没人取的批 · 最后交出去的批 · agent 最后一句话 */
+/* 状态：页面（SSE）· 挂着等的 agent · 还没人取的批 · 最后交出去的批 · agent 最后一句话（页面只要这一句，连上时补发） */
 const pages = new Set();
 const waiters = [];
 const queue = [];
-let seq = 0, busy = false, last = null, said = null;
-const state = () => ({ waiting: waiters.length > 0, queued: queue.length, busy, batch: last?.batch ?? 0, say: said });
+let seq = 0, last = null, said = null;
 const emit = (type, data) => { const s = `event: ${type}\ndata: ${JSON.stringify(data)}\n\n`; for (const p of pages) p.write(s); };
 /* 有批又有人等：全部交给最早来的那个 agent */
 function hand() {
   if (queue.length && waiters.length) {
     const all = queue.splice(0);
-    last = all.at(-1); busy = true;
+    last = all.at(-1);
     waiters.shift().end(JSON.stringify(all, null, 2) + "\n");
   }
-  emit("state", state());
   idle();
 }
 /* 自动关：没页面开着、没 agent 在等、没批排队，闲 IDLE_MIN 分钟就退出（exit 0，容器 on-failure 不再拉起；要用时 lab.sh 再起，端口不变）。
@@ -69,7 +67,7 @@ http.createServer(async (req, res) => {
   if (p === "/__lab/ping") return json(res, { root: SHOWN, watch: path.relative(ROOT, WATCH) });
   if (p === "/__lab/events") {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
-    res.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);
+    res.write(`event: state\ndata: ${JSON.stringify({ say: said })}\n\n`);
     pages.add(res); idle();
     return res.on("close", () => { pages.delete(res); idle(); });
   }
@@ -81,15 +79,14 @@ http.createServer(async (req, res) => {
     return json(res, { batch: seq });
   }
   if (p === "/__lab/wait") {
-    waiters.push(res); busy = false;   // agent 回来等了 = 上一批改完了
-    res.on("close", () => { const i = waiters.indexOf(res); if (i >= 0) { waiters.splice(i, 1); emit("state", state()); idle(); } });
+    waiters.push(res);
+    res.on("close", () => { const i = waiters.indexOf(res); if (i >= 0) { waiters.splice(i, 1); idle(); } });
     return hand();
   }
   if (p === "/__lab/last") return last ? json(res, last) : json(res, { error: "还没交出过任何一批" }, 404);
   if (p === "/__lab/say" && req.method === "POST") {
     said = { text: (await body(req)).trim(), batch: last?.batch ?? 0, page: last?.页 ?? null, at: new Date().toISOString() };   // 回话只给发来那一批的页面
-    busy = false;
-    emit("say", said); emit("state", state());
+    emit("say", said);
     return json(res, { ok: true });
   }
   serveFile(res, p);

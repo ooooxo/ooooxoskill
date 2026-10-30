@@ -1126,7 +1126,7 @@ function renderChrome() {
 /* 左栏：界面（行尾是它选中的档）· 轮次按钮（点开全部轮次）· 档（选中那档展开论点 · 零件 · 代价） */
 function renderNav() {
   $("pl").innerHTML = multi() ? PAGES_.map((p, g) => `<li class="pi${g === pg ? " on" : ""}" data-g="${g}"><b>${p.name}</b><span class="badge${g === pg ? " on" : ""}">${selI(g)}</span></li>`).join("") : "";
-  $("rrow").innerHTML = PG().rounds.length > 1 ? `<button class="rbtn" id="roundT" data-pop="roundPop" title="轮次（R / ⇧R）"><span class="badge on">R${rnd() + 1}</span><b>${R().name}</b></button>` : "";
+  $("rrow").innerHTML = PG().rounds.length > 1 ? `<button class="rbtn" data-pop="roundPop" title="轮次（R / ⇧R）"><span class="badge on">R${rnd() + 1}</span><b>${R().name}</b></button>` : "";
   $("roundL").innerHTML = PG().rounds.map((r, i) => `<li data-r="${i}" class="${i === rnd() ? "on" : ""}"><span class="badge${i === rnd() ? " on" : ""}">R${i + 1}</span><b>${r.name}</b></li>`).join("");
   $("vl").innerHTML = R().list.map((v, i) => {
     const on = i === selI();

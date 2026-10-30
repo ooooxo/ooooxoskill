@@ -22,7 +22,7 @@ for (const theme of ['light', 'dark']) {
 ```
 
 拍完用 Read 真的打开每一张看。逐格找：折行 · 一个控件独占一行 · 字截断 · 竖线 / 列错位 · 按钮读成字 · 空态塌陷。
-顶条的「86% · 3 列 × 2 行」也看一眼：掉到「放不下，滚动看」就是面宽 / 面高默认值定大了。
+顶条的比例 % 也看一眼：变琥珀色 = 放不下、保底 60% 滚动看，就是格子宽高（`tile`）默认值定大了。
 换主题后立刻拍会拍到过渡中途的混色，等 700ms 以上再拍。
 明暗默认跟随系统（存的是 `"auto"`）；验跟随用 `cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }] })`。
 
