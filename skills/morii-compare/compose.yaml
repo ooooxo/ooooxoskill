@@ -1,4 +1,4 @@
-# 干什么：对照版服务（serve.mjs 跑在容器里）——托管项目目录、对照页一改自动刷新、标注排队等 agent 来取；没人用了自己关。
+# 干什么：对照版服务（serve.mjs 跑在容器里，顺带下发台子 lab.js / lab.css）——托管项目目录、对照页一改自动刷新、标注排队等 agent 来取；没人用了自己关。
 # 怎么跑：别直接起，用同目录 lab.sh <项目根>（算项目名、分端口、幂等）；关：lab.sh <项目根> stop
 # 需要什么：Docker。LAB_ROOT 必填；LAB_PORT 宿主端口（lab.sh 自动分）；LAB_WATCH 默认 docs/lab（盯哪个子目录刷新）；LAB_IDLE_MIN 默认 15（闲多久自己关）。
 services:
@@ -7,7 +7,7 @@ services:
     command: ["node", "/app/serve.mjs", "/srv"]
     volumes:
       - ${LAB_ROOT:?LAB_ROOT 要指向项目根}:/srv:ro
-      - ./serve.mjs:/app/serve.mjs:ro
+      - ./:/app:ro   # serve.mjs 与台子 lab.js / lab.css
     environment:
       LAB_ROOT_HOST: ${LAB_ROOT}
       LAB_WATCH: ${LAB_WATCH:-docs/lab}

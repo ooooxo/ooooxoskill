@@ -2,7 +2,7 @@
 name: morii-compare
 description: >
   「对照版」—— whenever the user wants to SEE several design options side by side before deciding,
-  build one self-contained HTML lab page that renders ≥5 complete alternatives (plus 第 0 档 = the
+  build one HTML lab page (it holds only the topic; the shared harness lab.js is served by the lab service) that renders ≥5 complete alternatives (plus 第 0 档 = the
   current state) on real specimens, switchable by number keys, light/dark, and verified by
   screenshots. Use it for any 「出几套方案 / 给我 5–10 套设计 / 对照版 / 对比一下几种做法 / A/B /
   哪种好看 / 多档对照 / 换个样式看看 / 这个不好看给我几种」 about UI, layout, components, buttons,
@@ -86,19 +86,24 @@ description: >
 想说整体的话，就点在格子空白处（认成「整格」）。
 **你不用为标注写任何东西**：组件认法同拼装（没命名的按路径），给要跨档比的零件命名（`pa` / `part`）能让标注里的「组件」读得更明白。
 
-## ④ 骨架：从 `template.html` 起，只填第 ② 段
+## ④ 骨架：台子是共享的，页面只写第 ② 段
 
-`template.html` 只有**台子**（顶条、左栏清单、右栏滑块、记录、标注、发给 agent、舞台引擎），**不带任何示例内容**——样本、样式、档全由你按题目现写，
-别从别的对照页抄内容过来（抄来的档会把这一题的判断带偏）。脚本第 ② 段没填，页面会在舞台上报错并抛异常。
+**台子只有一份**：本目录 `lab.js` + `lab.css`（顶条、左栏清单、右栏滑块、记录、标注、发送、舞台引擎），对照版服务在 `/__lab/lab.js` · `/__lab/lab.css` 下发。
+**对照页只是一个壳**（`template.html`）：head 里 link 项目 token 与台子，body 里一段 `<script type="module">` 写第 ② 段，末尾 `labStart({ TOPIC, KEY, CSS, PAGES })`。
+- 台子一改，所有开着的对照页自己刷新换上；**别往页面里抄台子，也别为一页改 `lab.js`**（要改台子就改这一份，所有页面一起受益）。
+- 第 ② 段是自己的模块作用域，名字随便起，**不会和台子撞**；几个界面写在一页也不用手工包作用域。
+- 页面**必须经对照版服务打开**（`lab.sh`，见 ⑦）；直接双击文件，台子加载不了。
+- 壳**不带任何示例内容**——样本、样式、档全由你按题目现写，别从别的对照页抄内容过来（抄来的档会把这一题的判断带偏）。第 ② 段没填，页面会在舞台上报错并抛异常。
 
 ### 4.1 拷过来，改头部
 
-复制本目录 `template.html` 到项目 `docs/lab/<topic>.html`（没有 `docs/lab/` 就建）：
+复制本目录 `template.html` 到项目 `docs/lab/<topic>.html`（没有 `docs/lab/` 就建）。台子那两行（`/__lab/lab.css`、`/__lab/lab.js`）原样留着：
 
 | 改什么 | 怎么改 |
 |---|---|
 | token | `<link>` 指向项目的 token 源（Hrige：`../../src/styles/tokens.css` + `control.css`；Morii 仓内：`src/panel/shell/tokens.css`；没有项目 token：把 morii-design 的 `Token.css` 拷到页面旁边） |
-| 图标 | 第 ① 段的 `ICON` 是台子自用的几枚；样本要用的从项目图标注册表抽出来补进去，**不手画**；缺的走 morii-icon |
+| 图标 | 全局 `ICON` 是台子自用的几枚；样本要用的从项目图标注册表抽出来，在第 ② 段 `Object.assign(ICON, { 名: "<path …/>" })` 补进去，**不手画**；缺的走 morii-icon |
+| 项目自己的零件库 | 有（如 Coffice 的 `prop-kit.js`）就在 head 里台子前面再 `<script src>` 一行，第 ② 段直接用 |
 | 页头注释 | 干什么 / 怎么跑 / 需要什么三行，写这一题的 |
 
 ### 4.2 填第 ② 段（只有这一段归你）
@@ -113,8 +118,8 @@ description: >
    - `specs`：这个界面的样本，≥3 条（稀 / 中 / 满，见 ②）。台子只读 `from`（顶条样本段控上的字）与 `note`（悬停提示）；其余字段照项目真 schema。
    - `css`：这个界面所有档共用的样式（可不写）。
    - `rounds`：这个界面的轮次，写法见下（`ROUNDS` 那张表就是每一轮的字段）。各界面的轮次互不相干，各自往下开。
-   ② 里自己的帮手函数别叫 `PG` / `R` / `S`（台子用了）；几个界面的 ② 要合进一页时，各包进一个 `(() => { …; return { name, specs, css, rounds }; })()` 就不会撞名。
-   老写法（只写 `SPECS` + `ROUNDS`、没有 `PAGES`）台子照认，当成一个界面。
+   只比一个界面也可以不写 `PAGES`：`labStart({ TOPIC, KEY, CSS, SPECS, ROUNDS })`，台子当成一个界面。
+   台子给第 ② 段的全局只有五个：`ICON` · `ic(名, 尺寸)` · `pa(id, 名)` · `part(id, 名, html, cls?)` · `labStart(配置)`。
 4. **每一轮**（`PAGES[i].rounds` 里一项）：下一轮在末尾追加、上一轮原样留着。字段：
 
 | 字段 | 必填 | 是什么 |
@@ -148,16 +153,16 @@ description: >
 - 范围覆盖「明显太小」到「明显太大」，`def` = 你推荐的值；`tick` 管画几道刻度，别让刻度糊成一片。
 - 拉刻度轨只改变量不重画（开着的菜单不会被冲掉）；每一下都进记录，⌘Z 可撤回。
 
-### 4.5 台子已经带好的（不用写、别改）
+### 4.5 台子已经带好的（不用写；要改就改 `lab.js` 这一份）
 
 数字 / ← → 选档 · ↑ ↓ 界面 · `S` / `⇧S` 样本 · `R` / `⇧R` 轮次（左栏按钮点开全部）· `F` 标注 · `⌘⏎` 发送 ·
 `M` 轮换看法（只交互（默认）→ 两开 → 只拼装 → 静态）· 看几档（默认单看 · `C` 现状对选中 · `A` 全档 · `G` 全部界面，记在本机）·
 `T` 明暗（**默认跟随系统**，手选亮 / 暗后记住）· `I` 收起滑块 · `P` 重播入场 · `?` 键位 ·
 **`⌘Z` / `Ctrl+Z` 撤回改动、`⇧⌘Z` / `Ctrl+Y` 重做**（参数、回默认、零件挪位 / 归位都进记录，同名 500ms 内连改并成一条）·
 「记录」时间线（交互动作 + 改动 + 标注 + 发送 + agent 回话，一键拷选中档 JSON；存 sessionStorage，自动刷新后接得上）· 自动算列数与比例（各界面格子大小不同时按最大的排）·
-标注点与写标注小框 · 右下角发送（服务模式 POST，直接开文件时拷进剪贴板；没标注、没改动时不亮）· 页面改了自动刷新（正写标注 / 正拖着时等完再刷，滚动位置带过去）·
+标注点与写标注小框 · 右下角发送（POST 给服务；没标注、没改动时不亮）· 页面改了自动刷新（正写标注 / 正拖着时等完再刷，滚动位置带过去）·
 Shadow DOM 隔离 · 锚定菜单 · 弹簧 `step()` 与 rAF `kick()` · 状态记 localStorage（JSON 存）。
-真要给台子加会改存储的操作：包进 `txn(键, 名, fn, 详情)`（拖拽类用 `begin` / `commit` 夹住一整次手势），否则记录与撤回都不认。
+给台子（`lab.js`）加会改存储的操作：包进 `txn(键, 名, fn, 详情)`（拖拽类用 `begin` / `commit` 夹住一整次手势），否则记录与撤回都不认。
 
 ## ⑤ 动效档（用户要动 / 液体 / 弹簧时）
 
@@ -211,7 +216,7 @@ ego 截的是 Chromium：`filter` / `mask` / `clip-path` / `backdrop` 这类内�
 5. 用户说「就这样」或各界面的 `选档` 稳定了，按 ⑧ 开下一轮，或按 ⑨ 收尾。
 
 丢了一批（wait 被杀、会话断了）：`curl -s <地址>/__lab/last` 取回最后交出去的那批。
-直接开文件（`file://`）也能用：没有自动刷新，「发送」变成「拷贝」，JSON 进剪贴板，用户贴回对话。
+用户手里只有文件、没法起服务时：先 `lab.sh` 把服务起来再给地址——台子不在页面里，`file://` 打不开。
 
 ## ⑧ 下一轮
 
@@ -248,6 +253,7 @@ ego 截的是 Chromium：`filter` / `mask` / `clip-path` / `backdrop` 这类内�
 | 档的样式写进页面 `<style>` | 漏出影子、台子与样本互相污染，判的不是档本身 |
 | 比行为却只画静态图 | 用户要点了才知道好不好；能点的就做成能点 |
 | 参数写死在 `render` 里 | 拉不动，用户只能口头说「再大一点」 |
+| 往页面里抄一份台子 / 为一页改 `lab.js` | 台子只有一份（2026-10-30 甲方定）：抄了就跟不上更新；要改台子改 `lab.js`，所有页面一起换 |
 | 改骨架、把切换藏进侧栏 | 甲方定：切换都在顶条；左栏只放「看哪个」（界面 · 轮次 · 档），滑块在右栏（2026-10-30 甲方：滑块不常用，别占左栏主位） |
 | 轮次做成段控、把界面塞进样本 | 甲方否过（2026-10-30）：轮次一多切起来麻烦、十几个界面把顶条挤爆；轮次 = 左栏一颗按钮点开清单，界面 = `PAGES` 一项一个、左栏竖排 |
 | 几个界面共用一套档 / 只能一个个看 | 甲方要（2026-10-30）：每个界面有自己的一套档；`G` 全部界面并排，每格头上一排档号各切各的，切到哪档就是选哪档 |

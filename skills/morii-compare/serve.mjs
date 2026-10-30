@@ -1,4 +1,4 @@
-// 干什么：对照版服务——托管项目目录；对照页目录里的文件一改，开着的页面自动刷新；页面「发送」的标注排队，agent 用 /__lab/wait 取、/__lab/say 回话；没人用了自己关。
+// 干什么：对照版服务——托管项目目录，在 /__lab/lab.js · lab.css 下发台子（与本文件同目录）；对照页或台子一改，开着的页面自动刷新；页面「发送」的标注排队，agent 用 /__lab/wait 取、/__lab/say 回话；没人用了自己关。
 // 怎么跑：跑在容器里，用同目录 lab.sh <项目根> 起（端口自动分、幂等）。
 // 需要什么：Node 18+，零依赖。参数全走环境变量：LAB_ROOT_HOST（宿主上的根）与 LAB_URL（宿主上的地址）只用来显示 · LAB_WATCH（盯哪个子目录，默认 docs/lab）· LAB_IDLE_MIN（闲多久自己关，默认 15 分钟）。
 import http from "node:http";
@@ -6,6 +6,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 const ROOT = path.resolve(process.argv[2] ?? ".");
+const APP = path.dirname(new URL(import.meta.url).pathname);   // 台子（lab.js / lab.css）和本文件放在一起
+const HARNESS = new Set(["lab.js", "lab.css"]);
 const PORT = 4777;   // 容器里固定；宿主端口由 lab.sh 分
 const WATCH = path.join(ROOT, process.env.LAB_WATCH ?? "docs/lab");
 const SHOWN = process.env.LAB_ROOT_HOST ?? ROOT;
@@ -65,6 +67,10 @@ function serveFile(res, p) {
 http.createServer(async (req, res) => {
   const p = new URL(req.url, "http://x").pathname;
   if (p === "/__lab/ping") return json(res, { root: SHOWN, watch: path.relative(ROOT, WATCH) });
+  if (p.startsWith("/__lab/") && HARNESS.has(p.slice(7))) {
+    res.writeHead(200, { "content-type": MIME[path.extname(p)], "cache-control": "no-store" });
+    return fs.createReadStream(path.join(APP, p.slice(7))).pipe(res);
+  }
   if (p === "/__lab/events") {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
     res.write(`event: state\ndata: ${JSON.stringify({ say: said })}\n\n`);
@@ -94,9 +100,10 @@ http.createServer(async (req, res) => {
 
 let timer = null;
 const changed = new Set();
-fs.watch(WATCH, { recursive: true }, (_, file) => {
-  if (!file || /(^|\/)\./.test(file)) return;
+function bump(file) {
   changed.add(file);
   clearTimeout(timer);
   timer = setTimeout(() => { emit("reload", { files: [...changed] }); console.log("刷新", [...changed].join(" ")); changed.clear(); }, DEBOUNCE_MS);
-});
+}
+fs.watch(WATCH, { recursive: true }, (_, file) => { if (file && !/(^|\/)\./.test(file)) bump(file); });
+fs.watch(APP, (_, file) => { if (HARNESS.has(file)) bump("台子 " + file); });   // 台子改了，所有开着的对照页一起换

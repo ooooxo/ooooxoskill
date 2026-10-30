@@ -8,7 +8,7 @@
 
 ```js
 await useOrCreateTaskSpace('lab-<topic>');
-await openOrReuseTab('<地址>/docs/lab/<topic>.html');   // <地址> = lab.sh 打印的那行（SKILL ⑦）；没起服务就用 file:///绝对路径
+await openOrReuseTab('<地址>/docs/lab/<topic>.html');   // <地址> = lab.sh 打印的那行（SKILL ⑦）；台子从服务取，file:// 打不开
 await cdp('Emulation.setDeviceMetricsOverride', { width: 1560, height: 940, deviceScaleFactor: 1, mobile: false });
 for (const theme of ['light', 'dark']) {
   await js("localStorage.clear(); localStorage.setItem('lab.<topic>.t', JSON.stringify('" + theme + "')); localStorage.setItem('lab.<topic>.w', JSON.stringify('all')); location.reload()");
@@ -116,6 +116,7 @@ await js("document.getElementById('fab').click()");
 - `curl --data-binary '测试回话' …/__lab/say` → 右下角冒出这句（带 × 收起）；灰点消失；「记录」多一条回话。
   **先改文件、紧接着 say** 也要能看到回话（刷新落在 say 之后，新页面照样显示）。
 - 正写着标注时改文件：不刷新，存了 / Esc 后才刷。
+- 改台子（`touch lab.css`）开着的对照页也要自己刷新；页面里只该看得到五个全局（`ICON / ic / pa / part / labStart`），台子内部的名字不漏到 `window`。
 - 多个界面：`G` 并排，点第二格头上的档号，只有那一格换档，左栏界面清单行尾的数跟着变。
 - 标注时点到透明遮罩（单据层的 scrim 之类）不算：认的是样本自己的命中，不是台子强开的。
 - 点跟着组件动：在抽屉 / 单据里打一个点，关掉它——过渡跑到一半时点的位移等于组件的位移（ego 窗口在后台时 rAF 掉到约 1 帧 / 秒，别逐帧采样，
