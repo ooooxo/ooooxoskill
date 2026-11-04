@@ -93,6 +93,8 @@ Climb the ladder, stop at the first rung that works: **use as-is → an existing
 - [ ] Hierarchy, grouping, separation, color meaning and shape follow the invariants; contrast checked in both themes
 - [ ] Data text as chips; explanatory grey text folded into ⓘ unless it is a consequence, a format or a status
 - [ ] One primary per screen; actions in their homes; hit area ≥ `--hit`; no dead buttons
+- [ ] Action rows: a lone button stretches full width; same-kind siblings split equally, rank by color only; the pressed button carries its own busy / done / failed text
+- [ ] No dead area: content ranked first, then sized to fill its region — the lead and the decision grow before any void is left
 - [ ] Loading / empty / content / failed designed; the shell paints before the fetch; failures speak human
 - [ ] Baseline feedback present; anything moving uses one of four curves, <300ms, `transform`/`opacity`, interruptible
 - [ ] **Rendered and looked at** — real size, both themes. A `%` in a path or a missing `fill` passes every syntax check; only eyes catch it

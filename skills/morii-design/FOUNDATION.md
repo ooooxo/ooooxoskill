@@ -31,6 +31,8 @@
 
 **Proximity groups before any line does:** the gap inside a group is clearly smaller than between groups (≈1.5–2×), all from `--sp-*`. Whitespace is the first separator; prefer empty over full.
 
+**Whitespace separates; it is never leftover.** Before laying out a unit, list what it must show and rank it (§2); then size to the region the unit owns — the lead and the decision get the room, facts read as a value-led grid at a size you can scan, prose and history take the remaining height. A big dead area beside small, cramped content is a layout failure, not breathing room: grow what matters instead of leaving the void.
+
 **Separation is the product's surface model, applied by role.** The tuning decides what a raised object or a floating layer looks like (`STYLE.md`); every boundary of the same role gets exactly those cues, and never extra ones ad hoc. Within any style prefer the cheapest cue that works — whitespace, then a tone step, then a line, then depth. One treatment stamped on everything regardless of role — an edge light plus a tight shadow on every card, tile and button — is the **stamped sticker**.
 
 **Elevation is a role — give each thing the one it has:**
@@ -86,6 +88,11 @@
 | **State change** | enable ↔ disable, pin | the indicator that shows the state | the chip or switch itself |
 | **Destructive** | delete, void, reset | separated, last | danger-toned; confirmation sized by consequence (`SHELL.md` §7) |
 
+- **Action rows are sized, split and toned by rule:**
+  - Decision actions on a card or a detail face are full size (≥ `--hit-lg`), never chip-sized buttons tucked in a corner.
+  - A button alone on its row stretches into a full-width bar; it never sits small at one end of an empty row.
+  - Sibling actions of the same kind split the row into equal widths. Rank among them is carried by **color** (solid ink for the primary, the danger tone for destructive, quiet for the rest) — never by different widths, heights or shapes.
+  - The result is written back into the button that was pressed: busy → its label becomes the progress ("确认中…"); done → the outcome ("已确认"); failed → the button takes the danger tone and its label says what went wrong in one human line, then restores. No toast or banner for an action that has a button.
 - **Escalate by how much you must ask** — run → confirm inline → prompt one value → full form. **Prefer undo** to confirm for anything reversible.
 - **Feedback lands where the action happened;** toasts are for system events with no place of their own.
 - **Objects come from somewhere and go home** — a menu grows from its trigger and shrinks back; a dragged item is the item itself, never a proxy box.
