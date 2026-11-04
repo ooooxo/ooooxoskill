@@ -84,6 +84,12 @@ const SKELETON = `
 
 /* ================= ③ 台子 ================= */
 function labStart(cfg) {
+  /* 台子吃的是一套角色变量（--bg-content / --ink / --accent …）。项目 token 里没有就自己补一份 morii 的，补在最前面：项目自己的值照样盖过它 */
+  if (!getComputedStyle(document.documentElement).getPropertyValue("--bg-content").trim()) {
+    const l = document.createElement("link");
+    l.rel = "stylesheet"; l.href = "/__lab/Token.css";
+    document.head.prepend(l);
+  }
   document.body.dataset.mode = "live";
   document.body.insertAdjacentHTML("afterbegin", SKELETON);
   const { TOPIC, KEY } = cfg;
@@ -1056,10 +1062,19 @@ function labStart(cfg) {
   renderChrome(); renderHist(); render(!re);
   if (re) { const [x, y] = JSON.parse(re); board.scrollTo(x, y); }
   document.fonts.ready.then(placePins);
-  /* 对照版服务：agent 回话、文件改了就刷新；断了 EventSource 自己重连 */
-  const es = new EventSource("/__lab/events");
-  es.addEventListener("state", (e) => hear(JSON.parse(e.data).say));
-  es.addEventListener("say", (e) => hear(JSON.parse(e.data)));
-  es.addEventListener("reload", reloadSoon);
+  /* 对照版服务：agent 回话、文件改了就刷新。不挂长连：Chrome 同一个地址最多 6 条连接，开到第 6 页时长连占满池子，
+     新页面加载不出、「发送」排在后面发不出去（2026-11-02 用户：点了发送没反应）。改成每 1.5 秒问一次（后台标签 5 秒），问完就走 */
+  const pid = Math.random().toString(36).slice(2);
+  let ver = null, sayAt = null;
+  async function tick() {
+    try {
+      const m = await (await fetch(`/__lab/state?page=${encodeURIComponent(location.pathname)}&id=${pid}`, { cache: "no-store" })).json();
+      if (ver && m.ver !== ver) return reloadSoon();
+      ver = m.ver;
+      if (m.say && m.say.at !== sayAt) { sayAt = m.say.at; hear(m.say); }
+    } catch { /* 服务重启中：下一轮再问，连上了版本对不上就刷新 */ }
+    setTimeout(tick, document.hidden ? 5000 : 1500);
+  }
+  tick();
 }
 })();
