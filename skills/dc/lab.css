@@ -245,7 +245,16 @@ body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
 
 /* 平铺：列数与比例由脚本按舞台大小算（--cols / --zoom），间距与内边距和脚本里 GAP / PAD 一致 */
 .stage { zoom: var(--zoom, 1); display: grid; grid-template-columns: repeat(var(--cols, 3), var(--tile-w)); gap: 28px; padding: 24px 32px 32px; width: max-content; margin: 0 auto; }
-.tile { display: flex; flex-direction: column; gap: 10px; }
+.tile { position: relative; display: flex; flex-direction: column; gap: 10px; }
+/* 外部触发：格子右边外侧一排键（碰标签、来网这类手机外面的事），虚线边说「这不是屏里的」；有它时每列让出 --ext-w */
+.stage { column-gap: calc(28px + var(--ext-w, 0px)); padding-right: calc(32px + var(--ext-w, 0px)); }
+.tile .ext { position: absolute; left: calc(100% + 14px); top: 0; width: 162px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+body:not([data-view="one"]) .tile .ext { top: 34px; }
+.tile .ext[hidden] { display: none; }
+.xb { max-width: 100%; min-height: 36px; padding: 7px 14px 7px 11px; border-radius: 18px; border: 1.5px dashed var(--ink-4); background: var(--bg-content); color: var(--ink); font: 600 13.5px/1.3 var(--font); text-align: left; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; transition: border-color var(--t-fast) var(--ease-hover), background var(--t-fast) var(--ease-hover); }
+.xb:hover { border-color: var(--ink-2); background: var(--hover); }
+.xb:active { background: var(--press); }
+.xb svg { flex: none; }
 .intro .tile { animation: in-up var(--t-slow) var(--ease-out) backwards; animation-delay: var(--d, 0ms); }   /* 只在首屏与 P 重播时逐格入场；换档 / 界面 / 轮次直接换 */
 .tile .lbl { height: 24px; display: flex; align-items: center; gap: 8px; font: 500 13.5px var(--font); color: var(--ink-3); cursor: pointer; -webkit-user-select: none; user-select: none; }
 body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在左栏 */

@@ -42,7 +42,7 @@ const SKELETON = `
   <div class="tg"><div class="seg sub" id="specs"></div></div>
   <div class="tg"><div class="seg sub" id="views"></div></div>
   <div class="tg"><button class="tbtn mono" id="zoomT"></button><button class="tbtn" id="themeT"></button></div>
-  <div class="tg"><button class="dbtn" id="histT" data-pop="histPop" title="记录"></button><button class="ibtn" id="dockT" title="滑块（I）" aria-label="滑块"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
+  <div class="tg"><button class="ibtn" id="resetI" title="回到初始（X）：样本里点过、填过、切过的交互状态全清掉，回到刚打开的样子" aria-label="回到初始"></button><button class="dbtn" id="histT" data-pop="histPop" title="记录"></button><button class="ibtn" id="dockT" title="滑块（I）" aria-label="滑块"></button><button class="ibtn" id="keysT" data-pop="keysPop" title="键位" aria-label="键位"></button></div>
 </div></div>
 
 <!-- 左：界面 · 轮次 · 档 -->
@@ -77,6 +77,7 @@ const SKELETON = `
   <kbd class="ink-kbd">T</kbd><span>明暗 系统 → 亮 → 暗</span>
   <kbd class="ink-kbd">I</kbd><span>收起 / 打开滑块</span>
   <kbd class="ink-kbd">P</kbd><span>重播入场</span>
+  <kbd class="ink-kbd">X</kbd><span>交互回到初始</span>
   <kbd class="ink-kbd">⌘Z</kbd><span>撤回（⇧⌘Z 重做）</span>
   <kbd class="ink-kbd">Esc</kbd><span>关菜单 / 弹层，退出标注</span>
 </div></div>
@@ -106,6 +107,7 @@ function labStart(cfg) {
   button { font: inherit; color: inherit; }
   .ic { flex: none; display: block; }
   .root { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+  .root [data-ext] { display: none !important; }   /* 外部触发：不画在屏里，挂到格子外侧那排键上（extRail） */
   :host([data-mode="static"]:not([data-note])) .root * { pointer-events: none; }   /* 静态：样本不响应，根留着接点击（选档）；标注时照样本自己的命中走 */
   :host(.dragging) { -webkit-user-select: none; user-select: none; cursor: grabbing; }
   :host([data-mode~="build"]) .root { cursor: grab; }
@@ -159,6 +161,7 @@ function labStart(cfg) {
   const SNAP = 8;
   const SPRING = { k: 420, z: 0.78 };
   const GAP = 28, PAD_X = 32, PAD_Y = 16 + 24, LBL = 34;   // 与 .stage / .tile 的 CSS 一致
+  const EXT_W = 176;     // 格子外侧那排外部触发键占的宽（与 .tile .ext 的 CSS 一致）
   const MIN_Z = 0.6;     // 平铺缩到这以下就算「放不下」：保底这个比例，按宽排列、纵向滚动
   const MERGE_MS = 500;  // 同一项改动连着来（双击回默认、连按方向键）并成一条记录 / 一步撤回
 
@@ -308,7 +311,9 @@ function labStart(cfg) {
     board.style.paddingTop = topB + "px";
     document.documentElement.style.setProperty("--side-top", topB + "px");   // 左右两栏从顶条下面开始
     const n = stage.querySelectorAll(".tile").length || 1;
-    const fw = dims.w, th = dims.h + (view === "one" ? 0 : LBL);
+    const ext = stage.querySelector(".ext:not([hidden])") ? EXT_W : 0;   // 外侧有触发键：每格右边多让出一条
+    stage.style.setProperty("--ext-w", ext + "px");
+    const fw = dims.w + ext, th = dims.h + (view === "one" ? 0 : LBL);
     const cs = getComputedStyle(board);
     const W = board.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), H = board.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     let best = { z: 0, c: 1 };
@@ -892,6 +897,7 @@ function labStart(cfg) {
     seg($("pins"), (R().pins ?? [["rest", "常态"]]).map(([id, l]) => ["data-pin", id, l, "静态时钉住的状态"]));
     $("keysT").innerHTML = ic("help", 15);
     $("dockT").innerHTML = ic("sliders", 15);
+    $("resetI").innerHTML = ic("reload", 15);
     document.body.classList.toggle("no-dock", !hasKnobs());
     $("histF").innerHTML = `<button class="mini" id="resetP">${ic("reload", 13)}参数回默认</button><button class="mini" id="resetL">${ic("grid-view", 13)}零件归位</button>`;
   }
@@ -962,7 +968,7 @@ function labStart(cfg) {
 
   function paint() {
     stage.innerHTML = tiles().map((t, n) => `<div class="tile" data-vk="${vk(t.g, t.r, t.i)}" style="--d:${n * 30}ms"><div class="lbl">${lblHTML(t)}</div>
-      <div class="host" data-vk="${vk(t.g, t.r, t.i)}" data-sp="${t.s}"></div></div>`).join("");
+      <div class="host" data-vk="${vk(t.g, t.r, t.i)}" data-sp="${t.s}"></div><div class="ext" hidden></div></div>`).join("");
     for (const k of Object.keys(pos)) delete pos[k];
     for (const h of hosts()) {
       const k = h.dataset.vk, v = varOf(k);
@@ -972,13 +978,44 @@ function labStart(cfg) {
       h.toggleAttribute("data-note", noting);
       wire(root, k);
       follow(root);
+      extRail(root, h);
     }
     for (const k of new Set(hosts().map((h) => h.dataset.vk))) for (const [id, p] of Object.entries(load("L" + k, {}))) { setPos(k, id, p.x ?? 0, p.y ?? 0); if (p.w != null) setSize(k, id, p.w, p.h); }
     applyParams();
     if (isStatic() && pinned !== "rest") requestAnimationFrame(() => hosts().forEach((h) => roundOfK(h.dataset.vk).pin?.(h.shadowRoot, pinned, specOfRoot(h.shadowRoot))));
     renderKnobs(); syncChrome();
   }
+  /* 外部触发（2026-11-04 甲方要）：样本里标了 data-ext 的元素（碰一张标签、来网断网这类手机外面发生的事）不画在屏里，
+     挂在格子右边外侧当一排触发键，名字 = data-ext 的值（空就用元素的字），图标照搬；点它 = 点那个元素（照常进 on 与记录）。样本重画了跟着换 */
+  function extRail(root, h) {
+    const rail = h.parentElement.querySelector(".ext");
+    let queued = false;
+    const sync = () => {
+      queued = false;
+      const els = [...root.querySelectorAll(".root [data-ext]")].filter((el) => !el.closest("[inert]"));   // 正在退场的旧帧（inert）里的不算
+      rail.replaceChildren(...els.map((el) => {
+        const b = document.createElement("button");
+        b.className = "xb";
+        b.innerHTML = el.querySelector("svg")?.outerHTML ?? "";
+        b.append(el.dataset.ext || el.textContent.trim());
+        b.onclick = () => el.click();
+        return b;
+      }));
+      const had = !rail.hidden;
+      rail.hidden = !els.length;
+      if (had !== !rail.hidden) applyZoom();
+    };
+    new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(sync); } }).observe(root.querySelector(".root"), { childList: true, subtree: true });
+    sync();
+  }
   /* 换界面 / 样本 / 轮次 / 钉住 / 选档：直接换，不淡出不入场（甲方 2026-10-10：切换要干脆，别黑一下）；intro = 首屏与 P 重播才逐格入场 */
+  /* 回到初始（X，2026-11-04 甲方要）：样本的交互状态在页面自己手里——页面给了 labStart({ reset }) 就调它清掉再重画；
+     没给就整页重载（模块里的状态随之清空；选档、标注、滑块在 localStorage，记录在 sessionStorage，都留着） */
+  function resetState() {
+    if (typeof cfg.reset !== "function") return location.reload();
+    cfg.reset();
+    render();
+  }
   function render(intro = false) {
     for (const a of settling.values()) a.stop();
     stage.classList.toggle("intro", intro);
@@ -1025,7 +1062,7 @@ function labStart(cfg) {
     if (noteSkip) closeComposer(true);
   }, true);
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-ci],[data-g],[data-note],[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-pop],#noteT,#dockT,#zoomT,#themeT,#fab,#replyX,#cmpDel,#resetP,#resetL,#copyJ,.tile");
+    const t = e.target.closest("[data-ci],[data-g],[data-note],[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-pop],#noteT,#dockT,#zoomT,#themeT,#fab,#replyX,#cmpDel,#resetP,#resetL,#copyJ,#resetI,.tile");
     if (openPop && !e.target.closest(".pop") && !t?.dataset.pop) closePop();
     if (!t) return;
     if (t.dataset.pop) return togglePop(t.dataset.pop, t);
@@ -1047,6 +1084,7 @@ function labStart(cfg) {
     if (t.id === "dockT") return toggleDock();
     if (t.id === "zoomT") { fit = !fit; save("z", fit); return applyZoom(); }
     if (t.id === "themeT") return nextTheme();
+    if (t.id === "resetI") return resetState();
     if (t.id === "fab") return sendAll();
     if (t.id === "replyX") { save("sv", said.at); return paintOut(); }
     if (t.id === "cmpDel") return dropNote(editing);
@@ -1117,6 +1155,7 @@ function labStart(cfg) {
     if (k === "m") { const i = CYCLE.findIndex(([a, b]) => a === flags.live && b === flags.build); return setFlags(...CYCLE[(i + 1) % CYCLE.length]); }
     if (k === "t") return nextTheme();
     if (k === "p") return render(true);
+    if (k === "x") return resetState();
     if (k === "i") return toggleDock();
     if (e.key === "Escape") { if (openPop) return closePop(); hosts().forEach((h) => closeMenu(h.shadowRoot)); if (noting) setNoting(false); }
   });
