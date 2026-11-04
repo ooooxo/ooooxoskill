@@ -8,16 +8,14 @@
 
 ```js
 await useOrCreateTaskSpace('lab-<topic>');
-await openOrReuseTab('<地址>/docs/lab/<topic>.html');   // <地址> = lab.sh 打印的那行（SKILL ⑦）；台子从服务取，file:// 打不开
 await cdp('Emulation.setDeviceMetricsOverride', { width: 1560, height: 940, deviceScaleFactor: 1, mobile: false });
-for (const theme of ['light', 'dark']) {
-  await js("localStorage.clear(); localStorage.setItem('lab.<topic>.t', JSON.stringify('" + theme + "')); localStorage.setItem('lab.<topic>.w', JSON.stringify('all')); location.reload()");
-  await new Promise(r => setTimeout(r, 1500));
-  for (let s = 0; s < 3; s++) {
-    if (s) await js("dispatchEvent(new KeyboardEvent('keydown', { key: 's' }))");
-    await new Promise(r => setTimeout(r, 900));   // 首屏有逐格入场，后台标签更慢
-    console.log(await captureScreenshot('/tmp/lab-s' + s + '-' + theme + '.png'));
-  }
+/* 截图一律走截图模式 ?shot：状态只从地址读、只活在内存里，不读也不写 localStorage —— ego 的档案可能就是用户的浏览器，
+   用户正开着的那页（选档、样本、明暗、标注）一点不受影响。参数：g 界面（名或序号）· r 轮号（1 起，缺省最新）· v 档 · s 样本（名或序号）·
+   t light|dark · w one|pair|all|pages · bare（只留舞台，不画顶条和左右栏） */
+for (const t of ['light', 'dark']) for (let s = 0; s < 3; s++) {
+  await openOrReuseTab(`<地址>/docs/lab/<topic>.html?shot&w=all&s=${s}&t=${t}`);   // <地址> = lab.sh 打印的那行（SKILL ⑦）；台子从服务取，file:// 打不开
+  await new Promise(r => setTimeout(r, 1200));   // 首屏有逐格入场，后台标签更慢
+  console.log(await captureScreenshot('/tmp/lab-s' + s + '-' + t + '.png'));
 }
 ```
 
@@ -148,7 +146,8 @@ PY
 
 ## 6. 收尾（一轮一关，见 SKILL ⑨）
 
-**ego 的浏览器档案可能就是用户自己的浏览器**：验完把这一题的 localStorage 清掉（只删 `lab.<topic>.` 开头的键：`Object.keys(localStorage).filter((k) => k.startsWith('lab.<topic>.')).forEach((k) => localStorage.removeItem(k))`），否则用户打开看到的是你的测试状态（明暗、选档、标注）。
+**ego 的浏览器档案可能就是用户自己的浏览器**：截图走 `?shot`（§1）就没有测试状态要清。**不许** `localStorage.clear()`、不许删这一题的键、不许不带 `?shot` 去 `setItem` —— 用户的标注、选档、明暗都在里面，删了就丢了（2026-10-30 踩过：agent 截图改掉了用户的选档与明暗）。
+要验「点了之后怎样」这种只能在普通模式下做的交互（打标注、拼装挪位），换一个 `KEY` 前缀的副本页（放 `docs/` 下但别放进 `docs/lab/`，免得触发用户那页刷新），验完删副本。
 换明暗后要拍图，等过渡跑完再拍（`waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect.getTiming().iterations === Infinity))`），别拍到半截混色。
 
 最后单独一发：`await completeTaskSpace(id, { keep: false })`，不留浏览器挂着。然后 `/usr/bin/open` 给用户。

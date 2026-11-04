@@ -101,7 +101,7 @@ body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
   font-size: 14px; font-weight: 650; background: var(--ink); color: var(--bg-content); box-shadow: var(--shadow-float);
   transition: transform var(--t-press) var(--ease-out), opacity var(--t-fast) var(--ease-hover); }
 .fab:active:not(:disabled) { transform: scale(var(--press)); }
-.fab:disabled { opacity: .3; cursor: default; }
+.fab.same:not(.flash) { opacity: .55; }
 .fab .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font: 650 11px/20px var(--font-mono); text-align: center; background: var(--accent); color: var(--on-accent); }
 .dbtn { height: 30px; padding: 0 6px 0 8px; border-radius: var(--r-xs); display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
@@ -262,3 +262,19 @@ body[data-view="one"] .tile .lbl { display: none; }   /* 单看：档名已在�
 .lab-empty b { color: var(--crit); }
 
 @keyframes in-up { from { opacity: 0; transform: translateY(6px); } }
+
+/* 界面清单行尾：此刻选的「R轮 · 档」+ 没发的标注数（不是同一件事，分两颗） */
+.pi .pk { display: inline-flex; align-items: center; gap: 4px; }
+.pi .nn { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center; font: 650 10.5px/1 var(--font-mono); background: var(--accent); color: var(--on-accent); }
+.pi.on .tag { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-ink, var(--accent)); }
+
+/* 截图模式的 &bare：只留舞台（顶条、左右栏、发送都不画），格子照常排 */
+body.bare .lane, body.bare .pop, body.bare .cmp { display: none !important; }
+body.bare .board { padding: 24px !important; background: var(--bg-content); }
+
+/* 改了哪儿：左栏界面行 / 轮次挂「新」，右下角一条「这次改了」 */
+.nw { flex: none; display: inline-block; height: 16px; line-height: 16px; margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 10px; font-weight: 800; color: #fff; background: var(--accent); vertical-align: middle; }
+.fresh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 4px 8px 10px; border-radius: 10px; background: var(--accent-soft); font-size: 12px; color: var(--ink); }
+.fresh:empty { display: none; } .fresh > span { font-weight: 700; margin-right: 2px; }
+.fresh button[data-fg] { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 0; border-radius: 12px; background: var(--bg-content, #fff); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.fresh button[data-fg] b { color: var(--accent); font-weight: 800; } .fresh .ibtn { margin-left: auto; width: 24px; height: 24px; }

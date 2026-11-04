@@ -50,7 +50,7 @@ const SKELETON = `
 <!-- 右：滑块（不常用，I 收起）；右下角：agent 回话 · 标注清单 · 发送 -->
 <div class="lane right">
   <div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div>
-  <div class="out"><div class="isl tray" id="tray" hidden><div class="reply" id="reply"></div><ul class="chg nl" id="nl"></ul></div><button class="fab" id="fab" title="发给 agent（⌘⏎）"></button></div>
+  <div class="out"><div class="isl tray" id="tray" hidden><div class="fresh" id="fresh"></div><div class="reply" id="reply"></div><ul class="chg nl" id="nl"></ul></div><button class="fab" id="fab" title="发给 agent（⌘⏎）"></button></div>
 </div>
 
 <!-- 记录：交互动作、改动、标注、发送与 agent 回话一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
@@ -90,6 +90,10 @@ function labStart(cfg) {
     l.rel = "stylesheet"; l.href = "/__lab/Token.css";
     document.head.prepend(l);
   }
+  /* 截图模式（?shot）：状态只活在内存里、从地址读，不读也不写本机存储 —— agent 截图不会改到用户正开着的那页（档、样本、明暗、标注）。
+     ?shot&g=<界面名或序号>&r=<轮号，1 起>&v=<档序号>&s=<样本名或序号>&t=light|dark&w=one|pair|all|pages&bare（只留舞台） */
+  const Q = new URLSearchParams(location.search), SHOT = Q.has("shot");
+  if (Q.has("bare")) document.body.classList.add("bare");
   document.body.dataset.mode = "live";
   document.body.insertAdjacentHTML("afterbegin", SKELETON);
   const { TOPIC, KEY } = cfg;
@@ -123,12 +127,17 @@ function labStart(cfg) {
   :host([data-note]) .lab-hud > .sz { display: none; }
   /* 标注点：一枚带号的水滴，尖角落在点下去的位置；发出去的变灰，agent 回话后消失 */
   .lab-pins { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: clip; overflow-clip-margin: 28px; }   /* 跟着组件滑出格子的点剪掉 */
-  .lab-pin { position: absolute; min-width: 24px; height: 24px; padding: 0 7px; border: 0; border-radius: 12px 12px 12px 3px; translate: 0 -100%; transform-origin: 0 100%;
-    display: grid; place-items: center; font: 650 11.5px/1 var(--font-mono); background: var(--accent); color: var(--on-accent); cursor: pointer; pointer-events: auto;
+  .lab-pin { position: absolute; min-width: 20px; height: 20px; padding: 0 6px; border: 0; border-radius: 10px 10px 10px 2px; translate: 0 -100%; transform-origin: 0 100%;
+    display: grid; place-items: center; font: 650 10.5px/1 var(--font-mono); background: var(--accent); color: var(--on-accent); cursor: pointer; pointer-events: auto;
     box-shadow: 0 0 0 2px var(--bg-content), var(--shadow-md); animation: pin-in var(--t-med) var(--ease-out);
     transition: transform var(--t-press) var(--ease-out), background-color var(--t-fast) var(--ease-hover); }
   .lab-pin:hover, .lab-pin.on { transform: scale(1.15); }
-  .lab-pin.sent { background: var(--ink-4); }
+  .lab-pin.sent { background: var(--ink-4); opacity: .7; }
+  .lab-pin.lost { background: var(--bg-content); color: var(--ink-3); box-shadow: inset 0 0 0 1.5px var(--ink-4), 0 0 0 2px var(--bg-content); border-style: dashed; }
+  /* 悬停一枚点 / 一行标注：把它指的那个组件框出来，知道说的是谁 */
+  .lab-ring { position: absolute; z-index: 34; pointer-events: none; border-radius: 6px; box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px color-mix(in srgb, var(--accent) 18%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent); transition: all var(--t-fast) var(--ease-out); }
+  .lab-ring[hidden] { display: none; }
   .lab-pin[hidden] { display: none; }   /* 组件此刻看不见（抽屉收起、页签切走）：点也藏起来 */
   @keyframes pin-in { from { transform: scale(.3); opacity: 0; } }
   .menu { position: absolute; z-index: 40; min-width: 150px; padding: 4px; border-radius: var(--r-sm); background: var(--panel); box-shadow: var(--shadow-md), 0 0 0 1px var(--sep);
@@ -169,9 +178,24 @@ function labStart(cfg) {
 
   /* 状态：存储键都带全地址（界面 g · 轮 r · 档 i），撤回快照换了界面也认得
      g 当前界面 · r<g> 轮 · v<g>.<r> 选中档 · s<g> 样本 · ps<g>.<r> 共用参数 · pv<g.r.i> 档私有参数 · L<g.r.i> 布局 */
-  const load = (k, d) => { const v = localStorage.getItem(KEY + k); return v === null ? d : JSON.parse(v); };
-  const save = (k, v) => localStorage.setItem(KEY + k, JSON.stringify(v));
-  const raw = (k) => localStorage.getItem(KEY + k);
+  const mem = new Map();
+  const load = (k, d) => { if (SHOT) return mem.has(k) ? mem.get(k) : d; const v = localStorage.getItem(KEY + k); return v === null ? d : JSON.parse(v); };
+  const save = (k, v) => (SHOT ? void mem.set(k, v) : localStorage.setItem(KEY + k, JSON.stringify(v)));
+  const raw = (k) => (SHOT ? (mem.has(k) ? JSON.stringify(mem.get(k)) : null) : localStorage.getItem(KEY + k));
+  if (SHOT) {
+    const gq = Q.get("g") ?? "0", g = Math.max(0, PAGES_.findIndex((p) => p.name === gq) >= 0 ? PAGES_.findIndex((p) => p.name === gq) : Math.min(+gq || 0, PAGES_.length - 1));
+    const r = Q.has("r") ? Math.min(Math.max(+Q.get("r") - 1, 0), PAGES_[g].rounds.length - 1) : PAGES_[g].rounds.length - 1;
+    mem.set("g", g); mem.set("r" + g, r);
+    if (Q.has("v")) mem.set(`v${g}.${r}`, +Q.get("v"));
+    if (Q.has("s")) { const sq = Q.get("s"), i = PAGES_[g].specs.findIndex((x) => x.from === sq); mem.set("s" + g, i >= 0 ? i : +sq || 0); }
+    for (const k of ["t", "w"]) if (Q.has(k)) mem.set(k, Q.get(k));
+  }
+  /* agent 开了新一轮：上回没见过的轮就直接落到最新那轮（用户不必自己去翻轮次按钮才看到改动） */
+  PAGES_.forEach((p, g) => {
+    const n = p.rounds.length, seen = load("rc" + g, null);
+    if (seen !== null && n > seen) save("r" + g, n - 1);
+    if (seen !== n) save("rc" + g, n);
+  });
   let pg = Math.min(load("g", 0), PAGES_.length - 1);
   const rnd = (g = pg) => Math.min(load("r" + g, PAGES_[g].rounds.length - 1), PAGES_[g].rounds.length - 1);
   const selI = (g = pg, r = rnd(g)) => Math.min(load(`v${g}.${r}`, r === 0 ? 1 : 0), PAGES_[g].rounds[r].list.length - 1);
@@ -205,7 +229,8 @@ function labStart(cfg) {
   const selK = () => vk(pg, rnd(), selI());
   const roundOfK = (k) => { const [g, r] = at3(k); return PAGES_[g].rounds[r]; };
   const varOf = (k) => { const [g, r, i] = at3(k); return PAGES_[g].rounds[r].list[i]; };
-  const vname = (g, r, i) => `${i} ${PAGES_[g].rounds[r].list[i].name}`;
+  /* 档名：标注可能落在 agent 后来撤掉的那一轮 / 那一档上，照样要发得出去（2026-11-02 撤了安防 R2，那页的发送就整个卡住） */
+  const vname = (g, r, i) => { const v = PAGES_[g]?.rounds[r]?.list[i]; return v ? `${i} ${v.name}` : `${i}（这一轮已撤）`; };
   const multi = () => PAGES_.length > 1;
   const isPages = () => view === "pages" && multi();
   /* 舞台上的格：单看 = 选中档；对照 = 本界面现状 + 选中档；全档 = 本界面本轮全部档；全部界面 = 每个界面各自选中的那档 */
@@ -586,15 +611,39 @@ function labStart(cfg) {
       have.delete(n.id);
       if (!b) { b = document.createElement("button"); b.dataset.note = n.id; layer.append(b); }
       const el = noteEl(face, n), r = el?.getBoundingClientRect();
-      b.className = `lab-pin ${n.state}${editing?.id === n.id ? " on" : ""}`;
-      b.textContent = n.no; b.title = n.note;
-      b.hidden = !!el && el !== face && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+      b.className = `lab-pin ${n.state}${editing?.id === n.id ? " on" : ""}${el ? "" : " lost"}`;
+      b.textContent = n.no; b.title = el ? n.note : `组件已变（agent 改过结构），点落在原坐标：${n.note}`;
+      b.hidden = !!el && el !== face && (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) || scrolledOut(el, r, face));
       b.style.left = (el ? (r.left - hr.left + n.fx * r.width) / zoom : n.x) + "px";
       b.style.top = (el ? (r.top - hr.top + n.fy * r.height) / zoom : n.y) + "px";
     }
     for (const b of have.values()) b.remove();
   }
-  const placePins = () => hosts().forEach(placePinsIn);
+  /* 组件被样本自己的滚动层滚出了可视区（翻到屏外、钻进顶栏底下）：点也藏起来 */
+  function scrolledOut(el, r, face) {
+    for (let n = el.parentElement; n && n !== face; n = n.parentElement) {
+      const o = getComputedStyle(n);
+      if (!/(auto|scroll|hidden|clip)/.test(o.overflowY + o.overflowX)) continue;
+      const s = n.getBoundingClientRect();
+      if (r.bottom < s.top || r.top > s.bottom || r.right < s.left || r.left > s.right) return true;
+    }
+    return false;
+  }
+  const placePins = () => { hosts().forEach(placePinsIn); paintPages(); };
+  /* 框出一条标注指的组件（悬停点或标注行时）；id 空 = 收起 */
+  function ring(id) {
+    for (const h of hosts()) {
+      const root = h.shadowRoot, layer = root.querySelector(".lab-pins");
+      let rg = layer.querySelector(".lab-ring");
+      const n = id && notes.find((x) => x.id === id && x.k === h.dataset.vk && x.s === Number(h.dataset.sp));
+      const el = n && noteEl(root.querySelector(".root"), n);
+      if (!el) { if (rg) rg.hidden = true; continue; }
+      if (!rg) { rg = document.createElement("div"); rg.className = "lab-ring"; layer.prepend(rg); }
+      const r = el.getBoundingClientRect(), hr = h.getBoundingClientRect();
+      Object.assign(rg.style, { left: (r.left - hr.left) / zoom + "px", top: (r.top - hr.top) / zoom + "px", width: r.width / zoom + "px", height: r.height / zoom + "px" });
+      rg.hidden = false;
+    }
+  }
   /* 点跟着组件动：格里起了过渡 / 动画、或 DOM / 类名 / 行内样式变了，就逐帧重量这一格的点，动画停了就停（无限循环的动画不算，不然停不下来） */
   const moving = (root) => root.getAnimations().some((a) => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity);
   function follow(root) {
@@ -602,6 +651,9 @@ function labStart(cfg) {
     const tick = () => { placePinsIn(root.host); if (moving(root)) requestAnimationFrame(tick); else on = false; };
     const go = () => { if (!on && root.querySelector(".lab-pin")) { on = true; requestAnimationFrame(tick); } };
     root.addEventListener("transitionrun", go); root.addEventListener("animationstart", go);
+    /* 样本里自己的滚动层（手机页的清单、抽屉）一滚，组件就动了：滚动不冒泡，在影子根上抓捕获阶段，一帧量一次 */
+    let sq = 0;
+    root.addEventListener("scroll", () => { if (!sq) sq = requestAnimationFrame(() => { sq = 0; placePinsIn(root.host); }); }, { capture: true, passive: true });
     new MutationObserver(go).observe(root.querySelector(".root"), { subtree: true, childList: true, attributes: true, characterData: true });
   }
   const pinEl = (id) => hosts().map((h) => h.shadowRoot.querySelector(`.lab-pin[data-note="${id}"]`)).find(Boolean);
@@ -655,6 +707,7 @@ function labStart(cfg) {
     const n = notes.find((x) => x.id === id);
     if (!pinEl(id)) {
       const [g, r, i] = at3(n.k);
+      if (!PAGES_[g]?.rounds[r]?.list[i]) return;   // 那一轮已撤：没地方摆它
       pg = g; save("g", g); save("r" + g, r); save(`v${g}.${r}`, i); save("s" + g, n.s);
       renderChrome(); render();
     }
@@ -696,16 +749,17 @@ function labStart(cfg) {
       参数: params, 布局: layout,
     };
   }
-  const worth = () => notes.some((n) => n.state === "open") || stateKey() !== load("sent", "");
+  const worth = () => notes.some((n) => n.state === "open") || stateKey() !== load("sent2", "");   // sent2 = 真发出去过的样子（旧的 sent 是打开时预存的，作废）
   async function sendAll() {
     if (editing) closeComposer(true);
-    if (!worth()) return;
+    if (!worth()) return flash($("fab"), true, `${ic("check", 16)}跟上次发的一样`);
     const b = payload(), fab = $("fab");
     const r = await fetch("/__lab/send", { method: "POST", body: JSON.stringify(b) });
     if (!r.ok) { flash(fab, false, `${ic("close", 16)}没发出去`); throw new Error(`发给 agent 失败：${r.status} ${await r.text()}`); }
     const { batch } = await r.json();
-    for (const n of notes) if (n.state === "open") Object.assign(n, { state: "sent", batch });
-    save("n", notes); save("sent", stateKey());
+    const sentAt = new Date().toISOString();
+    for (const n of notes) if (n.state === "open") Object.assign(n, { state: "sent", batch, sentAt });
+    save("n", notes); save("sent2", stateKey());
     if (said) save("sv", said.at);   // 发了新的，上一句回话收起
     note({ kind: "send", label: `发给 agent · ${b.标注.length} 条标注` });
     placePins(); paintOut();
@@ -717,24 +771,34 @@ function labStart(cfg) {
     $("reply").innerHTML = reply ? `<p>${esc(said.text)}</p>${ibtn("replyX", "close", "收起")}` : "";
     $("nl").innerHTML = [...notes].sort((a, b) => (a.state === b.state ? a.no - b.no : a.state === "open" ? -1 : 1))
       .map((x) => `<li data-note="${x.id}" class="${x.state}"><span class="badge on">${x.no}</span><span class="nm">${esc(x.note)}</span></li>`).join("");
-    $("tray").hidden = !reply && !notes.length;
+    const fg = Object.keys(fresh).map(Number);
+    $("fresh").innerHTML = fg.length ? `<span>这次改了</span>${fg.map((g) => `<button data-fg="${g}" data-fr="${Math.max(...fresh[g])}">${esc(PAGES_[g].name)}<b>${[...fresh[g]].sort((a, b) => a - b).map((r) => `R${r + 1}`).join(" ")}</b></button>`).join("")}${ibtn("freshX", "close", "都看过了")}` : "";
+    $("tray").hidden = !reply && !notes.length && !fg.length;
     const fab = $("fab");
     if (fab.classList.contains("flash")) return;
     fab.innerHTML = `${ic("export", 16)}发送${open ? `<span class="n">${open}</span>` : ""}`;
-    fab.disabled = !worth();
+    fab.classList.toggle("same", !worth());
   }
   /* agent 回话：头一回听到记一笔、清掉它答过的那批标注点；回话留在右下角，收起或下次发送才走 */
   function hear(m) {
-    if (!m || m.page !== location.pathname) return;
+    if (!m || (m.page && m.page !== location.pathname)) return;
     said = m;
     if (m.at > load("ss", "")) {
       save("ss", m.at);
       note({ kind: "say", text: m.text });
-      notes = notes.filter((n) => !(n.state === "sent" && n.batch <= m.batch)); save("n", notes);
+      /* 发过的点：有发送时间就按时间（比这句回话早发的都收起）；旧点没记时间就看批号，服务重启过批号归零（m.batch 为 0）= 认不出，发过的一律收起 */
+      notes = notes.filter((n) => !(n.state === "sent" && (n.sentAt ? n.sentAt <= m.at : !m.batch || n.batch <= m.batch))); save("n", notes);
       placePins();
     }
     paintOut();
   }
+  $("fresh").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.id === "freshX") { Object.keys(fresh).map(Number).forEach(seenNow); return paintOut(), renderNav(); }
+    const g = Number(b.dataset.fg); if (g !== pg) setPg(g); setRound(Number(b.dataset.fr)); paintOut();
+  });
+  $("nl").addEventListener("pointerover", (e) => { const li = e.target.closest("li[data-note]"); if (li) ring(li.dataset.note); });
+  $("nl").addEventListener("pointerleave", () => ring(null));
   /* 页面文件改了就刷新：正写标注 / 正拖着就等写完、松手再刷；滚动位置带过去，不重播入场 */
   function reloadSoon() {
     if (editing || pending) return void (reloadPending = true);
@@ -765,6 +829,8 @@ function labStart(cfg) {
   /* ---- 交互：影子里的事件，按看法分流；标注与标注点抢在最前（捕获），开着标注时样本不响应、不拖 ---- */
   let noteSkip = false;   // 这一下按下是为了收起正在写的标注，不再落新点
   function wire(root, k) {
+    root.addEventListener("pointerover", (e) => { const p = e.target.closest?.(".lab-pin"); if (p) ring(p.dataset.note); });
+    root.addEventListener("pointerout", (e) => { if (e.target.closest?.(".lab-pin")) ring(null); });
     const rd = roundOfK(k), s = specOfRoot(root), i = at3(k)[2], face = root.querySelector(".root");
     root.addEventListener("pointerdown", (e) => {
       if (!noting && !e.target.closest(".lab-pin")) return;
@@ -831,9 +897,9 @@ function labStart(cfg) {
   }
   /* 左栏：界面（行尾是它选中的档）· 轮次按钮（点开全部轮次）· 档（选中那档展开论点 · 零件 · 代价） */
   function renderNav() {
-    $("pl").innerHTML = multi() ? PAGES_.map((p, g) => `<li class="pi${g === pg ? " on" : ""}" data-g="${g}"><b>${p.name}</b><span class="badge${g === pg ? " on" : ""}">${selI(g)}</span></li>`).join("") : "";
-    $("rrow").innerHTML = PG().rounds.length > 1 ? `<button class="rbtn" data-pop="roundPop" title="轮次（R / ⇧R）"><span class="badge on">R${rnd() + 1}</span><b>${R().name}</b></button>` : "";
-    $("roundL").innerHTML = PG().rounds.map((r, i) => `<li data-r="${i}" class="${i === rnd() ? "on" : ""}"><span class="badge${i === rnd() ? " on" : ""}">R${i + 1}</span><b>${r.name}</b></li>`).join("");
+    paintPages();
+    $("rrow").innerHTML = PG().rounds.length > 1 ? `<button class="rbtn" data-pop="roundPop" title="轮次（R / ⇧R）"><span class="badge on">R${rnd() + 1}</span><b>${R().name}</b>${fresh[pg]?.has(rnd()) ? nw : ""}</button>` : "";
+    $("roundL").innerHTML = PG().rounds.map((r, i) => `<li data-r="${i}" class="${i === rnd() ? "on" : ""}"><span class="badge${i === rnd() ? " on" : ""}">R${i + 1}</span><b>${r.name}</b>${fresh[pg]?.has(i) ? nw : ""}</li>`).join("");
     $("vl").innerHTML = R().list.map((v, i) => {
       const on = i === selI();
       const now = rnd() === 0 && i === 0 ? `<span class="tag">现状</span>` : "";
@@ -848,6 +914,13 @@ function labStart(cfg) {
     const rd = PAGES_[t.g].rounds[t.r];
     if (isPages()) return `<button class="tn" data-g="${t.g}">${PAGES_[t.g].name}</button><span class="chips">${rd.list.map((x, j) => `<button class="chip${j === t.i ? " on" : ""}" data-g="${t.g}" data-ci="${j}" title="${esc(x.name)}">${j}</button>`).join("")}</span>`;
     return `<span class="badge">${t.i}</span><span>${rd.list[t.i].name}</span>${t.r === 0 && t.i === 0 ? `<span class="tag">现状</span>` : ""}`;
+  }
+  /* 界面清单：行尾是这个界面此刻选的「R轮 · 档」（不是个数）；有没发的标注再挂一颗数 */
+  function paintPages() {
+    $("pl").innerHTML = multi() ? PAGES_.map((p, g) => {
+      const n = notes.filter((x) => x.state === "open" && at3(x.k)[0] === g).length;
+      return `<li class="pi${g === pg ? " on" : ""}" data-g="${g}"><b>${p.name}</b>${fresh[g] ? nw : ""}<span class="pk">${n ? `<span class="nn" title="${n} 条标注没发">${n}</span>` : ""}<span class="tag" title="这个界面选的档">R${rnd(g) + 1} · ${selI(g)}</span></span></li>`;
+    }).join("") : "";
   }
   function syncChrome() {
     stage.querySelectorAll(".tile").forEach((t) => t.classList.toggle("sel", t.dataset.vk === selK()));
@@ -921,7 +994,7 @@ function labStart(cfg) {
   /* 全部界面并排时点格头的档号：那个界面换成那一档，焦点也挪过去 */
   function setSel(g, i) { pg = g; save("g", g); save(`v${g}.${rnd(g)}`, i); renderChrome(); render(); }
   /* 换界面：全部界面并排时每个界面都在台上，只换焦点 */
-  function setPg(g) { pg = g; save("g", g); renderChrome(); if (isPages()) { renderKnobs(); syncChrome(); } else render(); }
+  function setPg(g) { if (g !== pg) seenNow(pg); pg = g; save("g", g); renderChrome(); if (isPages()) { renderKnobs(); syncChrome(); } else render(); }
   const setSpec = (s) => { save("s" + pg, s); render(); };
   const setView = (w) => { view = w; save("w", w); render(); };
   const setRound = (r) => { save("r" + pg, r); renderChrome(); render(); };
@@ -1056,7 +1129,17 @@ function labStart(cfg) {
     stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 PAGES 是空的（每个界面要有 specs ≥3 条样本与 rounds，每轮要有 tile 与 list）。写法见 dc 的 SKILL.md ④。</div>`;
     throw new Error("对照版：PAGES 未填（或某界面缺 specs / rounds，某轮缺 tile / list）");
   }
-  if (raw("sent") === null) save("sent", stateKey());   // 刚打开的样子算「发过」：没标注、没改动时发送键不亮
+  /* 改了哪儿（2026-11-02 甲方要：每次更新要标出改了哪个界面）：每个界面每一轮一枚指纹（轮名 + 各档的名 / 论点 / 零件 / 代价 / 样式 / 档里的函数），
+     跟上回看过的比。变了的界面在左栏挂「新」、变了的轮在轮次清单挂「新」，右下角一条「这次改了」点过去；离开那个界面或点叉才算看过。截图模式不记 */
+  const hashS = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
+  const fnSrc = (v) => Object.values(v).filter((f) => typeof f === "function").map(String).join("");
+  const fpOf = (p) => p.rounds.map((r) => hashS(JSON.stringify([r.name, r.list.map((v) => [v.name, v.thesis, v.parts, v.cost, v.css ?? "", fnSrc(v)])]) + (p.css ?? "")));
+  const nowFp = PAGES_.map(fpOf), seenFp = load("fp", null), fresh = {};
+  if (!seenFp) save("fp", Object.fromEntries(PAGES_.map((p, g) => [p.name, nowFp[g]])));
+  else PAGES_.forEach((p, g) => { const old = seenFp[p.name] ?? []; const rs = nowFp[g].map((h, r) => (h !== old[r] ? r : -1)).filter((r) => r >= 0); if (rs.length) fresh[g] = new Set(rs); });
+  function seenNow(g) { if (!fresh[g]) return; delete fresh[g]; save("fp", { ...(load("fp", {}) ?? {}), [PAGES_[g].name]: nowFp[g] }); }
+  const nw = `<span class="nw" title="上回看过之后改过">新</span>`;
+  /* 发送键永远能点：没发过就照常发（用户看中的正是打开时那档，也要能交）；跟上次发的一模一样才不发、闪一句（2026-11-02 用户：点了发送没反应）*/
   const re = sessionStorage.getItem(KEY + "re");
   sessionStorage.removeItem(KEY + "re");
   renderChrome(); renderHist(); render(!re);
