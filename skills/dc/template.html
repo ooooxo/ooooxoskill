@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <title>对照版 · TOPIC</title>
 <!--
-  干什么：TOPIC 的多档对照（morii-compare）。这页只放题目（第 ② 段）；台子（顶条 · 左右栏 · 舞台 · 标注 · 发送）从对照版服务的 /__lab/lab.js 取，不在页面里。
+  干什么：TOPIC 的多档对照（dc）。这页只放题目（第 ② 段）；台子（顶条 · 左右栏 · 舞台 · 标注 · 发送）从对照版服务的 /__lab/lab.js 取，不在页面里。
   怎么跑：lab.sh <项目根> 起服务，浏览器开它打印的地址 + /docs/lab/<topic>.html（见 SKILL.md ⑦）。直接双击文件打不开台子。
-  需要什么：第一行 <link> 指向项目 token 源（只吃自定义属性，影子里照样继承）；第 ② 段写法见 morii-compare 的 SKILL.md ④。
+  需要什么：第一行 <link> 指向项目 token 源（只吃自定义属性，影子里照样继承）；第 ② 段写法见 dc 的 SKILL.md ④。
 -->
 <link rel="stylesheet" href="../../src/styles/tokens.css">
 <link rel="stylesheet" href="/__lab/lab.css">
@@ -14,7 +14,7 @@
 </head>
 <body>
 <script type="module">
-/* ================= ② 题目（只写这一段；写法见 morii-compare SKILL.md ④） =================
+/* ================= ② 题目（只写这一段；写法见 dc SKILL.md ④） =================
    这里故意是空的：样本、样式、档都由你按题目现写，别从别的对照页抄内容。没填就会在舞台上报错。
    这一段是自己的模块作用域，名字随便起，不会和台子撞。台子给的全局：
      ICON            图标表（台子自用几枚）；样本要用的从项目图标注册表抽出来补：Object.assign(ICON, { 名: "<path …/>" })，不手画

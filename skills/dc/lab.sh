@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 干什么：给一个项目起 / 关对照版服务（容器）。端口自动分——同一项目尽量同一个端口（上次用的优先，再按路径哈希），被占就往后找；已经在跑就只报地址。
-# 怎么跑：~/.claude/skills/morii-compare/lab.sh <项目根>        → 最后一行打印 http://127.0.0.1:<端口>（页面在 <地址>/docs/lab/<topic>.html）
-#        ~/.claude/skills/morii-compare/lab.sh <项目根> stop   → 关掉（用完就关；不关也会闲 15 分钟自己关）
+# 怎么跑：~/.claude/skills/dc/lab.sh <项目根>        → 最后一行打印 http://127.0.0.1:<端口>（页面在 <地址>/docs/lab/<topic>.html）
+#        ~/.claude/skills/dc/lab.sh <项目根> stop   → 关掉（用完就关；不关也会闲 15 分钟自己关）
 # 需要什么：Docker（compose v2）、nc。参数：LAB_WATCH（盯哪个子目录，默认 docs/lab）· LAB_IDLE_MIN（闲多久自己关）；端口段 PORT_BASE / PORT_SPAN 见下。
 set -euo pipefail
 

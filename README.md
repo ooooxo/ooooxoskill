@@ -12,7 +12,7 @@ Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用,**按需装,装�
 | **morii-design** | 新界面/组件/原型的视觉与交互规范底座(铺满视口的完整页面,非单卡) | 设计 · UI · 界面 · 组件 · 原型 · design system |
 | **morii-icon** | 画一个 Morii 扁平 SVG 图标 —— 实心/线性二选一整套一档 · 大圆角 · 单色成家族 · 含图标动效 | 图标 · icon · svg 图标 · glyph · 一套图标 |
 | **morii-charm** | 拟物「角饰」—— 用堆叠 div 手搭的立体小物件 + 一段循环动画,不是扁平图标 | 角饰 · 拟物图标 · 会动的图标 · charm · animated icon |
-| **morii-compare** | 「对照版」—— 一页 HTML 把 ≥5 套完整方案(+ 现状)摆在真样本上并排切档,明暗两版、拍图自检,按用户挑的开下一轮 | 对照版 · 出几套 · 对比方案 · A/B · compare designs |
+| **dc** | 「对照版」—— 一页 HTML 把 ≥5 套完整方案(+ 现状)摆在真样本上并排切档,明暗两版、拍图自检,按用户挑的开下一轮 | 对照版 · 出几套 · 对比方案 · A/B · compare designs |
 
 一家人:`morii-design` 定页面基调 → `morii-card` 出数据卡 → `morii-icon` 画其中的静态图标 →
 `morii-charm` 做会动的拟物小物件。互相引用,但各自独立可用。

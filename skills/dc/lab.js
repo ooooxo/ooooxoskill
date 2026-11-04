@@ -1,4 +1,4 @@
-// 干什么：morii-compare 对照版的台子——顶条 · 左栏（界面 · 轮次 · 档）· 右栏滑块 · 右下角发送 · 舞台引擎 · 标注 · 记录 · 自动刷新。
+// 干什么：dc 对照版的台子——顶条 · 左栏（界面 · 轮次 · 档）· 右栏滑块 · 右下角发送 · 舞台引擎 · 标注 · 记录 · 自动刷新。
 //        对照页只写第 ② 段（自己的模块作用域），台子只有这一份：改这里，所有对照页刷新一下就换上。
 // 怎么跑：不单独跑。对照页 <head> 里 <link href="/__lab/lab.css"> + <script src="/__lab/lab.js">，第 ② 段末尾 labStart({ TOPIC, KEY, CSS, PAGES })；serve.mjs 在 /__lab/ 下发这两个文件。
 // 需要什么：页面自己 link 项目 token；经对照版服务打开（lab.sh）。全局只放五个名字：ICON · ic · pa · part · labStart。
@@ -1047,7 +1047,7 @@ function labStart(cfg) {
   applyTheme();
   /* 题目没填就大声报错，不画空台子 */
   if (!PAGES_.length || PAGES_.some((p) => !p.specs?.length || !p.rounds?.length || p.rounds.some((r) => !r.tile || !r.list?.length))) {
-    stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 PAGES 是空的（每个界面要有 specs ≥3 条样本与 rounds，每轮要有 tile 与 list）。写法见 morii-compare 的 SKILL.md ④。</div>`;
+    stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 PAGES 是空的（每个界面要有 specs ≥3 条样本与 rounds，每轮要有 tile 与 list）。写法见 dc 的 SKILL.md ④。</div>`;
     throw new Error("对照版：PAGES 未填（或某界面缺 specs / rounds，某轮缺 tile / list）");
   }
   if (raw("sent") === null) save("sent", stateKey());   // 刚打开的样子算「发过」：没标注、没改动时发送键不亮

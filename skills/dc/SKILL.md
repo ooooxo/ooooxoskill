@@ -1,5 +1,5 @@
 ---
-name: morii-compare
+name: dc
 description: >
   「对照版」—— whenever the user wants to SEE several design options side by side before deciding,
   build one HTML lab page (it holds only the topic; the shared harness lab.js is served by the lab service) that renders ≥5 complete alternatives (plus 第 0 档 = the
@@ -17,7 +17,7 @@ description: >
   Triggers: 对照版, 出几套, 5 套, 10 套, 对比方案, 几种样式, A/B, 对照一下, compare designs.
 ---
 
-# Morii Compare —— 对照版
+# dc —— 对照版
 
 **用户说「给我几套看看」，交付物永远是一页能切档的对照 HTML，不是一段文字描述。**
 看得见才判得准；文字描述的方案，用户只能凭想象判，判完还得重来一轮。
@@ -184,7 +184,7 @@ ego 截的是 Chromium：`filter` / `mask` / `clip-path` / `backdrop` 这类内�
 
 1. **起服务**，端口自动分（幂等：已经在跑就只报地址；同一项目每次同一个端口，被别人占了就往后找，几个项目同时开不撞）：
    ```bash
-   ~/.claude/skills/morii-compare/lab.sh <项目根>     # 最后一行就是 <地址>，如 http://127.0.0.1:47520
+   ~/.claude/skills/dc/lab.sh <项目根>     # 最后一行就是 <地址>，如 http://127.0.0.1:47520
    ```
    下面的 `<地址>` 都是它；忘了就再跑一次，便宜。**别自己挑端口、别直接 `docker compose up`**——端口一变，页面的源跟着变，存的选档、标注全丢。
    页面开着就一直在；关了页面、你也不挂着，过一会儿它自己关。改过 `serve.mjs`：`docker compose -p <lab.sh 报的项目名> restart`（文件是挂进去的，重启就换上新的，端口不变）。
@@ -233,7 +233,7 @@ ego 截的是 Chromium：`filter` / `mask` / `clip-path` / `backdrop` 这类内�
 
 **用户说定稿 / 不用了 / 先这样**：
 4. 停掉挂着的 wait（`TaskStop` 那条后台任务）。
-5. 关服务：`~/.claude/skills/morii-compare/lab.sh <项目根> stop`（不关它也会闲 15 分钟自己关，但用户明说完了就当场关）。
+5. 关服务：`~/.claude/skills/dc/lab.sh <项目根> stop`（不关它也会闲 15 分钟自己关，但用户明说完了就当场关）。
 6. 回复里一句话交代：服务关了、wait 停了、浏览器里没留东西。
 
 ---
