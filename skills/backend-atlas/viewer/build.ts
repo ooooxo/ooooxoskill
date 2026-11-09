@@ -247,15 +247,24 @@ for (const [pid, rules] of Object.entries(SEM.groups ?? {}) as [string, any[]][]
     put(id, { label: r.name, icon: r.icon ?? "grid", col: parent.col, parent: pid, kind: "group", sub: [] });
     return id;
   });
-  const left: string[] = [];
+  const left: string[] = [], stay: string[] = [];
   for (const k of parent.kids) {
     const i = rules.findIndex((r) => r.match.some((re: string) => new RegExp(re).test(key(nodes.get(k)))));
-    if (i < 0) { left.push(nodes.get(k).label); continue; }
+    // 控制器的「共用逻辑」不是一项功能：没被点名就留在功能旁边，不算漏
+    if (i < 0) { if (nodes.get(k).kind === "internal") stay.push(k); else left.push(nodes.get(k).label); continue; }
     nodes.get(k).parent = gids[i]; nodes.get(gids[i]).kids.push(k);
   }
   if (left.length) throw new Error(`${pid} 里这些没被分组认领：${left.join(", ")}`);
-  parent.kids = gids.filter((g) => nodes.get(g).kids.length);
+  parent.kids = [...gids.filter((g) => nodes.get(g).kids.length), ...stay];
   for (const g of gids) if (!nodes.get(g).kids.length) nodes.delete(g);
+}
+// 功能组里只装着一个控制器：那层只多一个类名，把控制器的孩子（端点，或它再分的功能）提上来，组名就是业务名
+for (const n of [...nodes.values()]) if (n.kind === "group" && n.kids.length === 1) {
+  const c = nodes.get(n.kids[0]);
+  if (c.kind || !c.kids.length) continue;
+  n.kids = c.kids;
+  for (const k of c.kids) nodes.get(k).parent = n.id;
+  nodes.delete(c.id);
 }
 // ---- 服务文件按「谁真在用」归位：从每个控制器方法沿 calls 走进服务文件，记下触达它的域 ----
 // 只一个域用 = 那个域的内部实现，搬回去；多个域用 = 真共享，留在共享域按目录分组；后台服务单列。
