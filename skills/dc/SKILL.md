@@ -12,8 +12,11 @@ description: >
   with its own set of options, judged side by side. The user pins notes on components
   (标注) and hits the floating 「发送」, and the agent — parked on /__lab/wait in the background — wakes,
   edits, replies, and waits again: a tight annotate → edit → reload loop, no copy-paste, no re-open.
+  Also the 动态稿 (motion draft): one playable, reversible, scrubbable scene for a single interaction
+  motion — 「出个动态稿 / 做个动效给我看 / 这个怎么过渡」 — built on the same service (/__lab/motion.js, MOTION.md),
+  standalone or inside a 对照页 to compare several motions in sync.
   Not for single-answer fixes and not for data cards (morii-card).
-  Keywords: 对照版 对照 对比方案 几套 多档 A/B lab 方案对比 设计选型 标注 打点 发给 agent compare variants.
+  Keywords: 动态稿 动效稿 对照版 对照 对比方案 几套 多档 A/B lab 方案对比 设计选型 标注 打点 发给 agent compare variants.
   Triggers: 对照版, 出几套, 5 套, 10 套, 对比方案, 几种样式, A/B, 对照一下, compare designs.
 ---
 
@@ -175,6 +178,13 @@ description: >
 - 形逐帧画成一条 path；内容按同一条 path 裁（`clip-path: path()`），**液体长到哪露到哪**。
 - 大面的影用 box-shadow 投影板，小件用 svg `feDropShadow`；亮色白对白时形只靠影显形，别把影撤了。
 - 必须逐帧验（见 VERIFY.md），中间帧也得成立。
+
+## ⑤½ 动态稿：一段交互动效（`/__lab/motion.js`）
+
+用户要看**一段过渡怎么动**（「出个动态稿」「这个怎么过渡」）——不一定要 5 档——交一页**能播、能倒放、能逐帧拖**的场景：
+整段动效是一条时间轴 `lin ∈ [0,1]` 的函数，倒着放就是原路退场；分拍、错开、曲线只用 token；页底一条共用播放条。
+要比几种动法就照常开对照页，每档 `render` 返回 `<lab-motion name opt>`，所有格同一条时间轴同步放。
+**写法、范例、验法全在 `MOTION.md`，动手前先读。**
 
 ## ⑥ 验收：拍了再交
 

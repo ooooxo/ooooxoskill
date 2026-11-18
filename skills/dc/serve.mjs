@@ -8,7 +8,8 @@ import path from "node:path";
 
 const ROOT = path.resolve(process.argv[2] ?? ".");
 const APP = path.dirname(new URL(import.meta.url).pathname);   // 台子（lab.js / lab.css）和本文件放在一起
-const HARNESS = new Set(["lab.js", "lab.css", "Token.css"]);   // Token.css：项目 token 里没有台子那套角色变量时，台子自己补（lab.js 开头）
+// Token.css：项目 token 里没有台子那套角色变量时，台子自己补（lab.js 开头）；motion.js：动态稿的时间轴与播放条（MOTION.md）
+const HARNESS = new Set(["lab.js", "lab.css", "Token.css", "motion.js"]);
 const PORT = 4777;   // 容器里固定；宿主端口由 lab.sh 分
 const WATCH = path.join(ROOT, process.env.LAB_WATCH ?? "docs/lab");
 const SHOWN = process.env.LAB_ROOT_HOST ?? ROOT;
