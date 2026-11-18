@@ -85,6 +85,12 @@
       el.innerHTML = '<button class="go" data-k="go" data-tip="空格"></button><button data-k="slow" data-tip="L">慢放</button><button data-k="loop" data-tip="O">循环</button><span class="lm-guides"></span><input type="range" min="0" max="1000" value="0" data-tip="[ ] 逐帧"><span class="lm-t"></span>';
       document.body.appendChild(el);
       this.el = el;
+      this.go = el.querySelector(".go");
+      this.slow = el.querySelector('[data-k="slow"]');
+      this.loop = el.querySelector('[data-k="loop"]');
+      this.guidesEl = el.querySelector(".lm-guides");
+      this.range = el.querySelector("input");
+      this.t = el.querySelector(".lm-t");
       el.addEventListener("click", (e) => {
         const b = e.target.closest("button");
         if (!b) return;
@@ -94,7 +100,7 @@
         else if (k === "loop") T.loop = !T.loop;
         else if (k.startsWith("g:")) api.guide(k.slice(2));
       });
-      const r = el.querySelector("input");
+      const r = this.range;
       r.addEventListener("pointerdown", () => (T.grab = true));
       r.addEventListener("pointerup", () => (T.grab = false));
       r.addEventListener("input", () => api.set(r.value / 1000));
@@ -103,21 +109,20 @@
     sync() {
       if (!this.el) return;
       const ends = [...live][0]?.def.ends ?? ["起", "止"];
-      const go = this.el.querySelector(".go");
       const word = ends[next()];
-      if (go.textContent !== word) go.textContent = word;
-      this.el.querySelector('[data-k="slow"]').classList.toggle("on", T.slow > 1);
-      this.el.querySelector('[data-k="loop"]').classList.toggle("on", T.loop);
+      if (this.go.textContent !== word) this.go.textContent = word;
+      this.slow.classList.toggle("on", T.slow > 1);
+      this.loop.classList.toggle("on", T.loop);
       const all = new Map();
       for (const el of live) for (const [k, n] of Object.entries(el.def.guides ?? {})) all.set(k, n);
       const sig = [...all].join();
       if (sig !== this.guidesShown) {
         this.guidesShown = sig;
-        this.el.querySelector(".lm-guides").innerHTML = [...all].map(([k, n]) => '<button data-k="g:' + k + '" data-tip="' + k.toUpperCase() + '">' + n + "</button>").join("");
+        this.guidesEl.innerHTML = [...all].map(([k, n]) => '<button data-k="g:' + k + '" data-tip="' + k.toUpperCase() + '">' + n + "</button>").join("");
       }
-      for (const b of this.el.querySelectorAll(".lm-guides button")) b.classList.toggle("on", T.guides.has(b.dataset.k.slice(2)));
-      if (!T.grab) this.el.querySelector("input").value = Math.round(T.lin * 1000);
-      this.el.querySelector(".lm-t").textContent = Math.round(T.lin * DUR() * T.slow) + "";
+      for (const b of this.guidesEl.children) b.classList.toggle("on", T.guides.has(b.dataset.k.slice(2)));
+      if (!T.grab) this.range.value = Math.round(T.lin * 1000);
+      this.t.textContent = Math.round(T.lin * DUR() * T.slow) + "";
     },
   };
 
