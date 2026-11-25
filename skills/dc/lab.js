@@ -644,7 +644,7 @@ function labStart(cfg) {
     const all = draft ? [...notes, draft] : notes;
     const root = h.shadowRoot, layer = root.querySelector(".lab-pins"), face = root.querySelector(".root"), hr = h.getBoundingClientRect();
     const have = new Map([...layer.children].map((b) => [b.dataset.note, b]));
-    for (const n of all.filter((x) => x.k === h.dataset.vk && x.s === Number(h.dataset.sp))) {
+    for (const n of all.filter((x) => x.k === h.dataset.vk && x.s === Number(h.dataset.sp) && (!x.scr || x.scr === h.shadowRoot.flow?.cur()))) {
       let b = have.get(n.id);
       have.delete(n.id);
       if (!b) { b = document.createElement("button"); b.dataset.note = n.id; layer.append(b); }
@@ -704,6 +704,7 @@ function labStart(cfg) {
       text: el.textContent.trim().replace(/\s+/g, " ").slice(0, 80), html: el.outerHTML.replace(/ data-lab-id="[^"]*"/g, "").replace(/\s+/g, " ").slice(0, 320),
       fx: r.width ? (e.clientX - r.left) / r.width : 0, fy: r.height ? (e.clientY - r.top) / r.height : 0,
       x: (e.clientX - hr.left) / zoom, y: (e.clientY - hr.top) / zoom, note: "", state: "open",
+      ...(root.flow ? { scr: root.flow.cur(), rt: root.flow.route() } : {}),   // 交互稿：记下是哪个画面、怎么走到的
     };
     showHud(root, null);
     openComposer(draft);
@@ -771,8 +772,9 @@ function labStart(cfg) {
     if (!pinEl(id)) {
       const [g, r, i] = at3(n.k);
       if (!PAGES_[g]?.rounds[r]?.list[i]) return;   // 那一轮已撤：没地方摆它
-      pg = g; save("g", g); save("r" + g, r); save(`v${g}.${r}`, i); save("s" + g, n.s);
-      renderChrome(); render();
+      const host = () => hostsOf(n.k).find((h) => Number(h.dataset.sp) === n.s);
+      if (!host()) { pg = g; save("g", g); save("r" + g, r); save(`v${g}.${r}`, i); save("s" + g, n.s); renderChrome(); render(); }
+      if (n.rt && host()?.shadowRoot.flow) host().shadowRoot.flow.restore(n.rt);   // 交互稿：走回标注那一步
     }
     openComposer(n);
   }
@@ -811,7 +813,7 @@ function labStart(cfg) {
         : "没写标注 = 定了：按「选档」实装进项目代码（选第 0 档的界面保持现状），参数 / 布局有改动的照着带上",
       在看: { 界面: PG().name, 轮: `R${rnd() + 1} ${R().name}`, 档: vname(pg, rnd(), selI()), 样本: S().from },
       选档: picked(),
-      标注: notes.filter((n) => n.state === "open").map((n) => { const [g, r, i] = at3(n.k); return { 号: n.no, 界面: PAGES_[g].name, 档: `R${r + 1} · ${vname(g, r, i)}`, 样本: PAGES_[g].specs[n.s].from, 组件: n.name, 具名: n.part || undefined, 路径: n.css, 原文: n.text, html: n.html, 要改: n.note, ...refsOf(n.imgs ?? []) }; }),
+      标注: notes.filter((n) => n.state === "open").map((n) => { const [g, r, i] = at3(n.k); return { 号: n.no, 界面: PAGES_[g].name, 档: `R${r + 1} · ${vname(g, r, i)}`, 样本: PAGES_[g].specs[n.s].from, 画面: n.scr, 组件: n.name, 具名: n.part || undefined, 路径: n.css, 原文: n.text, html: n.html, 要改: n.note, ...refsOf(n.imgs ?? []) }; }),
       参数: params, 布局: layout,
     };
   }
@@ -947,7 +949,7 @@ function labStart(cfg) {
       if (el) newNote(el, e, root, k);
     }, true);
     root.addEventListener("click", (e) => {
-      if (!flags.live) return;
+      if (!flags.live || root.flow) return;   // 交互稿自己接点击（mountFlow）
       if (swallow) { swallow = false; e.stopPropagation(); return; }   // 刚拖完松手的那下不算点
       const b = e.target.closest("button, [data-act]");
       const open = root.querySelector(".menu:not(.closing)");
@@ -964,13 +966,13 @@ function labStart(cfg) {
     });
     root.host.addEventListener("pointerleave", () => { if (!root.host.classList.contains("dragging")) showHud(root, null); });
     root.addEventListener("pointerdown", (e) => {
-      if (!flags.build || e.button !== 0) return;
+      if (!flags.build || e.button !== 0 || root.flow) return;   // 交互稿不拼装：比的是连起来用的体验，结构让 agent 按标注改
       if (e.target.matches(".lab-hud > .sz")) return root.cur && armResize(e, root.cur, k, root);
       const el = pick(e.target, face, e.altKey);
       if (el) armDrag(e, el, k, root);
     });
     root.addEventListener("dblclick", (e) => {
-      const el = flags.build && !noting && pick(e.target, face, e.altKey);
+      const el = flags.build && !noting && !root.flow && pick(e.target, face, e.altKey);
       if (!el) return;
       const L = Lof(k), id = idOf(el, face);
       if (!L.ops.some((o) => o.id === id) && !L.sz[id]) return;
@@ -1068,12 +1070,13 @@ function labStart(cfg) {
       const k = h.dataset.vk, v = varOf(k);
       const root = h.attachShadow({ mode: "open" }), spec = specOfRoot(root), used = (h.used = new Set());
       const me = { g: at3(k)[0], html: undefined }, pgOf = PAGES_[me.g];
-      const ctx = ctxFor(spec, sOf(root), used, [me.g], me), own = (me.html = v.render(spec, ctx));
+      const ctx = ctxFor(spec, sOf(root), used, [me.g], me), own = (me.html = v.flow ? "" : v.render(spec, ctx));
       const frame = pgOf.frame ?? (pgOf.parent ? (_s, _o, c) => c.use(pgOf.parent) : null);   // 子组件：整格是父界面选中那档，自己这一档嵌在原位
-      const html = frame ? frame(spec, own, ctx) : own;
+      const html = v.flow ? "" : frame ? frame(spec, own, ctx) : own;
       const css = [...new Set([k, ...used].flatMap((x) => { const [g, r] = at3(x); return [PAGES_[g].css ?? "", PAGES_[g].rounds[r].css ?? "", varOf(x).css ?? ""]; }))].join("");
-      root.innerHTML = `<style>${CHROME_CSS}${SHARED_CSS}${css}</style><div class="root">${html}</div><div class="lab-hud"><span class="pn"></span><span class="sz"></span></div><div class="lab-drop"></div><div class="lab-pins"></div>`;
+      root.innerHTML = `<style>${CHROME_CSS}${v.flow ? FLOW_CSS : ""}${SHARED_CSS}${css}</style><div class="root">${html}</div><div class="lab-hud"><span class="pn"></span><span class="sz"></span></div><div class="lab-drop"></div><div class="lab-pins"></div>`;
       tagIds(root.querySelector(".root"));
+      if (v.flow) mountFlow(root, k, spec);
       h.dataset.mode = modeStr();
       h.toggleAttribute("data-note", noting);
       wire(root, k);
@@ -1094,6 +1097,143 @@ function labStart(cfg) {
     if (isStatic() && pinned !== "rest") requestAnimationFrame(() => hosts().forEach((h) => roundOfK(h.dataset.vk).pin?.(h.shadowRoot, pinned, specOfRoot(h.shadowRoot))));
     renderKnobs(); syncChrome();
     dwell();
+  }
+  /* ---- 交互稿（2026-11-25 甲方要）：一档 = 一整套能连续用的页面（多个画面、真数据、真跳转、多个模块拼在一起），不是单个组件对比。
+     档上写 flow 而不是 render：{ start, state(spec) → 这个起始场景的数据, screens: { 画面: (s, nav, arg) => HTML }, sheets?: { 抽屉: … }, on?: { 动作: (s, nav, el) => void } }
+     画面里用属性接线：data-go="画面"（+ data-arg）推进 · data-back 返回 · data-tab="画面" 切底栏 · data-sheet="抽屉" 拉起 · data-close 收起 ·
+     data-act="动作" 调 on · data-bind="键" 输入回写 s[键] · data-toggle="键" 翻 s[键]。每一下之后自动重画：就地比对，焦点、滚动、CSS 过渡都保得住。
+     转场台子包了，全部有来有回：推进从右滑入、返回原路滑出；切底栏淡入淡出；抽屉从下滑上、收起滑下；提示从顶上落下再收回。
+     走到哪、数据成什么样记在 sessionStorage：agent 改完页面自动刷新，用户还停在那一步；X 回到起点 */
+  const flows = new Map();   // 「格|样本」→ { stack: [{ name, arg }], sheets: [{ name, arg }], s }
+  const FLOW_CSS = `
+  .fl { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 28px; isolation: isolate; background: var(--bg-content);
+    box-shadow: 0 0 0 1px var(--sep-strong), var(--shadow-md); }   /* 默认像一台设备：圆角 + 描边影，页面的 CSS 可以盖 */
+  .fl-scr { position: absolute; inset: 0; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg-content); scrollbar-width: none; }
+  .fl-sheet { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; justify-content: flex-end; }
+  .fl-scrim { position: absolute; inset: 0; background: rgb(0 0 0 / .32); }
+  .fl-panel { position: relative; max-height: 88%; overflow-y: auto; border-radius: 18px 18px 0 0; background: var(--bg-content); box-shadow: var(--shadow-lg); scrollbar-width: none; }
+  .fl-toast { position: absolute; top: 14px; left: 50%; z-index: 20; translate: -50% 0; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: var(--bg-content);
+    font-size: 13px; white-space: nowrap; box-shadow: var(--shadow-md); pointer-events: none; }
+  `;
+  /* 重画：新旧两棵按位置比对，只改变了的属性 / 文字，节点能留就留（data-key 不同才换） */
+  function morphKids(live, next) {
+    const a = [...live.childNodes], b = [...next.childNodes];
+    b.forEach((n, i) => {
+      const o = a[i];
+      if (!o) return void live.append(n);
+      if (o.nodeType !== n.nodeType || o.nodeName !== n.nodeName || (o.nodeType === 1 && o.dataset.key !== n.dataset.key)) return void o.replaceWith(n);
+      if (o.nodeType !== 1) { if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue; return; }
+      for (const at of [...o.attributes]) if (!n.hasAttribute(at.name) && at.name !== "data-lab-id") o.removeAttribute(at.name);
+      for (const at of [...n.attributes]) if (o.getAttribute(at.name) !== at.value) o.setAttribute(at.name, at.value);
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(o.tagName) && o !== o.getRootNode().activeElement) { o.value = n.value; if (o.type === "checkbox" || o.type === "radio") o.checked = n.checked; }
+      morphKids(o, n);
+    });
+    for (const o of a.slice(b.length)) o.remove();
+  }
+  const msOf = (el, name) => { const x = getComputedStyle(el).getPropertyValue(name).trim(); return x.endsWith("ms") ? parseFloat(x) : parseFloat(x) * 1000; };
+  function mountFlow(root, k, spec) {
+    const F = varOf(k).flow, i = at3(k)[2], key = `${k}|${sOf(root)}`, sk = KEY + "fl|" + key, face = root.querySelector(".root");
+    const need = (tab, name, what) => { if (!tab?.[name]) throw new Error(`交互稿：没有${what}「${name}」（有：${Object.keys(tab ?? {}).join("、") || "无"}）`); };
+    need(F.screens, F.start, "起始画面");
+    let st = flows.get(key) ?? JSON.parse(sessionStorage.getItem(sk) ?? "null");
+    if (!st || !st.stack.every((r) => F.screens[r.name])) st = { stack: [{ name: F.start }], sheets: [], s: structuredClone(F.state(spec)) };
+    st.sheets = st.sheets.filter((r) => F.sheets?.[r.name]);
+    flows.set(key, st);
+    const T = msOf(root.host, "--t-slow") || 320, E = "cubic-bezier(.2, .8, .2, 1)";
+    const play = (el, kf) => { const an = el.animate(kf, { duration: T, easing: E, fill: "forwards" }); return an.finished.then(() => an); };
+    const box = document.createElement("div");
+    box.className = "fl"; face.append(box);
+    const into = (el, fn, arg) => { const t = document.createElement("div"); t.innerHTML = fn(st.s, nav, arg); morphKids(el, t); };
+    const scrEl = (r) => { const el = document.createElement("div"); el.className = "fl-scr"; into(el, F.screens[r.name], r.arg); box.append(el); return el; };
+    const sheetEl = (r) => { const el = document.createElement("div"); el.className = "fl-sheet"; el.innerHTML = `<div class="fl-scrim" data-close></div><div class="fl-panel"></div>`; into(el.lastChild, F.sheets[r.name], r.arg); box.append(el); return el; };
+    const hide = (el) => { el.inert = true; el.style.visibility = "hidden"; };
+    let els = [], sheets = [];
+    function build() {
+      box.replaceChildren();
+      els = st.stack.map(scrEl); sheets = st.sheets.map(sheetEl);
+      els.slice(0, -1).forEach(hide);
+      [...els, ...sheets].slice(0, -1).forEach((el) => (el.inert = true));
+    }
+    const keep = () => sessionStorage.setItem(sk, JSON.stringify(st));
+    function redraw() {
+      const r = st.stack.at(-1);
+      into(els.at(-1), F.screens[r.name], r.arg);
+      sheets.forEach((el, j) => into(el.lastChild, F.sheets[st.sheets[j].name], st.sheets[j].arg));
+      tagIds(face); keep(); placePinsIn(root.host);
+    }
+    const log = (t) => logAct(i, t, spec.from);
+    const nav = {
+      go(name, arg) {
+        need(F.screens, name, "画面");
+        const under = els.at(-1), r = { name, arg };
+        st.stack.push(r); const el = scrEl(r); els.push(el); under.inert = true;
+        play(el, [{ transform: "translateX(100%)" }, { transform: "none" }]).then((an) => an.cancel());
+        play(under, [{ transform: "none", filter: "none" }, { transform: "translateX(-28%)", filter: "brightness(.9)" }]).then((an) => { hide(under); an.cancel(); });
+        log("→ " + name);
+      },
+      back() {
+        if (st.sheets.length) return nav.close();
+        if (st.stack.length < 2) return;
+        st.stack.pop(); const el = els.pop(), under = els.at(-1);
+        el.inert = true; under.inert = false; under.style.visibility = "";
+        play(under, [{ transform: "translateX(-28%)", filter: "brightness(.9)" }, { transform: "none", filter: "none" }]).then((an) => an.cancel());
+        play(el, [{ transform: "none" }, { transform: "translateX(100%)" }]).then(() => el.remove());   // 旧画面留着滑完再摘
+        log("← 返回 " + st.stack.at(-1).name);
+      },
+      tab(name) {
+        need(F.screens, name, "画面");
+        const old = els; st.stack = [{ name }]; els = [scrEl(st.stack[0])];
+        for (const o of old) { o.inert = true; if (o.style.visibility === "hidden") o.remove(); else play(o, [{ opacity: 1 }, { opacity: 0 }]).then(() => o.remove()); }
+        play(els[0], [{ opacity: 0 }, { opacity: 1 }]).then((an) => an.cancel());
+        log("切到 " + name);
+      },
+      sheet(name, arg) {
+        need(F.sheets, name, "抽屉");
+        (sheets.at(-1) ?? els.at(-1)).inert = true;
+        const r = { name, arg }; st.sheets.push(r); const el = sheetEl(r); sheets.push(el);
+        play(el.firstChild, [{ opacity: 0 }, { opacity: 1 }]).then((an) => an.cancel());
+        play(el.lastChild, [{ transform: "translateY(100%)" }, { transform: "none" }]).then((an) => an.cancel());
+        log("拉起 " + name);
+      },
+      close() {
+        if (!st.sheets.length) return;
+        const r = st.sheets.pop(), el = sheets.pop();
+        el.inert = true; (sheets.at(-1) ?? els.at(-1)).inert = false;
+        Promise.all([play(el.firstChild, [{ opacity: 1 }, { opacity: 0 }]), play(el.lastChild, [{ transform: "none" }, { transform: "translateY(100%)" }])]).then(() => el.remove());
+        log("收起 " + r.name);
+      },
+      toast(text) {
+        const t = document.createElement("div");
+        t.className = "fl-toast"; t.textContent = text; box.append(t);
+        const down = [{ opacity: 0, transform: "translateY(-12px)" }, { opacity: 1, transform: "none" }];
+        play(t, down).then(() => setTimeout(() => play(t, [...down].reverse()).then(() => t.remove()), 1800));
+      },
+      set(patch) { Object.assign(st.s, patch); redraw(); },
+      after(ms, fn) { setTimeout(() => { fn(st.s, nav); redraw(); }, ms); },   // 模拟要等的事（加载、提交、对方回复）
+      log,
+    };
+    build(); tagIds(face); keep();
+    box.addEventListener("click", (e) => {
+      if (!flags.live || noting) return;
+      const t = e.target.closest("[data-go],[data-back],[data-tab],[data-sheet],[data-close],[data-act],[data-toggle]");
+      if (!t || !box.contains(t)) return;
+      e.preventDefault();
+      const d = t.dataset;
+      if ("toggle" in d) st.s[d.toggle] = !st.s[d.toggle];
+      if ("act" in d) { need(F.on, d.act, "动作"); F.on[d.act](st.s, nav, t); log(d.act); }
+      if ("go" in d) nav.go(d.go, d.arg);
+      else if ("tab" in d) nav.tab(d.tab);
+      else if ("sheet" in d) nav.sheet(d.sheet, d.arg);
+      else if ("close" in d) nav.close();
+      else if ("back" in d) nav.back();
+      redraw();
+    });
+    box.addEventListener("input", (e) => { const b = e.target.closest("[data-bind]"); if (!b) return; st.s[b.dataset.bind] = b.type === "checkbox" ? b.checked : b.value; redraw(); });
+    root.flow = {
+      cur: () => (st.sheets.length ? "抽屉 " + st.sheets.at(-1).name : st.stack.at(-1).name),
+      route: () => structuredClone({ stack: st.stack, sheets: st.sheets }),
+      restore(rt) { Object.assign(st, structuredClone(rt)); build(); redraw(); },
+    };
   }
   /* 关联界面（2026-11-25 甲方要）：同一屏拆成几个界面分开比（顶栏 / 正文 / 底栏）时，档的 render 只画自己那一块，
      界面的 frame(spec, 本块, { use }) 把整屏拼起来，别的块用 use("顶栏") 取——取的是「顶栏」此刻选中的那一档，换档处处跟着换；
@@ -1136,6 +1276,8 @@ function labStart(cfg) {
   /* 回到初始（X，2026-11-04 甲方要）：样本的交互状态在页面自己手里——页面给了 labStart({ reset }) 就调它清掉再重画；
      没给就整页重载（模块里的状态随之清空；选档、标注、滑块在 localStorage，记录在 sessionStorage，都留着） */
   function resetState() {
+    flows.clear();
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith(KEY + "fl|")) sessionStorage.removeItem(k);   // 交互稿回到起点、数据回到起始场景
     if (typeof cfg.reset !== "function") return location.reload();
     cfg.reset();
     render();
@@ -1167,12 +1309,15 @@ function labStart(cfg) {
   }
   /* M：只交互（默认）→ 两开 → 只拼装 → 静态 → 只交互 */
   const CYCLE = [[true, false], [true, true], [false, true], [false, false]];
-  /* 明暗：默认「系统」跟随系统（系统切换时跟着变），手选亮 / 暗后记住 */
+  /* 明暗：默认「系统」跟随系统（系统切换时跟着变）；手选亮 / 暗只管这个标签页（见下面 themePref） */
   const darkMQ = matchMedia("(prefers-color-scheme: dark)");
-  let themePref = load("t", "auto");
+  /* 明暗默认永远「系统」（甲方 2026-10 起反复强调）：手选的亮 / 暗只在这个标签页里算（sessionStorage），新开一页回到系统。
+     ⛔ 别再存进 localStorage：ego 就是用户自己的浏览器，agent 测试时选的「亮」会一直留在用户那边（2026-11-25 踩过）。旧的存值打开时顺手清掉 */
+  if (!SHOT) localStorage.removeItem(KEY + "t");
+  let themePref = SHOT ? load("t", "auto") : sessionStorage.getItem(KEY + "t") ?? "auto";
   const applyTheme = () => { document.documentElement.dataset.theme = themePref === "auto" ? (darkMQ.matches ? "dark" : "light") : themePref; };
   darkMQ.addEventListener("change", () => { if (themePref === "auto") { applyTheme(); syncChrome(); } });
-  function setTheme(t) { themePref = t; save("t", t); applyTheme(); syncChrome(); }
+  function setTheme(t) { themePref = t; if (SHOT) save("t", t); else sessionStorage.setItem(KEY + "t", t); applyTheme(); syncChrome(); }
   const nextTheme = () => setTheme({ auto: "light", light: "dark", dark: "auto" }[themePref]);   // 系统 → 亮 → 暗 → 系统
   function toggleDock() { closePop(); document.body.classList.toggle("dock-off"); save("do", document.body.classList.contains("dock-off")); syncChrome(); }
   board.addEventListener("transitionend", (e) => { if (e.target === board && e.propertyName.startsWith("padding")) { applyZoom(); placePins(); } });
@@ -1317,7 +1462,7 @@ function labStart(cfg) {
      看过 = 那一轮在台上、标签在前台停了 SEEN_MS（dwell）；点叉 = 全部看过。截图模式不记。
      ⛔ 别改回「离开那个界面才算看过」：agent 每改一次页面就刷新，用户一直停在同一个界面，看过的改动一轮轮叠回「新」里（2026-11-25） */
   const hashS = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
-  const fnSrc = (v) => Object.values(v).filter((f) => typeof f === "function").map(String).join("");
+  const fnSrc = (v) => JSON.stringify(v, (_, x) => (typeof x === "function" ? String(x) : x));   // 连 flow 里的画面、动作一起算
   const fpOf = (p) => p.rounds.map((r) => hashS(JSON.stringify([r.name, ...(r.css || r.uses ? [r.css ?? "", (r.uses ?? []).map(String).join("")] : []), r.list.map((v) => [v.name, v.thesis, v.parts, v.cost, v.css ?? "", fnSrc(v)])]) + (p.css ?? "")));
   const nowFp = PAGES_.map(fpOf), seenFp = load("fp", null), fresh = {};
   if (!seenFp) save("fp", Object.fromEntries(PAGES_.map((p, g) => [p.name, nowFp[g]])));

@@ -29,7 +29,7 @@ const CSS = ``;
 
 /* 界面：比几个不同的界面就写几项（只比一个就写一项）。每个界面有自己的样本、自己的一套档——档的设计各界面各不相同。
    name    左栏界面清单上的名字
-   specs   样本 ≥3 条（稀 / 中 / 满），照项目真 schema 抄形状；台子只读 from（顶条样本段控上的字）与 note
+   specs   样本 ≥3 条，按真实展示场景挑、from 写场景名（见 ②），照项目真 schema 抄形状；台子只读 from（顶条样本段控上的字）与 note
    css     这个界面所有档共用的样式（可不写）
    parent  "父界面名"：这个界面比的是父界面里的一个子组件——左栏挂在父界面下面，每格 = 父界面选中那档 + 这一档嵌在父界面 use("本界面名") 的位置（可不写）
    frame   (spec, 本块, { use }) => HTML：同一屏拆成几个界面分开比时，档只画自己那块，这里拼整屏；use("界面名") 取那个界面此刻选的档（可不写）
@@ -41,7 +41,9 @@ const CSS = ``;
      menu    (spec, btn) => [{ label, danger }]：带 data-menu 的按钮弹出的菜单
      on      (act, { root, spec, btn, log }) => void：带 data-act 的元素被点时的真行为（不写就只记一笔）
      figure  (v, d, box) => HTML：记录弹层顶上的示意图，v 当前值 / d 默认值（可不写）
-     list    档 [{ name, thesis, parts: [[键, 值], …], cost, css, params, render(spec, { use }) => HTML }]，第一轮第 0 档 = 现状 */
+     list    档 [{ name, thesis, parts: [[键, 值], …], cost, css, params, render(spec, { use }) => HTML }]，第一轮第 0 档 = 现状
+             交互稿的档把 render 换成 flow: { start, state(spec), screens, sheets?, on? }（写法见 SKILL.md ③¾）
+   specs 按真实展示场景挑（新用户 / 日常 / 堆满了 / 断网 / 做了一半回来…），from 写场景名 */
 const PAGES = [];
 
 labStart({ TOPIC, KEY, CSS, PAGES });
