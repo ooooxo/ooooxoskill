@@ -1130,7 +1130,8 @@ function labStart(cfg) {
     });
     for (const o of a.slice(b.length)) o.remove();
   }
-  const msOf = (el, name) => { const x = getComputedStyle(el).getPropertyValue(name).trim(); return x.endsWith("ms") ? parseFloat(x) : parseFloat(x) * 1000; };
+  /* 读时长 token：token 是 calc(320ms * var(--pace))，直接取变量拿到的是没算的字串——挂一个临时元素让浏览器算成秒数 */
+  const msOf = (root, name) => { const t = document.createElement("i"); t.style.transitionDuration = `var(${name})`; root.append(t); const v = parseFloat(getComputedStyle(t).transitionDuration) * 1000; t.remove(); return v; };
   function mountFlow(root, k, spec) {
     const F = varOf(k).flow, i = at3(k)[2], key = `${k}|${sOf(root)}`, sk = KEY + "fl|" + key, face = root.querySelector(".root");
     const need = (tab, name, what) => { if (!tab?.[name]) throw new Error(`交互稿：没有${what}「${name}」（有：${Object.keys(tab ?? {}).join("、") || "无"}）`); };
@@ -1139,7 +1140,7 @@ function labStart(cfg) {
     if (!st || !st.stack.every((r) => F.screens[r.name])) st = { stack: [{ name: F.start }], sheets: [], s: structuredClone(F.state(spec)) };
     st.sheets = st.sheets.filter((r) => F.sheets?.[r.name]);
     flows.set(key, st);
-    const T = msOf(root.host, "--t-slow") || 320, E = "cubic-bezier(.2, .8, .2, 1)";
+    const T = msOf(face, "--t-slow") || 320, E = "cubic-bezier(.2, .8, .2, 1)";
     const play = (el, kf) => { const an = el.animate(kf, { duration: T, easing: E, fill: "forwards" }); return an.finished.then(() => an); };
     const box = document.createElement("div");
     box.className = "fl"; face.append(box);
