@@ -5,6 +5,19 @@
 (() => {
 /* 首帧前先按系统明暗定底色（暗色系统不闪白）；存过的手选值由 labStart 随后接管 */
 document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+/* 项目的样式表挪进 project 层：层序 lab-fallback（Token.css 补缺）< project < 台子（不分层）。
+   项目的 token 照样给样本用（变量穿影子继承），项目里的类样式在冲突时一律输给台子（见 lab.css 头上的隔离）。
+   lab.js 在 head 里同步执行，挪的时候还没画第一帧；labStart 时再挪一遍，接住写在 lab.js 后面的 link */
+function layerProject() {
+  if (!document.getElementById("lab-layers")) document.head.insertAdjacentHTML("afterbegin", `<style id="lab-layers">@layer lab-fallback, project;</style>`);
+  for (const l of document.querySelectorAll('link[rel="stylesheet"]')) {
+    if (new URL(l.href, location.href).pathname.startsWith("/__lab/")) continue;
+    const st = document.createElement("style");
+    st.textContent = `@import url("${l.href}") layer(project);`;
+    l.replaceWith(st);
+  }
+}
+layerProject();
 
 /* ================= ① 工具（第 ② 段也用） ================= */
 /* 图标：台子自用的几枚，抽自项目图标注册表（Hrige / InkCreate：bun -e 'import {icons} from "./src/components/icons.ts"; …'），不手画；对照页要用的在第 ② 段 Object.assign(ICON, { … }) 补进来 */
@@ -33,12 +46,12 @@ const SKELETON = `
 <main class="board"><div class="stage" id="stage"></div></main>
 
 <!-- 顶条：怎么看——题目 · 看法 · 标注 · 钉住 ｜ 样本 · 看几档 · 比例 · 明暗 · 记录 · 滑块 · 键位 -->
-<div class="lane top"><div class="isl bar" id="topbar">
+<div class="lane top lab-ui"><div class="isl bar" id="topbar">
   <h1 class="brand" id="topic"></h1>
   <div class="tg"><div class="togs" id="modes"></div></div>
   <div class="tg"><div class="togs"><button id="noteT" title="标注（F）：点哪个组件就在哪儿记一句要改什么"></button></div></div>
   <div class="tg pinw"><div class="seg sub" id="pins"></div></div>
-  <span class="sp"></span>
+  <span class="sp"><span class="say" id="say"></span></span>
   <div class="tg"><div class="seg sub" id="specs"></div></div>
   <div class="tg"><div class="seg sub" id="views"></div></div>
   <div class="tg"><button class="tbtn mono" id="zoomT"></button><button class="tbtn" id="themeT"></button></div>
@@ -46,23 +59,23 @@ const SKELETON = `
 </div></div>
 
 <!-- 左：界面 · 轮次 · 档 -->
-<div class="lane side"><div class="isl bar" id="nav"><ol class="vl" id="pl"></ol><div class="rrow" id="rrow"></div><ol class="vl" id="vl"></ol></div></div>
+<div class="lane side lab-ui"><div class="isl bar" id="nav"><ol class="vl" id="pl"></ol><div class="rrow" id="rrow"></div><ol class="vl" id="vl"></ol></div></div>
 <!-- 右：滑块（不常用，I 收起）；右下角：agent 回话 · 标注清单 · 发送 -->
-<div class="lane right">
+<div class="lane right lab-ui">
   <div class="isl bar" id="dock"><div class="kgrp" id="knobs"></div></div>
-  <div class="out"><div class="isl tray" id="tray" hidden><div class="fresh" id="fresh"></div><div class="reply" id="reply"></div><ul class="chg nl" id="nl"></ul></div><button class="fab" id="fab" title="发给 agent（⌘⏎）"></button></div>
+  <div class="out"><div class="isl tray" id="tray" hidden><div class="stl" id="stl"></div><ul class="chg nl" id="nl"></ul></div><button class="fab" id="fab" title="发给 agent（⌘⏎）"></button></div>
 </div>
 
 <!-- 记录：交互动作、改动、标注、发送与 agent 回话一条时间线；撤回不占界面（⌘Z / ⇧⌘Z），撤回过的条目变灰 -->
-<div class="isl pop" id="histPop">
+<div class="isl pop lab-ui" id="histPop">
   <div class="fig"><div class="fig-box" id="fig"></div></div>
   <div class="sh" id="histH"></div>
   <ul class="chg hist" id="hist"></ul>
   <div class="pfoot" id="histF"></div>
 </div>
-<div class="isl pop left" id="roundPop"><ol class="rl" id="roundL"></ol></div>
-<div class="isl cmp" id="cmp"><div class="ch" id="cmpH"></div><textarea id="cmpT" rows="2" placeholder="这里要改什么…"></textarea></div>
-<div class="isl pop" id="keysPop"><div class="keys">
+<div class="isl pop left lab-ui" id="roundPop"><ol class="rl" id="roundL"></ol></div>
+<div class="isl cmp lab-ui" id="cmp"><div class="ch" id="cmpH"></div><textarea id="cmpT" rows="2" placeholder="这里要改什么…（参考图 / 视频 / 链接可粘贴、拖进来）"></textarea><div class="cimg" id="cmpI"></div><div class="cerr" id="cmpE"></div></div>
+<div class="isl pop lab-ui" id="keysPop"><div class="keys">
   <kbd class="ink-kbd">0–9</kbd><span>选档（← → 上一档 / 下一档）</span>
   <kbd class="ink-kbd">↑ ↓</kbd><span>换界面</span>
   <kbd class="ink-kbd">S</kbd><span>换样本（⇧S 倒着）</span>
@@ -85,12 +98,7 @@ const SKELETON = `
 
 /* ================= ③ 台子 ================= */
 function labStart(cfg) {
-  /* 台子吃的是一套角色变量（--bg-content / --ink / --accent …）。项目 token 里没有就自己补一份 morii 的，补在最前面：项目自己的值照样盖过它 */
-  if (!getComputedStyle(document.documentElement).getPropertyValue("--bg-content").trim()) {
-    const l = document.createElement("link");
-    l.rel = "stylesheet"; l.href = "/__lab/Token.css";
-    document.head.prepend(l);
-  }
+  layerProject();
   /* 截图模式（?shot）：状态只活在内存里、从地址读，不读也不写本机存储 —— agent 截图不会改到用户正开着的那页（档、样本、明暗、标注）。
      ?shot&g=<界面名或序号>&r=<轮号，1 起>&v=<档序号>&s=<样本名或序号>&t=light|dark&w=one|pair|all|pages&bare（只留舞台） */
   const Q = new URLSearchParams(location.search), SHOT = Q.has("shot");
@@ -126,6 +134,9 @@ function labStart(cfg) {
   .lab-hud > .sz { position: absolute; right: -5px; bottom: -5px; width: 12px; height: 12px; border-radius: 4px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg-content);
     cursor: nwse-resize; touch-action: none; pointer-events: auto; transition: transform var(--t-press) var(--ease-out); }
   .lab-hud > .sz:active { transform: scale(1.2); }
+  /* 拼装落点：指针下那个零件的前 / 后一道线 */
+  .lab-drop { position: absolute; z-index: 33; display: none; pointer-events: none; border-radius: 2px; background: var(--accent); box-shadow: 0 0 0 2px var(--bg-content); }
+  .lab-drop.on { display: block; }
   :host([data-note]) .lab-hud > .sz { display: none; }
   /* 标注点：一枚带号的水滴，尖角落在点下去的位置；发出去的变灰，agent 回话后消失 */
   .lab-pins { position: absolute; inset: 0; z-index: 35; pointer-events: none; overflow: clip; overflow-clip-margin: 28px; }   /* 跟着组件滑出格子的点剪掉 */
@@ -153,31 +164,19 @@ function labStart(cfg) {
   /* 看法 = 两颗独立开关，默认只开交互（拼装要用时再开）；都关 = 静态（样本不响应指针，可钉住悬停 / 菜单开来对照）。标注是另一颗，开着时盖过看法 */
   const FLAGS = [
     ["live", "交互", "play", "交互：按钮、⋯ 菜单、编辑都能真用，每一下进「记录」"],
-    ["build", "拼装", "grid-view", "拼装：点到哪个小组件就拖哪个，⌥ 抓整组；右下角拉手改大小；吸 8px 格，Shift 不吸，双击归位"],
+    ["build", "拼装", "grid-view", "拼装：把一个小组件拖到另一个前 / 后（同组换顺序、跨组挪进去），亮线是落点；⌥ 抓整组；右下角拉手改大小；双击归位"],
   ];
   /* 拼装 / 标注认的「一个组件」：控件整颗不拆（按钮里的图标随按钮走），svg 整枚；其余点到哪个元素就是哪个 */
   const ATOM = "button, a, input, select, textarea, [role=button]";
   const DRAG_PX = 4;
   const SNAP = 8;
-  const SPRING = { k: 420, z: 0.78 };
+  const FLIP_MS = 260;   // 拼装换位、撤回、归位的滑动时长
+  const SEEN_MS = 1500;  // 一轮在台上、标签在前台停这么久，它的「新」就算看过
   const GAP = 28, PAD_X = 32, PAD_Y = 16 + 24, LBL = 34;   // 与 .stage / .tile 的 CSS 一致
   const EXT_W = 176;     // 格子外侧那排外部触发键占的宽（与 .tile .ext 的 CSS 一致）
   const MIN_Z = 0.6;     // 平铺缩到这以下就算「放不下」：保底这个比例，按宽排列、纵向滚动
   const MERGE_MS = 500;  // 同一项改动连着来（双击回默认、连按方向键）并成一条记录 / 一步撤回
 
-  /* 弹簧（k 刚度、z 阻尼比，dt 钳在 1/30） */
-  const step = (p, to, { k, z }, dt) => { p.v += (-k * (p.x - to) - 2 * z * Math.sqrt(k) * p.v) * dt; p.x += p.v * dt; };
-  let raf = 0, lastT = 0;
-  const anims = new Set();
-  function frame(t) {
-    raf = 0;
-    const dt = Math.min(1 / 30, Math.max(0, (t - lastT) / 1000));
-    lastT = t;
-    let busy = false;
-    for (const a of anims) busy = a.tick(dt) || busy;
-    if (busy) raf = requestAnimationFrame(frame);
-  }
-  function kick() { if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(frame); } }
 
   /* 状态：存储键都带全地址（界面 g · 轮 r · 档 i），撤回快照换了界面也认得
      g 当前界面 · r<g> 轮 · v<g>.<r> 选中档 · s<g> 样本 · ps<g>.<r> 共用参数 · pv<g.r.i> 档私有参数 · L<g.r.i> 布局 */
@@ -211,8 +210,6 @@ function labStart(cfg) {
   let pinned = "rest";
   let fit = load("z", true);
   let zoom = 1, cols = 1, dims = { w: 0, h: 0 };
-  const pos = {};       // { "g.r.i": { 零件: {x, y} } }；零件 = 具名 id，或没命名的自动 id「@样本:路径」
-  const settling = new Map();
   /* 记录：交互动作（act）、改动（chg）、标注（note）、发送（send）、agent 回话（say）按时间混排；撤回 / 重做只认 chg。
      存 sessionStorage：agent 改完页面自动刷新，记录与撤回照样接得上 */
   const history = JSON.parse(sessionStorage.getItem(KEY + "h") ?? "[]").map((h) => ({ ...h, t: new Date(h.t), ts: 0 }));
@@ -220,6 +217,7 @@ function labStart(cfg) {
   let notes = load("n", []);        // 标注 [{ id, no, k: "g.r.i", s, part, idx, tag, name, css, text, html, fx, fy, x, y, note, state: open|sent, batch }]
   let draft = null, editing = null; // 正在写的那条（draft = 还没存的新标注）
   let said = null, reloadPending = false;
+  let st = null;   // 服务报的这一页：q 排着的批号 · w 交给 agent 还没回话的批号 · ag 有没有 agent 挂着等
 
   const $ = (id) => document.getElementById(id);
   const stage = $("stage"), board = document.querySelector(".board");
@@ -401,16 +399,13 @@ function labStart(cfg) {
   }
   const txn = (keys, label, fn, d) => { begin(keys, label, d); fn(); commit(); };
   function restore(snap) {
-    const moves = [];
+    let lay = false;
     for (const [k, v] of Object.entries(snap)) {
-      if (k.startsWith("L")) moves.push([k.slice(1), JSON.parse(raw(k) ?? "{}"), v === null ? {} : JSON.parse(v)]);
+      if (k.startsWith("L")) lay = true;
       if (v === null) localStorage.removeItem(KEY + k); else localStorage.setItem(KEY + k, v);
     }
+    if (lay) return flip(() => render());   // 拼装撤回 / 重做：重放布局，零件原路滑回去
     applyParams(); renderKnobs(); syncChrome();
-    for (const [k, cur, to] of moves) for (const id of new Set([...Object.keys(cur), ...Object.keys(to), ...Object.keys(pos[k] ?? {})])) {
-      settle(k, id, { x: to[id]?.x ?? 0, y: to[id]?.y ?? 0 });
-      setSize(k, id, to[id]?.w ?? null, to[id]?.h ?? null);
-    }
   }
   function undo(redo = false) {
     const e = redo ? history.find((h) => h.kind === "chg" && h.undone) : history.findLast((h) => h.kind === "chg" && !h.undone);
@@ -434,10 +429,10 @@ function labStart(cfg) {
       const a = get(h.before), b = get(h.after);
       return `<li class="${cls}">${ic("sliders", 13)}${h.d.scope}<span class="nm">${h.label}</span><span class="was">${a}</span><span class="arr">→</span><span class="now">${b}</span><em>${signed(b - a)}</em>${un}${tm}</li>`;
     }
-    if (h.d.type === "move" || h.d.type === "size") {
-      const q = JSON.parse(h.after["L" + h.d.k] ?? "{}")[h.d.id] ?? {};
-      const xy = h.d.type === "size" ? (q.w != null ? `<span class="xy">w ${q.w}</span><span class="xy">h ${q.h}</span>` : "") : (q.x || q.y ? `<span class="xy">x ${q.x ?? 0}</span><span class="xy">y ${q.y ?? 0}</span>` : "");
-      return `<li class="${cls}">${ic("grid-view", 13)}<span class="badge">${at3(h.d.k)[2]}</span><span class="nm">${h.label}</span>${xy || `<span class="xy">原样</span>`}${un}${tm}</li>`;
+    if (h.d.type === "move") return `<li class="${cls}">${ic("grid-view", 13)}<span class="badge">${at3(h.d.k)[2]}</span><span class="nm" title="${esc(h.d.desc ?? h.label)}">${esc(h.d.desc ?? h.label)}</span>${un}${tm}</li>`;
+    if (h.d.type === "size") {
+      const q = JSON.parse(h.after["L" + h.d.k] ?? "null")?.sz?.[h.d.id];
+      return `<li class="${cls}">${ic("grid-view", 13)}<span class="badge">${at3(h.d.k)[2]}</span><span class="nm">${h.label}</span>${q ? `<span class="xy">w ${q.w}</span><span class="xy">h ${q.h}</span>` : `<span class="xy">原样</span>`}${un}${tm}</li>`;
     }
     return `<li class="${cls}">${ic("pen", 13)}<span class="nm">${h.label}</span>${un}${tm}</li>`;
   }
@@ -451,13 +446,18 @@ function labStart(cfg) {
   function copyJSON(btn) {
     const { v } = values();
     const units = Object.fromEntries([...(R().params ?? []), ...(selV().params ?? [])].map((p) => [p.key, p.unit]));
-    const json = JSON.stringify({ 界面: PG().name, 档: vname(pg, rnd(), selI()), 参数: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x + units[k]])), 布局: load("L" + selK(), {}) }, null, 2);
+    const json = JSON.stringify({ 界面: PG().name, 档: vname(pg, rnd(), selI()), 参数: Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x + units[k]])), 布局: layoutText(Lof(selK())) }, null, 2);
     navigator.clipboard.writeText(json).then(() => flash(btn, true), (err) => { flash(btn, false); throw err; });
   }
 
-  /* ---- 拼装：位移写在零件的 translate 上、大小写在 width / height 上，按档各存各的 L<g.r.i> = { 零件: { x, y, w, h, n } } ----
-     零件 = 指针下那个小组件（pick）：控件整颗、svg 整枚，其余点到哪个元素就是哪个；⌥ 抓最近的具名组（data-part）。
-     具名的跨档、跨样本同名；没命名的认「@样本:路径」，只在那条样本上生效。n = 名字，记录与拷 JSON 用 */
+  /* ---- 拼装：拖一个零件落到另一个零件前 / 后——真改 DOM 顺序（同组换位、跨组挪进去都行），不是叠一层位移；拉手改大小。
+     按档各存各的 L<g.r.i> = { ops: [{ id, n, ref, rn, side, desc, seq }], sz: { 零件: { w, h, n } } }，重画时按 ops 依次重放。
+     零件 id = 这格里唯一的具名 data-part，否则「@样本:原始路径」（路径在画出来那一刻记进 data-lab-id，挪过之后照样认得）。
+     交给 agent 的是人话（「发送」挪到「取消」后面，从「顶栏」挪进「底栏」；现在顺序：…），照着改 render 就行。
+     ⛔ 别改回自由位移 {x, y}：agent 读不懂「往右 37px」是要换位还是要对齐，拼装形同虚设（2026-11-25 换掉） */
+  const Lof = (k) => { const L = load("L" + k, null); return L && Array.isArray(L.ops) ? L : { ops: [], sz: {} }; };   // 旧的自由位移格式作废
+  const Lsize = (L) => L.ops.length + Object.keys(L.sz).length;
+  const layoutText = (L) => [...L.ops.map((o) => o.desc + (o.seq ? `（现在顺序：${o.seq}）` : "")), ...Object.values(L.sz).map((q) => `「${q.n}」改成 宽 ${q.w} × 高 ${q.h}`)];
   function pick(t, face, group) {
     if (!face.contains(t) || t === face || t.closest(".menu, [contenteditable]")) return null;
     let el = t.closest(ATOM) ?? t.closest("svg") ?? t;
@@ -467,19 +467,24 @@ function labStart(cfg) {
   }
   const walk = (face, path) => { let n = face; for (const i of path.split(".")) n = n?.children[i]; return n ?? null; };
   const pathOf = (el, face) => { const p = []; for (let n = el; n !== face; n = n.parentElement) p.unshift([...n.parentElement.children].indexOf(n)); return p.join("."); };
-  const idOf = (el, face) => el.dataset.part || `@${sOf(face.getRootNode())}:${pathOf(el, face)}`;
+  const tagIds = (face) => { for (const el of face.querySelectorAll("*")) el.dataset.labId = pathOf(el, face); };
+  const labIdOf = (el, face) => el.dataset.labId ?? pathOf(el, face);
+  const idOf = (el, face) => (el.dataset.part && face.querySelectorAll(`[data-part="${el.dataset.part}"]`).length === 1 ? el.dataset.part : `@${sOf(face.getRootNode())}:${labIdOf(el, face)}`);
   const nameOf = (el) => el.dataset.name || el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent.trim().replace(/\s+/g, " ").slice(0, 12) || el.tagName.toLowerCase();
-  function partEls(k, id) {
-    const at_ = id.startsWith("@") ? id.slice(1).split(":") : null;
-    return hostsOf(k).flatMap((h) => {
-      const face = h.shadowRoot.querySelector(".root");
-      if (!at_) return [...face.querySelectorAll(`[data-part="${id}"]`)];
-      const n = Number(at_[0]) === Number(h.dataset.sp) && walk(face, at_[1]);
-      return n ? [n] : [];
-    });
+  /* 容器叫什么：具名组 → 它的名字；否则 aria-label / 类名，不拿一整串字当名字 */
+  const groupName = (el, face) => {
+    const p = el.parentElement, g = p.closest("[data-part]");
+    if (g && face.contains(g)) return `「${nameOf(g)}」`;
+    return p === face ? "最外层" : `「${p.dataset.name || p.getAttribute("aria-label") || (p.classList[0] ? "." + p.classList[0] : p.tagName.toLowerCase())}」`;
+  };
+  function elOf(face, id) {
+    if (!id.startsWith("@")) return face.querySelector(`[data-part="${id}"]`);
+    const [s, path] = id.slice(1).split(":");
+    return Number(s) === sOf(face.getRootNode()) ? face.querySelector(`[data-lab-id="${path}"]`) : null;
   }
+  const faces = (k) => hostsOf(k).map((h) => h.shadowRoot.querySelector(".root"));
   const unInline = (el) => { if (getComputedStyle(el).display === "inline") el.style.display = "inline-block"; };   // 行内元素吃不到 translate / 宽高
-  /* 拼装罩：跟着当前那个零件走（悬停、拖动、调大小、撤回都重量一次） */
+  /* 拼装罩：跟着当前那个零件走（悬停、拖动、调大小都重量一次） */
   function showHud(root, el) {
     const hud = root.querySelector(".lab-hud");
     root.cur = el;
@@ -493,80 +498,107 @@ function labStart(cfg) {
     for (const h of hostsOf(k)) if (h.shadowRoot.cur) showHud(h.shadowRoot, h.shadowRoot.cur);
     placePins();
   }
-  function putL(L, id, patch) {   // 合进一个零件的布局；位移归零、大小置空的字段拿掉，只剩名字就整条拿掉
-    const q = { ...L[id], ...patch };
-    for (const a of ["x", "y"]) if (!q[a]) delete q[a];
-    for (const a of ["w", "h"]) if (q[a] == null) delete q[a];
-    if (["x", "y", "w", "h"].some((a) => a in q)) L[id] = q; else delete L[id];
-    return L;
+  function sizeEl(el, w, h) { unInline(el); el.classList.toggle("sized", w != null); el.style.width = w == null ? "" : w + "px"; el.style.height = h == null ? "" : h + "px"; }
+  function setSize(k, id, w, h) { for (const f of faces(k)) { const el = elOf(f, id); if (el) sizeEl(el, w, h); } hudFollow(k); }
+  function applyOp(face, o) {
+    const el = elOf(face, o.id), ref = elOf(face, o.ref);
+    if (el && ref && el !== ref && !el.contains(ref)) ref[o.side](el);
   }
-  function setSize(k, id, w, h) {
-    for (const el of partEls(k, id)) {
-      unInline(el); el.classList.toggle("sized", w != null);
-      el.style.width = w == null ? "" : w + "px"; el.style.height = h == null ? "" : h + "px";
+  function applyLayout(k) {
+    const L = Lof(k);
+    for (const f of faces(k)) {
+      for (const o of L.ops) applyOp(f, o);
+      for (const [id, q] of Object.entries(L.sz)) { const el = elOf(f, id); if (el) sizeEl(el, q.w, q.h); }
     }
-    hudFollow(k);
   }
-  function setPos(k, id, x, y) {
-    (pos[k] ??= {})[id] = { x, y };
-    for (const el of partEls(k, id)) { unInline(el); el.style.translate = `${x}px ${y}px`; }
-    hudFollow(k);
-  }
-  function saveLayout(k) {
-    const L = load("L" + k, {});
-    for (const [id, p] of Object.entries(pos[k] ?? {})) putL(L, id, { x: Math.round(p.x), y: Math.round(p.y) });
-    save("L" + k, L);
-  }
-  function settle(k, id, to) {
-    const key = k + "|" + id;
-    settling.get(key)?.stop();
-    const from = pos[k]?.[id] ?? { x: 0, y: 0 };
-    const sx = { x: from.x, v: 0 }, sy = { x: from.y, v: 0 };
-    const a = {
-      tick(dt) {
-        step(sx, to.x, SPRING, dt); step(sy, to.y, SPRING, dt);
-        const done = Math.abs(sx.x - to.x) < 0.3 && Math.abs(sy.x - to.y) < 0.3 && Math.abs(sx.v) + Math.abs(sy.v) < 8;
-        setPos(k, id, done ? to.x : sx.x, done ? to.y : sy.x);
-        if (done) { a.stop(); saveLayout(k); }
-        return !done;
-      },
-      stop() { anims.delete(a); settling.delete(key); },
-    };
-    settling.set(key, a); anims.add(a); kick();
+  /* 换位 / 撤回 / 归位都走 FLIP：先量、改完再量、从差值滑回 0——怎么过去就怎么回来。子元素扣掉祖先自己的位移，不然跟着父级滑两遍 */
+  function flip(fn) {
+    const before = new Map(), key = (i, el) => `${i}|${el.dataset.labId}`;
+    hosts().forEach((h, i) => { for (const el of h.shadowRoot.querySelectorAll(".root [data-lab-id]")) before.set(key(i, el), el.getBoundingClientRect()); });
+    fn();
+    hosts().forEach((h, i) => {
+      const tot = new Map();
+      for (const el of h.shadowRoot.querySelectorAll(".root [data-lab-id]")) {   // 文档序：祖先先于子孙
+        const r0 = before.get(key(i, el));
+        if (!r0) continue;
+        const r = el.getBoundingClientRect(), d = [(r0.left - r.left) / zoom, (r0.top - r.top) / zoom];
+        tot.set(el, d);
+        let up = [0, 0];
+        for (let a = el.parentElement; a && !a.classList.contains("root"); a = a.parentElement) if (tot.has(a)) { up = tot.get(a); break; }
+        const rx = d[0] - up[0], ry = d[1] - up[1];
+        if (Math.abs(rx) + Math.abs(ry) < 0.5) continue;
+        el.animate([{ translate: `${rx}px ${ry}px` }, { translate: "0 0" }], { duration: FLIP_MS, easing: "cubic-bezier(.2, .8, .2, 1)" });
+      }
+    });
   }
   /* 拖动时把各格的 iframe 设成不接指针：否则光标划过实验页，事件被 iframe 吃掉，拖动就卡住 */
   const shield = (on) => document.querySelectorAll(".host").forEach((h) => h.shadowRoot?.querySelectorAll("iframe").forEach((f) => (f.style.pointerEvents = on ? "none" : "")));
-  /* 按下先「待拖」：过 DRAG_PX 才接管成拖动（抓指针、关菜单、禁选字），没过就当普通一点 */
+  /* 落点：指针下那个零件（认法同 pick），按它所在那组的排布方向分前 / 后；指针在自己的祖先上（空白处）= 没有落点 */
+  function flowX(p) {
+    const c = getComputedStyle(p);
+    if (c.display.includes("flex")) return c.flexDirection.startsWith("row");
+    if (c.display.includes("grid")) return c.gridTemplateColumns.trim().split(/\s+/).length > 1;
+    return [...p.children].some((x) => getComputedStyle(x).display.startsWith("inline"));
+  }
+  function dropAt(root, face, el, x, y, group) {
+    const t0 = root.elementsFromPoint(x, y).find((n) => face.contains(n) && n !== face && !el.contains(n) && !n.closest(".menu"));
+    if (!t0) return null;
+    let t = t0.closest(ATOM) ?? t0.closest("svg") ?? t0;
+    if (group) t = t.closest("[data-part]") ?? t;
+    if (t === face || !face.contains(t) || t.contains(el)) return null;
+    const r = t.getBoundingClientRect(), horiz = flowX(t.parentElement);
+    return { t, r, horiz, side: (horiz ? x < r.left + r.width / 2 : y < r.top + r.height / 2) ? "before" : "after" };
+  }
+  function showDrop(root, d) {
+    const m = root.querySelector(".lab-drop");
+    m.classList.toggle("on", !!d);
+    if (!d) return;
+    const hr = root.host.getBoundingClientRect(), r = d.r, at = d.side === "before";
+    Object.assign(m.style, d.horiz
+      ? { left: ((at ? r.left : r.right) - hr.left) / zoom - 1.5 + "px", top: (r.top - hr.top) / zoom + "px", width: "3px", height: r.height / zoom + "px" }
+      : { left: (r.left - hr.left) / zoom + "px", top: ((at ? r.top : r.bottom) - hr.top) / zoom - 1.5 + "px", width: r.width / zoom + "px", height: "3px" });
+  }
+  /* 按下先「待拖」：过 DRAG_PX 才接管成拖动；零件跟着指针走、落点亮一道线；松手真挪过去，没有落点就原路滑回 */
   let swallow = false;
   function armDrag(e, el, k, root) {
-    const hud = root.querySelector(".lab-hud"), id = idOf(el, root.querySelector(".root")), n = nameOf(el);
-    const sx = e.clientX, sy = e.clientY, pid = e.pointerId;
-    let o = null, x = 0, y = 0, done = false;
+    const face = root.querySelector(".root"), hud = root.querySelector(".lab-hud"), id = idOf(el, face), n = nameOf(el);
+    const sx = e.clientX, sy = e.clientY, pid = e.pointerId, keep = { position: el.style.position, zIndex: el.style.zIndex };
+    let on = false, done = false, d = null;
     const move = (ev) => {
-      if (ev.buttons === 0) return up(ev);   // 在窗外 / iframe 上松开了：补一次松手
-      if (!o) {
+      if (ev.buttons === 0) return up();   // 在窗外 / iframe 上松开了：补一次松手
+      if (!on) {
         if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < DRAG_PX) return;
-        settling.get(k + "|" + id)?.stop();
-        o = pos[k]?.[id] ?? { x: 0, y: 0 };
-        el.setPointerCapture(pid); shield(true); showHud(root, el); hud.classList.add("drag"); root.host.classList.add("dragging");
+        on = true;
+        el.setPointerCapture(pid); shield(true); hud.classList.add("drag"); root.host.classList.add("dragging");
         getSelection().removeAllRanges(); closeMenu(root);
-        begin(["L" + k], n + " 挪位", { type: "move", k, id });
+        unInline(el);
+        if (getComputedStyle(el).position === "static") el.style.position = "relative";
+        Object.assign(el.style, { zIndex: 31, pointerEvents: "none", opacity: 0.85 });
       }
       ev.preventDefault();
-      x = o.x + (ev.clientX - sx) / zoom; y = o.y + (ev.clientY - sy) / zoom;
-      setPos(k, id, x, y);
+      el.style.translate = `${(ev.clientX - sx) / zoom}px ${(ev.clientY - sy) / zoom}px`;
+      showHud(root, el);
+      d = dropAt(root, face, el, ev.clientX, ev.clientY, ev.altKey);
+      showDrop(root, d);
     };
-    const up = (ev) => {
+    const up = () => {
       if (done) return; done = true;
       removeEventListener("pointermove", move, true); removeEventListener("pointerup", up, true); removeEventListener("pointercancel", up, true);
-      if (!o) return;
+      if (!on) return;
       shield(false);
       swallow = true; setTimeout(() => (swallow = false), 0);
-      hud.classList.remove("drag"); root.host.classList.remove("dragging");
-      const snap = (v) => Math.round(ev.shiftKey ? v : Math.round(v / SNAP) * SNAP);
-      const to = { x: snap(x), y: snap(y) };
-      save("L" + k, putL(load("L" + k, {}), id, { ...to, n })); commit();   // 落点先记下（撤回认它），弹簧只管画过去
-      settle(k, id, to);
+      hud.classList.remove("drag"); root.host.classList.remove("dragging"); showDrop(root, null);
+      const settle = () => Object.assign(el.style, { translate: "", pointerEvents: "", opacity: "", ...keep });
+      if (!d) { flip(settle); return showHud(root, null); }
+      const from = groupName(el, face), same = d.t.parentElement === el.parentElement, was = [el.parentElement, el.nextElementSibling];
+      const o = { id, n, ref: idOf(d.t, face), rn: nameOf(d.t), side: d.side };
+      flip(() => { settle(); for (const f of faces(k)) applyOp(f, o); });
+      if (el.parentElement === was[0] && el.nextElementSibling === was[1]) return showHud(root, null);   // 落回原位：不算一次挪动
+      o.desc = `「${n}」挪到「${o.rn}」${d.side === "before" ? "前面" : "后面"}${same ? "" : `，从${from}挪进${groupName(el, face)}`}`;
+      o.seq = [...el.parentElement.children].filter((c) => !c.matches(".menu")).map(nameOf).join(" · ");
+      txn(["L" + k], n + " 挪位", () => { const L = Lof(k); L.ops.push(o); save("L" + k, L); }, { type: "move", k, id, desc: o.desc });
+      if (hosts().some((h) => h.used.has(k))) return flip(() => render());   // 别的格 use() 了这一档：一起换
+      showHud(root, el);
     };
     addEventListener("pointermove", move, true); addEventListener("pointerup", up, true); addEventListener("pointercancel", up, true);
   }
@@ -591,7 +623,8 @@ function labStart(cfg) {
       grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); grip.removeEventListener("lostpointercapture", up);
       swallow = true; setTimeout(() => (swallow = false), 0);
       hud.classList.remove("drag"); root.host.classList.remove("dragging");
-      save("L" + k, putL(load("L" + k, {}), id, { w, h, n })); commit();
+      const L = Lof(k); L.sz[id] = { w, h, n }; save("L" + k, L); commit();
+      if (hosts().some((x) => x.used.has(k))) render();
     };
     grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up); grip.addEventListener("lostpointercapture", up);
   }
@@ -604,7 +637,7 @@ function labStart(cfg) {
   function noteEl(face, n) {
     const byPart = () => (n.part ? face.querySelector(`[data-part="${n.part}"]`) : null);
     if (!n.idx) return n.part ? byPart() : face;
-    const el = walk(face, n.idx);
+    const el = face.querySelector(`[data-lab-id="${n.idx}"]`) ?? walk(face, n.idx);
     return el && el.tagName === n.tag && (!n.part || el.dataset.part === n.part) ? el : byPart();
   }
   function placePinsIn(h) {
@@ -667,16 +700,39 @@ function labStart(cfg) {
     const face = root.querySelector(".root"), r = el.getBoundingClientRect(), hr = root.host.getBoundingClientRect();
     draft = {
       id: Date.now().toString(36), no: Math.max(0, ...notes.map((n) => n.no)) + 1, k, s: sOf(root),
-      part: el.dataset.part ?? "", idx: el === face ? "" : pathOf(el, face), tag: el.tagName, name: el === face ? "整格" : nameOf(el), css: cssPath(el, face),
-      text: el.textContent.trim().replace(/\s+/g, " ").slice(0, 80), html: el.outerHTML.replace(/\s+/g, " ").slice(0, 320),
+      part: el.dataset.part ?? "", idx: el === face ? "" : labIdOf(el, face), tag: el.tagName, name: el === face ? "整格" : nameOf(el), css: cssPath(el, face),
+      text: el.textContent.trim().replace(/\s+/g, " ").slice(0, 80), html: el.outerHTML.replace(/ data-lab-id="[^"]*"/g, "").replace(/\s+/g, " ").slice(0, 320),
       fx: r.width ? (e.clientX - r.left) / r.width : 0, fy: r.height ? (e.clientY - r.top) / r.height : 0,
       x: (e.clientX - hr.left) / zoom, y: (e.clientY - hr.top) / zoom, note: "", state: "open",
     };
     showHud(root, null);
     openComposer(draft);
   }
-  /* 写标注的小框：贴着那枚点，回车存、⇧回车换行、Esc 放弃、点外面也存；输入法选字时的回车不算 */
+  /* 写标注的小框：贴着那枚点，回车存、⇧回车换行、Esc 放弃、点外面也存；输入法选字时的回车不算。
+     参考图（2026-11-25 甲方要）：⌘V 粘贴或拖进小框，存进服务的图缓存（本机，不进仓库），发出去的标注带上本机路径，agent 用 Read 看 */
   const cmp = $("cmp"), cmpT = $("cmpT");
+  /* 参考 = { kind: img | video, url, path, poster?, src? }；链接（2026-11-25 甲方要）交给服务取：直链图 / 视频直接存，网页取 og:video / og:image，视频再抽一帧封面给 agent 看 */
+  let cmpImgs = [];
+  const paintImgs = () => {
+    $("cmpI").innerHTML = cmpImgs.map((im, i) => im.pending ? `<figure class="ld"><span>取${esc(im.label)}中…</span></figure>`
+      : `<figure class="${im.kind === "video" ? "vid" : ""}" title="${esc(im.src ?? "")}">${im.kind === "video" && !im.poster ? `<video src="${im.url}" muted preload="metadata"></video>` : `<img src="${im.kind === "video" ? im.poster.url : im.url}" alt="">`}${im.kind === "video" ? `<i>${ic("play", 12)}</i>` : ""}<button data-ix="${i}" title="去掉" aria-label="去掉">${ic("close", 11)}</button></figure>`).join("");
+  };
+  const cmpErr = (t) => { $("cmpE").textContent = t; };
+  /* 取一份参考：先挂占位，回来替换；小框已经关了就直接记到那条标注上；取不到在小框里说原因（链接文字照样留在标注里） */
+  async function addRef(n, label, req) {
+    const ph = { pending: true, label };
+    if (editing === n) { cmpImgs.push(ph); paintImgs(); }
+    const r = await req(), j = await r.json();
+    const i = cmpImgs.indexOf(ph);
+    if (i >= 0) cmpImgs.splice(i, 1);
+    if (!r.ok) { if (editing === n) { paintImgs(); cmpErr(`${label}没取到：${j.error}`); } return; }
+    if (editing === n) { cmpImgs.splice(i >= 0 ? i : cmpImgs.length, 0, j); paintImgs(); }
+    else { n.imgs = [...(n.imgs ?? []), j]; if (notes.includes(n)) save("n", notes); paintOut(); }
+  }
+  const addImgs = (files, n) => files.forEach((f) => addRef(n, "图", () => fetch("/__lab/img", { method: "POST", headers: { "content-type": f.type }, body: f })));
+  const addLinks = (urls, n) => urls.forEach((u) => addRef(n, "链接", () => fetch("/__lab/fetch", { method: "POST", body: u })));
+  const imgFiles = (dt) => [...(dt?.files ?? [])].filter((f) => f.type.startsWith("image/"));
+  const linksIn = (t) => [...new Set(t.match(/https?:\/\/[^\s<>"'，。、；）)】]+/g) ?? [])];
   function openComposer(n) {
     if (editing && editing !== n) closeComposer(true);
     closePop();
@@ -684,6 +740,7 @@ function labStart(cfg) {
     placePins();
     $("cmpH").innerHTML = `<span class="badge on">${n.no}</span><span class="nm">${esc(n.name)}</span>` + (n === draft ? "" : ibtn("cmpDel", "close", "删掉这条标注"));
     cmpT.value = n.note;
+    cmpImgs = [...(n.imgs ?? [])]; paintImgs(); cmpErr("");
     cmp.classList.add("open");
     const pin = pinEl(n.id), r = (pin.hidden ? pin.getRootNode().host : pin).getBoundingClientRect(), w = cmp.offsetWidth, h = cmp.offsetHeight;   // 组件此刻看不见：贴着格子开
     cmp.style.left = Math.max(8, r.right + 10 + w > innerWidth - 8 ? r.left - 10 - w : r.right + 10) + "px";
@@ -692,10 +749,11 @@ function labStart(cfg) {
   }
   function closeComposer(keep) {
     if (!editing) return;
-    const n = editing, text = cmpT.value.trim();
+    const n = editing, text = cmpT.value.trim(), imgs = cmpImgs.filter((x) => !x.pending), has = text || imgs.length;
+    const same = text === n.note && JSON.stringify(imgs) === JSON.stringify(n.imgs ?? []), pics = imgs.length ? `（${imgs.length} 份参考）` : "";
     editing = null; cmp.classList.remove("open"); cmpT.blur();
-    if (keep && text && n === draft) { notes.push({ ...n, note: text }); save("n", notes); note({ kind: "note", no: n.no, label: `${n.name}：${text}` }); }
-    else if (keep && text && text !== n.note) { n.note = text; save("n", notes); note({ kind: "note", no: n.no, label: `改 · ${text}` }); }
+    if (keep && has && n === draft) { Object.assign(n, { note: text || "（见图）", imgs }); notes.push(n); save("n", notes); note({ kind: "note", no: n.no, label: `${n.name}：${n.note}${pics}` }); }
+    else if (keep && has && !same && n !== draft) { Object.assign(n, { note: text || "（见图）", imgs }); save("n", notes); note({ kind: "note", no: n.no, label: `改 · ${n.note}${pics}` }); }
     draft = null;
     placePins(); paintOut();
     if (reloadPending) reloadSoon();
@@ -735,9 +793,9 @@ function labStart(cfg) {
       const sp = take(rd.params, shared(g, r));
       if (Object.keys(sp).length) params[pre + "共用"] = sp;
       rd.list.forEach((v, i) => {
-        const op = take(v.params, own(vk(g, r, i))), L = load("L" + vk(g, r, i), {});
+        const op = take(v.params, own(vk(g, r, i))), L = Lof(vk(g, r, i));
         if (Object.keys(op).length) params[pre + vname(g, r, i)] = op;
-        if (Object.keys(L).length) layout[pre + vname(g, r, i)] = L;
+        if (Lsize(L)) layout[pre + vname(g, r, i)] = layoutText(L);
       });
     });
     return { params, layout };
@@ -745,15 +803,23 @@ function labStart(cfg) {
   const picked = () => Object.fromEntries(PAGES_.map((p, g) => [p.name, `R${rnd(g) + 1} · ${vname(g, rnd(g), selI(g))}`]));
   const stateKey = () => JSON.stringify({ picked: picked(), ...changes() });   // 上一次发出去的样子；没标注又没改动就不让发
   function payload() {
-    const { params, layout } = changes();
+    const { params, layout } = changes(), open = notes.some((n) => n.state === "open"), pend = notes.some((n) => n.state === "sent");
     return {
       页: location.pathname, 题目: TOPIC,
+      意思: open ? "按标注改：改完回话，接着等"
+        : pend ? "补充：没有新标注，只是选档 / 参数 / 布局变了——合进还没回话的那几批一起改"
+        : "没写标注 = 定了：按「选档」实装进项目代码（选第 0 档的界面保持现状），参数 / 布局有改动的照着带上",
       在看: { 界面: PG().name, 轮: `R${rnd() + 1} ${R().name}`, 档: vname(pg, rnd(), selI()), 样本: S().from },
       选档: picked(),
-      标注: notes.filter((n) => n.state === "open").map((n) => { const [g, r, i] = at3(n.k); return { 号: n.no, 界面: PAGES_[g].name, 档: `R${r + 1} · ${vname(g, r, i)}`, 样本: PAGES_[g].specs[n.s].from, 组件: n.name, 具名: n.part || undefined, 路径: n.css, 原文: n.text, html: n.html, 要改: n.note }; }),
+      标注: notes.filter((n) => n.state === "open").map((n) => { const [g, r, i] = at3(n.k); return { 号: n.no, 界面: PAGES_[g].name, 档: `R${r + 1} · ${vname(g, r, i)}`, 样本: PAGES_[g].specs[n.s].from, 组件: n.name, 具名: n.part || undefined, 路径: n.css, 原文: n.text, html: n.html, 要改: n.note, ...refsOf(n.imgs ?? []) }; }),
       参数: params, 布局: layout,
     };
   }
+  /* 参考交给 agent：图（视频给封面）用 Read 看；视频原件与原链接另列 */
+  const refsOf = (xs) => {
+    const pic = xs.map((x) => (x.kind === "video" ? x.poster?.path : x.path)).filter(Boolean), vid = xs.filter((x) => x.kind === "video").map((x) => x.path), src = xs.map((x) => x.src).filter(Boolean);
+    return { 图: pic.length ? pic : undefined, 视频: vid.length ? vid : undefined, 链接: src.length ? src : undefined };
+  };
   const worth = () => notes.some((n) => n.state === "open") || stateKey() !== load("sent2", "");   // sent2 = 真发出去过的样子（旧的 sent 是打开时预存的，作废）
   async function sendAll() {
     if (editing) closeComposer(true);
@@ -761,47 +827,76 @@ function labStart(cfg) {
     const b = payload(), fab = $("fab");
     const r = await fetch("/__lab/send", { method: "POST", body: JSON.stringify(b) });
     if (!r.ok) { flash(fab, false, `${ic("close", 16)}没发出去`); throw new Error(`发给 agent 失败：${r.status} ${await r.text()}`); }
-    const { batch } = await r.json();
+    const { batch, boot } = await r.json();
     const sentAt = new Date().toISOString();
-    for (const n of notes) if (n.state === "open") Object.assign(n, { state: "sent", batch, sentAt });
+    for (const n of notes) if (n.state === "open") Object.assign(n, { state: "sent", batch, boot, sentAt });
+    const Ls = { at: sentAt, batch, boot, L: { ...(load("Ls", null)?.L ?? {}) } };   // 交出去还没被回话收起的拼装；连发几批没回话就合在一起
+    PAGES_.forEach((p, g) => p.rounds[rnd(g)].list.forEach((_, i) => { const k = vk(g, rnd(g), i), L = Lof(k); if (Lsize(L)) Ls.L[k] = JSON.stringify(L); }));
+    save("Ls", Ls);
     save("n", notes); save("sent2", stateKey());
     if (said) save("sv", said.at);   // 发了新的，上一句回话收起
-    note({ kind: "send", label: `发给 agent · ${b.标注.length} 条标注` });
+    note({ kind: "send", label: b.标注.length ? `发给 agent · ${b.标注.length} 条标注` : "定了：按选档实装" });
     placePins(); paintOut();
     flash(fab, true, `${ic("check", 16)}已发`);
   }
+  /* agent 回话只露一句：顶条中间一行灰字，悬停看全文；下次发送就收起。
+     ⛔ 别再做成右下角的回话卡片 / 「这次改了」卡片：没人看，还压舞台（2026-11-25 甲方）；改了哪儿看左栏的「新」 */
+  const oneLine = (t) => (t.replace(/\*\*|`/g, "").split("\n").map((x) => x.replace(/^[#>\-*\s]+/, "").trim()).find(Boolean) ?? "").split(/(?<=[。！？!?])/)[0];
+  /* 发出去之后到回话之前，托盘顶上一行进度：在改哪几批、补充的排着没有、agent 是不是根本没在听。答完就没了 */
+  function stText() {
+    if (!st) return "";
+    const n = (a) => a.join("、");
+    if (st.w.length) return `agent 在改第 ${n(st.w)} 批` + (st.q.length ? `；补充的第 ${n(st.q)} 批排着，改完接上` : "");
+    if (st.q.length && !st.ag) return `第 ${n(st.q)} 批排着：agent 没在听，回终端叫它一声`;
+    return "";
+  }
+  /* 内容没变就不动 DOM：托盘列表带入场动画，每次重写都会重播一遍，看着就是一直在闪（2026-11-25 踩过） */
+  const setHTML = (el, h) => { if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; } };
   /* 右下角：agent 还没收起的回话 · 标注清单（没发的在前，发出去的变灰）· 发送键（有没发的标注带个数） */
   function paintOut() {
     const open = notes.filter((n) => n.state === "open").length, reply = said && said.at > load("sv", "");
-    $("reply").innerHTML = reply ? `<p>${esc(said.text)}</p>${ibtn("replyX", "close", "收起")}` : "";
-    $("nl").innerHTML = [...notes].sort((a, b) => (a.state === b.state ? a.no - b.no : a.state === "open" ? -1 : 1))
-      .map((x) => `<li data-note="${x.id}" class="${x.state}"><span class="badge on">${x.no}</span><span class="nm">${esc(x.note)}</span></li>`).join("");
-    const fg = Object.keys(fresh).map(Number);
-    $("fresh").innerHTML = fg.length ? `<span>这次改了</span>${fg.map((g) => `<button data-fg="${g}" data-fr="${Math.max(...fresh[g])}">${esc(PAGES_[g].name)}<b>${[...fresh[g]].sort((a, b) => a - b).map((r) => `R${r + 1}`).join(" ")}</b></button>`).join("")}${ibtn("freshX", "close", "都看过了")}` : "";
-    $("tray").hidden = !reply && !notes.length && !fg.length;
+    const say = reply ? oneLine(said.text) : "";
+    if ($("say").textContent !== say) { $("say").textContent = say; $("say").title = reply ? said.text : ""; }
+    setHTML($("nl"), [...notes].sort((a, b) => (a.state === b.state ? a.no - b.no : a.state === "open" ? -1 : 1))
+      .map((x) => `<li data-note="${x.id}" class="${x.state}"><span class="badge on">${x.no}</span><span class="nm">${esc(x.note)}</span>${x.imgs?.length ? `<span class="tag">${x.imgs.length} 参考</span>` : ""}</li>`).join(""));
+    const stl = stText();
+    if ($("stl").textContent !== stl) $("stl").textContent = stl;
+    $("tray").hidden = !notes.length && !stl;
     const fab = $("fab");
     if (fab.classList.contains("flash")) return;
-    fab.innerHTML = `${ic("export", 16)}发送${open ? `<span class="n">${open}</span>` : ""}`;
+    /* 没写标注 = 定了，agent 照选档落进代码；但发出去的标注还没回话时不是「定了」——那时再发只是补充 */
+    const done = !open && !notes.some((n) => n.state === "sent");
+    fab.innerHTML = done ? `${ic("check", 16)}实装` : `${ic("export", 16)}发送${open ? `<span class="n">${open}</span>` : ""}`;
+    fab.title = done ? "没有要改的：按选档实装（⌘⏎）" : "发给 agent（⌘⏎）";
     fab.classList.toggle("same", !worth());
   }
-  /* agent 回话：头一回听到记一笔、清掉它答过的那批标注点；回话留在右下角，收起或下次发送才走 */
+  /* 拼装发出去以后归 agent：agent 照着改了 render，页面上的拼装不收就会在新结构上再重放一遍（2026-11-17 踩过：
+     被推出框外、整块空了）。回话一到，比它早发出去、之后没再动过的那一档的拼装收起；发出去以后又动过的留着（那是新的意思） */
+  /* 这句回话答没答到这一批：同一回启动的服务按批号（回话答的是已交给 agent 的批，排着的补充不算）；服务重启过认不出批号，退回按时间 */
+  const answered = (x, m) => (m.batch && x.boot && x.boot === m.boot ? x.batch <= m.batch : (x.sentAt ?? x.at ?? "") <= m.at);
+  function takeBack(m) {
+    const Ls = load("Ls", null);
+    if (!Ls?.at || !answered(Ls, m)) return 0;
+    let n = 0;
+    for (const [k, sent] of Object.entries(Ls.L)) if (JSON.stringify(Lof(k)) === sent) { n += Lsize(Lof(k)); save("L" + k, null); }
+    save("Ls", null);
+    if (n) flip(() => render());
+    return n;
+  }
+  /* agent 回话：头一回听到记一笔、清掉它答过的那批标注点与拼装位移；回话留在右下角，收起或下次发送才走 */
   function hear(m) {
     if (!m || (m.page && m.page !== location.pathname)) return;
     said = m;
     if (m.at > load("ss", "")) {
       save("ss", m.at);
-      note({ kind: "say", text: m.text });
-      /* 发过的点：有发送时间就按时间（比这句回话早发的都收起）；旧点没记时间就看批号，服务重启过批号归零（m.batch 为 0）= 认不出，发过的一律收起 */
-      notes = notes.filter((n) => !(n.state === "sent" && (n.sentAt ? n.sentAt <= m.at : !m.batch || n.batch <= m.batch))); save("n", notes);
+      const back = takeBack(m);
+      note({ kind: "say", text: m.text + (back ? `（交出去的拼装收起 ${back} 处）` : "") });
+      /* 发过的点：这句回话答到的那几批收起；回话前补发、agent 还没接的留着（灰点照旧，等下一句回话） */
+      notes = notes.filter((n) => !(n.state === "sent" && answered(n, m))); save("n", notes);
       placePins();
     }
     paintOut();
   }
-  $("fresh").addEventListener("click", (e) => {
-    const b = e.target.closest("button"); if (!b) return;
-    if (b.id === "freshX") { Object.keys(fresh).map(Number).forEach(seenNow); return paintOut(), renderNav(); }
-    const g = Number(b.dataset.fg); if (g !== pg) setPg(g); setRound(Number(b.dataset.fr)); paintOut();
-  });
   $("nl").addEventListener("pointerover", (e) => { const li = e.target.closest("li[data-note]"); if (li) ring(li.dataset.note); });
   $("nl").addEventListener("pointerleave", () => ring(null));
   /* 页面文件改了就刷新：正写标注 / 正拖着就等写完、松手再刷；滚动位置带过去，不重播入场 */
@@ -877,10 +972,10 @@ function labStart(cfg) {
     root.addEventListener("dblclick", (e) => {
       const el = flags.build && !noting && pick(e.target, face, e.altKey);
       if (!el) return;
-      const L = load("L" + k, {}), id = idOf(el, face);
-      if (!L[id]) return;
-      txn(["L" + k], nameOf(el) + " 归位", () => { delete L[id]; save("L" + k, L); }, { type: "move", k, id });   // 位置与大小一起回原样
-      settle(k, id, { x: 0, y: 0 }); setSize(k, id, null, null);
+      const L = Lof(k), id = idOf(el, face);
+      if (!L.ops.some((o) => o.id === id) && !L.sz[id]) return;
+      txn(["L" + k], nameOf(el) + " 归位", () => { L.ops = L.ops.filter((o) => o.id !== id); delete L.sz[id]; save("L" + k, L); }, { type: "move", k, id, desc: `「${nameOf(el)}」回原位` });   // 位置与大小一起回原样
+      flip(() => render());
     });
   }
 
@@ -925,7 +1020,7 @@ function labStart(cfg) {
   function paintPages() {
     $("pl").innerHTML = multi() ? PAGES_.map((p, g) => {
       const n = notes.filter((x) => x.state === "open" && at3(x.k)[0] === g).length;
-      return `<li class="pi${g === pg ? " on" : ""}" data-g="${g}"><b>${p.name}</b>${fresh[g] ? nw : ""}<span class="pk">${n ? `<span class="nn" title="${n} 条标注没发">${n}</span>` : ""}<span class="tag" title="这个界面选的档">R${rnd(g) + 1} · ${selI(g)}</span></span></li>`;
+      return `<li class="pi${g === pg ? " on" : ""}${p.parent ? " sub" : ""}" data-g="${g}"><b>${p.name}</b>${fresh[g] ? nw : ""}<span class="pk">${n ? `<span class="nn" title="${n} 条标注没发">${n}</span>` : ""}<span class="tag" title="这个界面选的档">R${rnd(g) + 1} · ${selI(g)}</span></span></li>`;
     }).join("") : "";
   }
   function syncChrome() {
@@ -967,23 +1062,52 @@ function labStart(cfg) {
   }
 
   function paint() {
-    stage.innerHTML = tiles().map((t, n) => `<div class="tile" data-vk="${vk(t.g, t.r, t.i)}" style="--d:${n * 30}ms"><div class="lbl">${lblHTML(t)}</div>
-      <div class="host" data-vk="${vk(t.g, t.r, t.i)}" data-sp="${t.s}"></div><div class="ext" hidden></div></div>`).join("");
-    for (const k of Object.keys(pos)) delete pos[k];
+    stage.innerHTML = tiles().map((t, n) => `<div class="tile" data-vk="${vk(t.g, t.r, t.i)}" style="--d:${n * 30}ms"><div class="lbl lab-ui">${lblHTML(t)}</div>
+      <div class="host" data-vk="${vk(t.g, t.r, t.i)}" data-sp="${t.s}"></div><div class="ext lab-ui" hidden></div></div>`).join("");
     for (const h of hosts()) {
       const k = h.dataset.vk, v = varOf(k);
-      const root = h.attachShadow({ mode: "open" });
-      root.innerHTML = `<style>${CHROME_CSS}${SHARED_CSS}${PAGES_[at3(k)[0]].css ?? ""}${v.css ?? ""}</style><div class="root">${v.render(specOfRoot(root))}</div><div class="lab-hud"><span class="pn"></span><span class="sz"></span></div><div class="lab-pins"></div>`;
+      const root = h.attachShadow({ mode: "open" }), spec = specOfRoot(root), used = (h.used = new Set());
+      const me = { g: at3(k)[0], html: undefined }, pgOf = PAGES_[me.g];
+      const ctx = ctxFor(spec, sOf(root), used, [me.g], me), own = (me.html = v.render(spec, ctx));
+      const frame = pgOf.frame ?? (pgOf.parent ? (_s, _o, c) => c.use(pgOf.parent) : null);   // 子组件：整格是父界面选中那档，自己这一档嵌在原位
+      const html = frame ? frame(spec, own, ctx) : own;
+      const css = [...new Set([k, ...used].flatMap((x) => { const [g, r] = at3(x); return [PAGES_[g].css ?? "", PAGES_[g].rounds[r].css ?? "", varOf(x).css ?? ""]; }))].join("");
+      root.innerHTML = `<style>${CHROME_CSS}${SHARED_CSS}${css}</style><div class="root">${html}</div><div class="lab-hud"><span class="pn"></span><span class="sz"></span></div><div class="lab-drop"></div><div class="lab-pins"></div>`;
+      tagIds(root.querySelector(".root"));
       h.dataset.mode = modeStr();
       h.toggleAttribute("data-note", noting);
       wire(root, k);
       follow(root);
       extRail(root, h);
     }
-    for (const k of new Set(hosts().map((h) => h.dataset.vk))) for (const [id, p] of Object.entries(load("L" + k, {}))) { setPos(k, id, p.x ?? 0, p.y ?? 0); if (p.w != null) setSize(k, id, p.w, p.h); }
+    for (const k of new Set(hosts().map((h) => h.dataset.vk))) applyLayout(k);
+    /* use() 拿来的块：那一档拼装过的也照样摆（只认具名零件——按路径记的换了外框就对不上） */
+    for (const h of hosts()) {
+      const face = h.shadowRoot.querySelector(".root"), named = (id) => !id.startsWith("@");
+      for (const u of h.used) {
+        const L = Lof(u);
+        for (const o of L.ops) if (named(o.id) && named(o.ref)) applyOp(face, o);
+        for (const [id, q] of Object.entries(L.sz)) { const el = named(id) && elOf(face, id); if (el) sizeEl(el, q.w, q.h); }
+      }
+    }
     applyParams();
     if (isStatic() && pinned !== "rest") requestAnimationFrame(() => hosts().forEach((h) => roundOfK(h.dataset.vk).pin?.(h.shadowRoot, pinned, specOfRoot(h.shadowRoot))));
     renderKnobs(); syncChrome();
+    dwell();
+  }
+  /* 关联界面（2026-11-25 甲方要）：同一屏拆成几个界面分开比（顶栏 / 正文 / 底栏）时，档的 render 只画自己那一块，
+     界面的 frame(spec, 本块, { use }) 把整屏拼起来，别的块用 use("顶栏") 取——取的是「顶栏」此刻选中的那一档，换档处处跟着换；
+     它的样式自动带进这一格。样本按 from 对上，对不上按序号；取自己或绕回来的给空串 */
+  function ctxFor(spec, si, used, stack, me) {
+    return { use(name) {
+      const g = PAGES_.findIndex((p) => p.name === name);
+      if (g < 0) throw new Error(`use("${name}")：没有这个界面（PAGES 里有：${PAGES_.map((p) => p.name).join("、")}）`);
+      if (g === me.g && me.html !== undefined) return me.html;   // 绕回这一格自己的界面：放这一格正在比的那一档（父界面里那个位置就是它）
+      if (stack.includes(g)) return "";
+      const r = rnd(g), i = selI(g), sp = PAGES_[g].specs, s2 = sp.find((x) => x.from === spec.from) ?? sp[Math.min(si, sp.length - 1)];
+      used.add(vk(g, r, i));
+      return PAGES_[g].rounds[r].list[i].render(s2, ctxFor(s2, sp.indexOf(s2), used, [...stack, g], me));
+    } };
   }
   /* 外部触发（2026-11-04 甲方要）：样本里标了 data-ext 的元素（碰一张标签、来网断网这类手机外面发生的事）不画在屏里，
      挂在格子右边外侧当一排触发键，名字 = data-ext 的值（空就用元素的字），图标照搬；点它 = 点那个元素（照常进 on 与记录）。样本重画了跟着换 */
@@ -1017,7 +1141,6 @@ function labStart(cfg) {
     render();
   }
   function render(intro = false) {
-    for (const a of settling.values()) a.stop();
     stage.classList.toggle("intro", intro);
     paint();
   }
@@ -1031,7 +1154,7 @@ function labStart(cfg) {
   /* 全部界面并排时点格头的档号：那个界面换成那一档，焦点也挪过去 */
   function setSel(g, i) { pg = g; save("g", g); save(`v${g}.${rnd(g)}`, i); renderChrome(); render(); }
   /* 换界面：全部界面并排时每个界面都在台上，只换焦点 */
-  function setPg(g) { if (g !== pg) seenNow(pg); pg = g; save("g", g); renderChrome(); if (isPages()) { renderKnobs(); syncChrome(); } else render(); }
+  function setPg(g) { pg = g; save("g", g); renderChrome(); if (isPages()) { renderKnobs(); syncChrome(); } else render(); }
   const setSpec = (s) => { save("s" + pg, s); render(); };
   const setView = (w) => { view = w; save("w", w); render(); };
   const setRound = (r) => { save("r" + pg, r); renderChrome(); render(); };
@@ -1062,7 +1185,7 @@ function labStart(cfg) {
     if (noteSkip) closeComposer(true);
   }, true);
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-ci],[data-g],[data-note],[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-pop],#noteT,#dockT,#zoomT,#themeT,#fab,#replyX,#cmpDel,#resetP,#resetL,#copyJ,#resetI,.tile");
+    const t = e.target.closest("[data-ci],[data-g],[data-note],[data-v],[data-w],[data-s],[data-r],[data-flag],[data-pin],[data-pop],#noteT,#dockT,#zoomT,#themeT,#fab,#cmpDel,#resetP,#resetL,#copyJ,#resetI,.tile");
     if (openPop && !e.target.closest(".pop") && !t?.dataset.pop) closePop();
     if (!t) return;
     if (t.dataset.pop) return togglePop(t.dataset.pop, t);
@@ -1086,7 +1209,6 @@ function labStart(cfg) {
     if (t.id === "themeT") return nextTheme();
     if (t.id === "resetI") return resetState();
     if (t.id === "fab") return sendAll();
-    if (t.id === "replyX") { save("sv", said.at); return paintOut(); }
     if (t.id === "cmpDel") return dropNote(editing);
     if (t.dataset.pin) { pinned = t.dataset.pin; return render(); }
     if (t.id === "resetP") {
@@ -1094,13 +1216,32 @@ function labStart(cfg) {
       applyParams(); return renderKnobs();
     }
     if (t.id === "resetL") {
-      const ks = [...new Set(hosts().map((h) => h.dataset.vk))], parts = (k) => Object.keys(load("L" + k, {}));
-      const was = Object.fromEntries(ks.map((k) => [k, parts(k)]));
-      txn(ks.map((k) => "L" + k), "零件全部归位", () => ks.forEach((k) => save("L" + k, {})));
-      return ks.forEach((k) => was[k].forEach((id) => { settle(k, id, { x: 0, y: 0 }); setSize(k, id, null, null); }));
+      const ks = [...new Set(hosts().map((h) => h.dataset.vk))].filter((k) => Lsize(Lof(k)));
+      if (!ks.length) return;
+      txn(ks.map((k) => "L" + k), "零件全部归位", () => ks.forEach((k) => save("L" + k, null)));
+      return flip(() => render());
     }
     if (t.id === "copyJ") return copyJSON(t);
   });
+  cmpT.addEventListener("paste", (e) => {
+    const fs = imgFiles(e.clipboardData);
+    if (fs.length) { e.preventDefault(); return addImgs(fs, editing); }
+    const urls = linksIn(e.clipboardData.getData("text/plain"));   // 链接照常贴进文字，同时去取图
+    if (urls.length) addLinks(urls, editing);
+  });
+  cmp.addEventListener("dragover", (e) => { if ([...e.dataTransfer.items].some((i) => i.type.startsWith("image/") || i.type === "text/uri-list" || i.type === "text/plain")) { e.preventDefault(); cmp.classList.add("drop"); } });
+  cmp.addEventListener("dragleave", (e) => { if (!cmp.contains(e.relatedTarget)) cmp.classList.remove("drop"); });
+  cmp.addEventListener("drop", (e) => {
+    cmp.classList.remove("drop");
+    const fs = imgFiles(e.dataTransfer), urls = fs.length ? [] : linksIn(e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain"));
+    if (!fs.length && !urls.length) return;
+    e.preventDefault(); cmpErr("");
+    if (fs.length) addImgs(fs, editing); else addLinks(urls, editing);
+  });
+  $("cmpI").addEventListener("click", (e) => { const b = e.target.closest("[data-ix]"); if (!b) return; cmpImgs.splice(Number(b.dataset.ix), 1); paintImgs(); cmpT.focus(); });
+  /* 图拖到小框外面松手：浏览器默认会跳去打开那张图、整页没了——拦下 */
+  addEventListener("dragover", (e) => e.preventDefault());
+  addEventListener("drop", (e) => e.preventDefault());
   cmpT.addEventListener("keydown", (e) => {
     if (e.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) { e.preventDefault(); closeComposer(true); }
@@ -1164,19 +1305,40 @@ function labStart(cfg) {
   document.body.classList.toggle("dock-off", load("do", false));
   applyTheme();
   /* 题目没填就大声报错，不画空台子 */
+  const orphan = PAGES_.find((p) => p.parent && !PAGES_.some((q) => q.name === p.parent));
+  if (orphan) throw new Error(`对照版：界面「${orphan.name}」的 parent「${orphan.parent}」不在 PAGES 里`);
   if (!PAGES_.length || PAGES_.some((p) => !p.specs?.length || !p.rounds?.length || p.rounds.some((r) => !r.tile || !r.list?.length))) {
-    stage.innerHTML = `<div class="lab-empty"><b>对照版还没填</b>：脚本第 ② 段的 PAGES 是空的（每个界面要有 specs ≥3 条样本与 rounds，每轮要有 tile 与 list）。写法见 dc 的 SKILL.md ④。</div>`;
+    stage.innerHTML = `<div class="lab-empty lab-ui"><b>对照版还没填</b>：脚本第 ② 段的 PAGES 是空的（每个界面要有 specs ≥3 条样本与 rounds，每轮要有 tile 与 list）。写法见 dc 的 SKILL.md ④。</div>`;
     throw new Error("对照版：PAGES 未填（或某界面缺 specs / rounds，某轮缺 tile / list）");
   }
-  /* 改了哪儿（2026-11-02 甲方要：每次更新要标出改了哪个界面）：每个界面每一轮一枚指纹（轮名 + 各档的名 / 论点 / 零件 / 代价 / 样式 / 档里的函数），
-     跟上回看过的比。变了的界面在左栏挂「新」、变了的轮在轮次清单挂「新」，右下角一条「这次改了」点过去；离开那个界面或点叉才算看过。截图模式不记 */
+  /* 改了哪儿（2026-11-02 甲方要：每次更新要标出改了哪个界面）：每个界面每一轮一枚指纹（轮名 + 这轮的样式与 uses + 各档的名 / 论点 / 零件 / 代价 / 样式 / 档里的函数），
+     跟用户看过的那一版比，按「界面 · 轮」一格一格记。界面的 css 是所有轮共用的，算进每一轮——只给一轮用的样式放那一轮的 css，不然改一轮会把整个界面的轮全标「新」（2026-11-06）；
+     档里的函数只看得到自己的源码，调到的 helper 改了看不见，要算进这一轮就列进这轮的 uses。变了的界面在左栏挂「新」、变了的轮在轮次清单挂「新」（不另弹卡片：2026-11-25 甲方，左栏标出来就够）。
+     看过 = 那一轮在台上、标签在前台停了 SEEN_MS（dwell）；点叉 = 全部看过。截图模式不记。
+     ⛔ 别改回「离开那个界面才算看过」：agent 每改一次页面就刷新，用户一直停在同一个界面，看过的改动一轮轮叠回「新」里（2026-11-25） */
   const hashS = (t) => { let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return (h >>> 0).toString(36); };
   const fnSrc = (v) => Object.values(v).filter((f) => typeof f === "function").map(String).join("");
-  const fpOf = (p) => p.rounds.map((r) => hashS(JSON.stringify([r.name, r.list.map((v) => [v.name, v.thesis, v.parts, v.cost, v.css ?? "", fnSrc(v)])]) + (p.css ?? "")));
+  const fpOf = (p) => p.rounds.map((r) => hashS(JSON.stringify([r.name, ...(r.css || r.uses ? [r.css ?? "", (r.uses ?? []).map(String).join("")] : []), r.list.map((v) => [v.name, v.thesis, v.parts, v.cost, v.css ?? "", fnSrc(v)])]) + (p.css ?? "")));
   const nowFp = PAGES_.map(fpOf), seenFp = load("fp", null), fresh = {};
   if (!seenFp) save("fp", Object.fromEntries(PAGES_.map((p, g) => [p.name, nowFp[g]])));
   else PAGES_.forEach((p, g) => { const old = seenFp[p.name] ?? []; const rs = nowFp[g].map((h, r) => (h !== old[r] ? r : -1)).filter((r) => r >= 0); if (rs.length) fresh[g] = new Set(rs); });
-  function seenNow(g) { if (!fresh[g]) return; delete fresh[g]; save("fp", { ...(load("fp", {}) ?? {}), [PAGES_[g].name]: nowFp[g] }); }
+  function markSeen(g, rs) {
+    if (!fresh[g]) return;
+    const all = load("fp", {}) ?? {}, arr = [...(all[PAGES_[g].name] ?? [])];
+    let hit = false;
+    for (const r of rs) if (fresh[g].delete(r)) { arr[r] = nowFp[g][r]; hit = true; }
+    if (!hit) return;
+    if (!fresh[g].size) delete fresh[g];
+    save("fp", { ...all, [PAGES_[g].name]: arr });
+    renderNav(); paintOut();
+  }
+  let seenT = 0;
+  function dwell() {
+    clearTimeout(seenT);
+    if (SHOT || document.hidden) return;
+    seenT = setTimeout(() => { for (const t of tiles()) markSeen(t.g, [t.r]); }, SEEN_MS);
+  }
+  document.addEventListener("visibilitychange", dwell);
   const nw = `<span class="nw" title="上回看过之后改过">新</span>`;
   /* 发送键永远能点：没发过就照常发（用户看中的正是打开时那档，也要能交）；跟上次发的一模一样才不发、闪一句（2026-11-02 用户：点了发送没反应）*/
   const re = sessionStorage.getItem(KEY + "re");
@@ -1190,10 +1352,12 @@ function labStart(cfg) {
   let ver = null, sayAt = null;
   async function tick() {
     try {
-      const m = await (await fetch(`/__lab/state?page=${encodeURIComponent(location.pathname)}&id=${pid}`, { cache: "no-store" })).json();
+      const m = await (await fetch(`/__lab/state?page=${encodeURIComponent(location.pathname)}&id=${pid}&vis=${document.hidden ? 0 : 1}`, { cache: "no-store" })).json();
       if (ver && m.ver !== ver) return reloadSoon();
       ver = m.ver;
       if (m.say && m.say.at !== sayAt) { sayAt = m.say.at; hear(m.say); }
+      const ns = m.st ?? null;   // 旧服务不报 st：当 null，别每轮都当「变了」重画
+      if (JSON.stringify(ns) !== JSON.stringify(st)) { st = ns; paintOut(); }
     } catch { /* 服务重启中：下一轮再问，连上了版本对不上就刷新 */ }
     setTimeout(tick, document.hidden ? 5000 : 1500);
   }

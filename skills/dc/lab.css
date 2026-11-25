@@ -1,5 +1,14 @@
 /* 干什么：dc 对照版台子的样式（只管台子，不管被比较的样本——样本样式进各格影子）。
-   怎么跑：serve.mjs 在 /__lab/lab.css 下发，对照页 <head> 里 link。需要什么：项目 token 的自定义属性。 */
+   怎么跑：serve.mjs 在 /__lab/lab.css 下发，对照页 <head> 里 link。需要什么：无——台子的角色值来自 /__lab/lab-ui.css（Token.css），不靠项目 token。 */
+@import url("/__lab/lab-ui.css");
+
+/* ---- 和项目样式隔开 ------------------------------------------------------
+   项目的样式表被 lab.js 放进 project 层（比这里任何一条都弱）；台子的元素先整体退回浏览器默认，再吃下面台子自己的规则——
+   项目里同名的 .badge / .seg / .tg / .bar / .chip（Hrige control.css、Morii tokens.css 都有）漏不进来。
+   svg 不退（会把 fill 之类的呈现属性一起退掉）。:where 让它比台子任何一条都弱 */
+:where(.lab-ui, .lab-ui *:not(svg, svg *)), :where(.lab-ui *)::before, :where(.lab-ui *)::after { all: revert; }
+.lab-ui { font-family: var(--font); color: var(--ink-2); }
+
 /* ---- 可调参数 ---------------------------------------------------------- */
 :root {
   --top-h: 52px;     /* 顶条高 */
@@ -41,7 +50,9 @@ body.no-dock #dock, body.no-dock #dockT { display: none; }
 body.dock-off #dock { transform: translateX(calc(100% + var(--gap) * 2)); opacity: 0; pointer-events: none; }
 .bar { pointer-events: auto; display: flex; align-items: center; max-width: 100%; }
 #topbar { width: 100%; height: var(--top-h); padding: 0 8px 0 16px; gap: 2px; }
-#topbar .sp { flex: 1; }
+#topbar .sp { flex: 1; min-width: 0; display: flex; justify-content: center; }
+/* agent 回话只露一句（悬停看全文）：顶条中间一行灰字，下次发送就收起 */
+.say { min-width: 0; padding: 0 14px; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-user-select: text; user-select: text; cursor: default; }
 #topbar > * { flex-shrink: 0; }
 #topbar > .sp { flex-shrink: 1; }
 @media (max-width: 1340px) { .brand { max-width: 140px; overflow: hidden; text-overflow: ellipsis; } #topbar .seg button, #topbar .togs button { padding: 0 7px; } #topbar .tg { padding: 0 4px; } }
@@ -69,6 +80,7 @@ body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
 .vi, .pi { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 8px; padding: 6px 8px; border-radius: var(--r-sm); color: var(--ink-3); cursor: pointer;
   transition: background-color var(--t-fast) var(--ease-hover), color var(--t-fast) var(--ease-hover); }
 .pi { grid-template-columns: 1fr auto; }
+.pi.sub { margin-left: 14px; box-shadow: inset 1.5px 0 0 var(--sep-strong); border-radius: 0 var(--r-sm) var(--r-sm) 0; }   /* 子组件：挂在父界面下面 */
 .vi:hover, .pi:hover { background: var(--hover); color: var(--ink); }
 .vi.on, .pi.on { background: var(--hover); color: var(--ink); cursor: default; }
 .vi > b, .pi > b { min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -89,10 +101,8 @@ body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
 .kgrp { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
 .out { margin-top: auto; flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; min-height: 0; }
 .tray { pointer-events: auto; width: 100%; max-height: 44vh; padding: 6px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; scrollbar-width: none; }
-.reply { display: flex; align-items: flex-start; gap: 4px; padding: 8px 4px 8px 10px; border-radius: 10px; background: var(--accent-soft); }
-.reply:empty, .nl:empty { display: none; }
-.reply p { flex: 1; margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--ink); white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
-.reply .ibtn { width: 24px; height: 24px; }
+.nl:empty, .stl:empty { display: none; }
+.stl { padding: 7px 10px; border-radius: 10px; background: var(--hover); font-size: 12px; line-height: 1.5; color: var(--ink-2); }
 .nl li { cursor: pointer; transition: background-color var(--t-fast) var(--ease-hover); }
 .nl li:hover { background: var(--hover-2); }
 .nl li.sent { opacity: .45; }
@@ -151,6 +161,16 @@ body:not([data-mode="static"]) .pinw { max-width: 0; opacity: 0; padding: 0; }
 .cmp .ch .nm { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmp textarea { width: 100%; display: block; resize: none; border: 0; outline: none; border-radius: var(--r-sm); background: var(--hover); color: var(--ink);
   font: 13px/1.55 var(--font); padding: 8px 10px; field-sizing: content; min-height: 56px; max-height: 220px; }
+.cmp.drop { box-shadow: 0 0 0 2px var(--accent), var(--shadow-float); }
+.cimg { display: flex; flex-wrap: wrap; gap: 6px; }
+.cimg:empty { display: none; }
+.cimg figure { position: relative; margin: 0; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: var(--hover); }
+.cimg img, .cimg video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cimg .vid > i { position: absolute; left: 4px; bottom: 4px; width: 20px; height: 20px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, #000 55%, transparent); color: #fff; }
+.cimg .ld { display: grid; place-items: center; font-size: 11px; color: var(--ink-3); }
+.cerr { font-size: 12px; line-height: 1.5; color: var(--crit); }
+.cerr:empty { display: none; }
+.cimg button { position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; border-radius: 9px; display: grid; place-items: center; background: color-mix(in srgb, #000 55%, transparent); color: #fff; cursor: pointer; }
 .cmp textarea:focus { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
 
 /* 节：图标 + 名 + 右侧等宽元信息 / 图标钮 */
@@ -283,7 +303,3 @@ body.bare .board { padding: 24px !important; background: var(--bg-content); }
 
 /* 改了哪儿：左栏界面行 / 轮次挂「新」，右下角一条「这次改了」 */
 .nw { flex: none; display: inline-block; height: 16px; line-height: 16px; margin-left: 6px; padding: 0 5px; border-radius: 8px; font-size: 10px; font-weight: 800; color: #fff; background: var(--accent); vertical-align: middle; }
-.fresh { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 4px 8px 10px; border-radius: 10px; background: var(--accent-soft); font-size: 12px; color: var(--ink); }
-.fresh:empty { display: none; } .fresh > span { font-weight: 700; margin-right: 2px; }
-.fresh button[data-fg] { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 0; border-radius: 12px; background: var(--bg-content, #fff); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
-.fresh button[data-fg] b { color: var(--accent); font-weight: 800; } .fresh .ibtn { margin-left: auto; width: 24px; height: 24px; }

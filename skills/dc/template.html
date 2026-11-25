@@ -5,10 +5,10 @@
 <title>对照版 · TOPIC</title>
 <!--
   干什么：TOPIC 的多档对照（dc）。这页只放题目（第 ② 段）；台子（顶条 · 左右栏 · 舞台 · 标注 · 发送）从对照版服务的 /__lab/lab.js 取，不在页面里。
-  怎么跑：lab.sh <项目根> 起服务，浏览器开它打印的地址 + /docs/lab/<topic>.html（见 SKILL.md ⑦）。直接双击文件打不开台子。
-  需要什么：第一行 <link> 指向项目 token 源（只吃自定义属性，影子里照样继承）；第 ② 段写法见 dc 的 SKILL.md ④。
+  怎么跑：lab.sh <项目根> 起服务，浏览器开它打印的地址 + /docs/lab/SLUG.html（见 SKILL.md ⑦）。直接双击文件打不开台子。
+  需要什么：下面的 <link> 是项目 token（lab.sh new 自动找的；样本吃它，台子不吃）；第 ② 段写法见 dc 的 SKILL.md ④。
 -->
-<link rel="stylesheet" href="../../src/styles/tokens.css">
+<!--TOKENS-->
 <link rel="stylesheet" href="/__lab/lab.css">
 <script src="/__lab/lab.js"></script>
 </head>
@@ -22,7 +22,7 @@
      pa(id, 名)       零件命名属性（可选，跨档同名 / ⌥ 抓整组用）：<button ${pa("send", "发送")}>
      part(id, 名, html, cls?)  给一组外面套一层具名壳 */
 const TOPIC = "TOPIC";
-const KEY = "lab.TOPIC.";   // localStorage 前缀，每个题目一个
+const KEY = "lab.SLUG.";   // localStorage 前缀，每个题目一个
 
 /* 所有界面共用的样本样式（只进影子，不进台子；只吃 token 与 var(--p-*)）。界面自己的写界面 css，档自己的写档 css */
 const CSS = ``;
@@ -31,6 +31,8 @@ const CSS = ``;
    name    左栏界面清单上的名字
    specs   样本 ≥3 条（稀 / 中 / 满），照项目真 schema 抄形状；台子只读 from（顶条样本段控上的字）与 note
    css     这个界面所有档共用的样式（可不写）
+   parent  "父界面名"：这个界面比的是父界面里的一个子组件——左栏挂在父界面下面，每格 = 父界面选中那档 + 这一档嵌在父界面 use("本界面名") 的位置（可不写）
+   frame   (spec, 本块, { use }) => HTML：同一屏拆成几个界面分开比时，档只画自己那块，这里拼整屏；use("界面名") 取那个界面此刻选的档（可不写）
    rounds  轮次，一轮一项、下一轮追加在末尾。每轮：
      name    轮名
      tile    { w, h } 每格多大：数字（px），或共用参数的 key（跟着滑块变）
@@ -39,7 +41,7 @@ const CSS = ``;
      menu    (spec, btn) => [{ label, danger }]：带 data-menu 的按钮弹出的菜单
      on      (act, { root, spec, btn, log }) => void：带 data-act 的元素被点时的真行为（不写就只记一笔）
      figure  (v, d, box) => HTML：记录弹层顶上的示意图，v 当前值 / d 默认值（可不写）
-     list    档 [{ name, thesis, parts: [[键, 值], …], cost, css, params, render(spec) => HTML }]，第一轮第 0 档 = 现状 */
+     list    档 [{ name, thesis, parts: [[键, 值], …], cost, css, params, render(spec, { use }) => HTML }]，第一轮第 0 档 = 现状 */
 const PAGES = [];
 
 labStart({ TOPIC, KEY, CSS, PAGES });

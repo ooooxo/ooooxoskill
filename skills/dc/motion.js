@@ -217,7 +217,7 @@
     let ver = null;
     const poll = async () => {
       try {
-        const m = await (await fetch("/__lab/state?page=" + encodeURIComponent(location.pathname) + "&id=" + id, { cache: "no-store" })).json();
+        const m = await (await fetch("/__lab/state?page=" + encodeURIComponent(location.pathname) + "&id=" + id + "&vis=" + (document.hidden ? 0 : 1), { cache: "no-store" })).json();
         if (ver && m.ver !== ver) return location.reload();
         ver = m.ver;
       } catch {}

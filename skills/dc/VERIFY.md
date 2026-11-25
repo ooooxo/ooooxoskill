@@ -147,7 +147,7 @@ PY
 ## 6. 收尾（一轮一关，见 SKILL ⑨）
 
 **ego 的浏览器档案可能就是用户自己的浏览器**：截图走 `?shot`（§1）就没有测试状态要清。**不许** `localStorage.clear()`、不许删这一题的键、不许不带 `?shot` 去 `setItem` —— 用户的标注、选档、明暗都在里面，删了就丢了（2026-10-30 踩过：agent 截图改掉了用户的选档与明暗）。
-要验「点了之后怎样」这种只能在普通模式下做的交互（打标注、拼装挪位），换一个 `KEY` 前缀的副本页（放 `docs/` 下但别放进 `docs/lab/`，免得触发用户那页刷新），验完删副本。
+要验「点了之后怎样」这种只能在普通模式下做的交互（打标注、拼装换位），换一个 `KEY` 前缀的副本页（放 `docs/` 下但别放进 `docs/lab/`，免得触发用户那页刷新），验完删副本。
 换明暗后要拍图，等过渡跑完再拍（`waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running' || a.effect.getTiming().iterations === Infinity))`），别拍到半截混色。
 
 最后单独一发：`await completeTaskSpace(id, { keep: false })`，不留浏览器挂着。然后 `/usr/bin/open` 给用户。
