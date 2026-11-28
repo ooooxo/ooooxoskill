@@ -1,0 +1,1 @@
+{ "name": "wait-band", "version": "0.3.2", "description": "waitfor 状态：输入框上方一行、出事标红、点它或 /w 看全部；后台出事叫 agent", "types": "./types/index.d.ts" }

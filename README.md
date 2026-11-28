@@ -25,6 +25,20 @@ Claude Code / Codex / Cursor / Gemini CLI 等 70+ agent 通用,**按需装,装�
 | **git-commit-convention** | 中文前缀提交规范 `[更新][优化][重构][修复]` + 附带 `commit-msg` 校验 hook | 提交 · commit message |
 | **backend-atlas** | 从真代码抽出整套系统图(ASP.NET Core + Vue/TS):谁调谁、按钮写了哪张表、推送谁收、业务循环怎么跑 —— 自包含 HTML,[详见](skills/backend-atlas/README.md) | 系统图 · 架构图 · 业务循环 · 调用链 |
 
+## Claude Code 插件(mod)
+
+不是 skill,是改 Claude Code 自身界面 / 行为的插件,放在 `mods/`,`npx skills` 不管它,用 git 装。
+
+| 插件 | 干什么 |
+|------|--------|
+| **wait-band** | agent 等东西时不白等:`waitfor` 包住命令(必有上限、报错行标出、静太久算卡住),输入框上方一格一条显示在等什么,`/w` 看全部和日志尾巴,后台的卡住了主动叫 agent —— [详见](mods/wait-band/README.md) |
+
+```bash
+git clone https://github.com/ooooxo/ooooxoskill.git
+sh ooooxoskill/mods/wait-band/install.sh    # 装完重启 Claude Code
+git -C ooooxoskill pull                     # 更新,再重启
+```
+
 ## 安装
 
 ```bash
@@ -93,6 +107,9 @@ skills/
     SKILL.md · commit-msg-hook.sh
   backend-atlas/          代码 → 系统图(需 .NET 10 SDK + bun)
     SKILL.md · README.md · run.sh · extractor/(Roslyn) · client/(TS/Rust) · join.ts · viewer/ · examples/demo/ · test/
+mods/
+  wait-band/              Claude Code 插件:waitfor 状态条
+    install.sh · bin/waitfor(perl) · hooks/(插件) · README.md · claude-md.md(给 agent 的规矩)
 ```
 
 每个 skill 自带支持文件与工具;`npx skills` 会把整个文件夹一并落到

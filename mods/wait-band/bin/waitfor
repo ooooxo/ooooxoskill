@@ -1,0 +1,220 @@
+#!/usr/bin/perl
+# waitfor：盯一条输出流等某一行，或把命令跑到结束。必有上限、对方挂了当场知道、撞上报错行当场标出来、静太久标「卡住」
+# 安装：本插件目录的 install.sh 把它链到 ~/.claude/tools/waitfor
+# 用法：waitfor [选项] <最多秒数|auto|0> <成功正则> [<失败正则>] -- <产出流的命令…>   等流里出现某一行
+#       waitfor [选项] <最多秒数|auto|0> -- <命令…>                                    跑到结束：输出照常透出，退出码 0 算成功
+#   选项：-l id       稳定的内部名（英文、短横线，同一件事每次同一个）：往常耗时按它记（~/.claude/tools/.waitfor-history，最近五次成功的中位数），插件按它认后台任务
+#         -t 标题     给人看的短标题（几个字说干什么，如「检查 Morii」）：终端进度和 wait-band 都显示它；不给就显示 id
+#         -p          挂着等人（dc 的 /__lab/wait 这类长轮询：等的是人，挂几小时、一直没输出都正常）：不判卡住、不记往常耗时、不刷进度行，
+#                     wait-band 画成一格黄色「!」（等你）、不叫 agent。<秒> 写 0。结束照常由后台完成通知叫
+#         -q 秒       静这么久没输出算「卡住」（默认 60；0 = 不判）。后台跑时 wait-band 据此叫 agent
+#         -Q          卡住（静默卡住或报错循环）就杀掉退出（退出码 4）；前台跑想早点拿回控制权时用
+#   报错循环：同一条报错（数字抹掉后比）出现 ≥3 次、首尾隔 ≥10s——重试死循环、崩了又起，一直有输出所以不算「静」，但同样没进展，按卡住算
+#         -x          撞上第一条报错行就杀掉退出（退出码 1）；默认只标出来、不杀
+#         -E 正则     报错行认法（默认见 $ERR；-E '' 关掉）
+#   秒数：auto = 有往常耗时取 max(60, 往常×3)，头一回 1800；0 = 不设上限（长轮询这类本来就等不定时长的）
+#   waitfor -l 'dotnet test' auto -- ~/.claude/tools/dotnet-docker.sh test
+#   waitfor -l 起api -q 90 120 'Healthy|Now listening' 'Exception|exited with code' -- docker compose logs -f --since 1s api
+# 状态：每秒写 /tmp/waitfor/p<Claude 进程号>/<pid>.json（wait-band 读），完整输出追加到同名 .log；结束时写终态（ended）留给 wait-band 收尾
+# 退出码：0 等到 / 命令成功　1 撞上失败正则 / 命令失败 / -x 撞上报错行　2 超时　3 流先断了　4 -Q 卡住或报错循环　5 被手动停止（wait-band 的 /w 里点行首 ✕，或 kill 它）——非 0 都附最后 20 行
+use strict; use warnings; use utf8; use POSIX (); use IO::Select; use Time::HiRes qw(time); use File::Basename; use Encode qw(decode encode);
+binmode $_, ':encoding(UTF-8)' for \*STDOUT, \*STDERR;
+STDERR->autoflush(1); STDOUT->autoflush(1);
+my $EVERY = $ENV{WAITFOR_EVERY} || 10;
+my $HIST = "$ENV{HOME}/.claude/tools/.waitfor-history";
+my $HIST_KEEP = 5;      # 每个标签只留最近几次
+my $HIST_LABELS = 300;  # 最多记这么多个标签（最近用过的），不然文件随标签无限长
+my ($LOOP_N, $LOOP_SPAN) = (3, 10);   # 同一条报错这么多次、首尾隔这么多秒 = 报错循环。隔得近的（编译一下吐一串）不算：那种马上会退
+my $LOOP_KEYS = 1000;   # 最多记这么多种报错，报错千奇百怪的长日志不让表无限涨
+my $BUF_MAX = 65536;    # 一直不换行（只用 \r 刷新的进度条）的输出攒到这么长就当一行冲掉，不让缓冲无限涨
+my $KILL_GRACE = 5;     # TERM 之后这么久还不退就 KILL
+my $WAVE = 30;          # 状态里带最近多少秒的每秒输出行数（wait-band 画波）
+# 报错行：不杀、只标。只认「行首长得像报错」的形状，不在整行里搜 error / failed 字样——
+# 那样会把 warning、路径里的 errors、系统日志、JSON 里的字段都当成报错（tests/err-cases.txt 是正反例，改了跑 tests/err-regex.sh）
+my $PRE = qr/^\s*(?:[\w.-]+\s*\|\s*)?(?:\[?\d{4}-\d\d-\d\d[T ][\d:.,]+Z?\]?\s*)?/;   # 容器前缀「api-1 | 」、时间戳
+my $ERR = qr{
+    $PRE (?i:error|fatal) (?:\[\w+\])? \s*:                                  # error: · error[E0432]: · fatal: · ERROR:
+  | (?:^|[\s\[]) (?:ERROR|FATAL|CRITICAL) (?=[\s\]:])                          # 日志级别（大写）
+  | (?:\)|:\d+:\d+) :\s* (?i:error) \b                                        # 编译诊断：x.cs(1,2): error · a.c:1:2: error
+  | $PRE (?:Failed|FAILED|FAIL) \s+ \S                                        # 测试失败行：dotnet Failed X · jest FAIL src
+  | ^\s* [✗✘×] \s                                                             # vitest ✗ / ×
+  | \bpanicked\ at\b | ^Traceback\ \(most\ recent\ call\ last\)
+  | \b (?:[A-Za-z_]\w*\.)* [A-Z]\w* (?:Exception|Error) : \s                  # System.InvalidOperationException: · TypeError: · Error:
+  | \bUnhandled\ exception\b | \bnpm\ ERR! | \bexited\ with\ code\ [1-9]
+  | \bSegmentation\ fault\b | \bOOMKilled\b | ^\s*Killed\s*$
+  | \bcommand\ not\ found\b | \bNo\ such\ file\ or\ directory\b | \bPermission\ denied\b
+}x;
+@ARGV = map { decode('UTF-8', $_) } @ARGV;
+
+my ($label, $title, $quietMax, $killQuiet, $killErr, $park) = (undef, undef, 60, 0, 0, 0);
+while (@ARGV && $ARGV[0] =~ /^-[ltpqQxE]$/) {
+  my $o = shift @ARGV;
+  if    ($o eq '-l') { $label = shift @ARGV }
+  elsif ($o eq '-t') { $title = shift @ARGV }
+  elsif ($o eq '-p') { $park = 1 }
+  elsif ($o eq '-q') { $quietMax = shift @ARGV }
+  elsif ($o eq '-Q') { $killQuiet = 1 }
+  elsif ($o eq '-x') { $killErr = 1 }
+  elsif ($o eq '-E') { my $e = shift @ARGV; $ERR = length $e ? qr/$e/ : undef }
+}
+my ($secs, $ok, @rest) = @ARGV;
+my $run = defined $ok && $ok eq '--';   # 不给正则 = 跑到结束
+$ok = undef if $run;
+my $bad; $bad = shift @rest if !$run && @rest && $rest[0] ne '--';
+die "用法: 选项（-l -t -p -q -Q -x -E）一律写在 <秒> 前面，这里把 $_ 当成了正则\n" for grep { defined && /^-[ltpqQxE]$/ } $ok, $bad;
+$quietMax = 0 if $park;
+die "用法: 正则后面必须紧跟 --（选项一律写在 <秒> 前面）\n" if !$run && !(@rest && $rest[0] eq '--');
+shift @rest if !$run;
+die "用法: waitfor [-l id] [-t 标题] [-p] [-q 秒] [-Q] [-x] [-E 正则] <秒|auto|0> [<成功正则> [<失败正则>]] -- <命令…>\n"
+  unless defined $secs && $secs =~ /^(?:\d+|auto)$/ && ($run || defined $ok) && @rest && $quietMax =~ /^\d+$/;
+$label //= $run ? join(' ', basename($rest[0]), $rest[1] // ()) : basename($rest[0]) . " /$ok/";
+
+sub hist { open(my $h, '<:encoding(UTF-8)', $HIST) or return (); map { chomp; [split /\t/] } <$h> }
+my @all = hist();
+my @past = map { $_->[1] } grep { $_->[0] eq $label } @all;
+@past = sort { $a <=> $b } @past[(@past > $HIST_KEEP ? @past - $HIST_KEEP : 0) .. $#past];
+my $usual = @past ? $past[$#past / 2] : undef;
+$secs = $usual ? ($usual * 3 > 60 ? $usual * 3 : 60) : 1800 if $secs eq 'auto';
+
+# 状态目录按 Claude 进程号分（/tmp/waitfor/p<CLAUDE_PID>）：一个 Claude 进程 = 一块界面；会话 ID 在 --resume / /clear 时会变，按它分会写错目录
+my ($SFILE, $LOG);
+if ($ENV{CLAUDE_PID}) {
+  my $dir = "/tmp/waitfor/p$ENV{CLAUDE_PID}"; mkdir '/tmp/waitfor'; mkdir $dir;
+  $SFILE = "$dir/$$.json"; $LOG = "$dir/$$.log";
+}
+open(my $logh, '>>:encoding(UTF-8)', $LOG // '/dev/null') or die "日志开不了: $LOG\n"; $logh->autoflush(1);
+
+pipe(my $r, my $w) or die;
+my $pid = fork // die;
+if (!$pid) { POSIX::setpgid(0, 0); open STDOUT, '>&', $w; open STDERR, '>&', $w; close $r; exec map { encode('UTF-8', $_) } @rest or die "起不来: @rest\n"; }
+close $w;
+my (@tail, $shown, $errs, $firstErr, $state, $code, $ended, $loop, %errSeen); $errs = 0;   # %errSeen：抹掉数字的报错 → [次数, 头一次时刻, 最近一条原文]
+my $t0 = time; my $lastout = $t0; my $buf = '';
+my @wave = (0) x $WAVE; my $waveAt = int $t0;
+
+sub js { my $v = shift // ''; $v =~ s/(["\\])/\\$1/g; $v =~ s/[\x00-\x1f]/ /g; qq("$v") }
+sub num { defined $_[0] ? $_[0] : 'null' }
+sub shift_wave { my $now = int time; while ($waveAt < $now) { shift @wave; push @wave, 0; $waveAt++ } }
+sub quiet { int(time - $lastout) }
+sub live_state { $park ? 'park' : $quietMax && quiet() >= $quietMax ? 'stuck' : $loop ? 'loop' : $errs ? 'err' : $quietMax && quiet() >= 10 ? 'quiet' : 'run' }   # 卡住优先：出过报错行再卡死的也得认成卡住
+sub status {
+  return unless $SFILE;
+  shift_wave();
+  open(my $h, '>:encoding(UTF-8)', "$SFILE.tmp") or return;
+  printf $h '{"label":%s,"title":%s,"cmd":%s,"pid":%d,"bg":%s,"park":%s,"started":%d,"elapsed":%d,"limit":%d,"usual":%s,"pct":%s,"quiet":%d,"quietMax":%d,'
+          . '"state":%s,"errs":%d,"err":%s,"loopN":%d,"loopErr":%s,"last":%s,"log":%s,"wave":[%s],"code":%s,"ended":%s}',
+    js($label), js($title // $label), js(join ' ', @rest), $$, ($ENV{WAITFOR_BG} ? 'true' : 'false'), ($park ? 'true' : 'false'), $t0, ($ended // time) - $t0, $secs, num($usual), num(pct()), quiet(), $quietMax,
+    js($state // live_state()), $errs, js(tidy($firstErr)), ($loop ? $loop->[0] : 0), js(tidy($loop ? $loop->[2] : undef)), js(tidy((grep { /\S/ } reverse @tail)[0])), js($LOG), join(',', @wave), num($code), num(defined $ended ? int $ended : undef);
+  close $h; rename "$SFILE.tmp", $SFILE;
+}
+
+sub say { printf STDERR @_ }
+sub width { my $s = shift; my $n = length $s; $n += () = $s =~ /[\x{1100}-\x{115F}\x{2E80}-\x{A4CF}\x{AC00}-\x{D7A3}\x{F900}-\x{FAFF}\x{FE30}-\x{FE4F}\x{FF00}-\x{FF60}\x{FFE0}-\x{FFE6}]/g; $n }   # 中文占两格
+sub pad { my ($s, $w) = @_; $s . ' ' x ($w - width($s) > 0 ? $w - width($s) : 0) }
+sub tidy {
+  my $l = shift // ''; $l =~ s/\e\[[0-9;]*[A-Za-z]//g; $l =~ s/\s+/ /g; $l =~ s/^ | $//g;
+  my $o = ''; for (split //, $l) { last if width($o . $_) > 68; $o .= $_ } $o eq $l ? $o : "$o…";
+}
+sub bar {
+  my $n = int(shift() * 16 * 8 + 0.5); $n = 128 if $n > 128;
+  my $s = '█' x int($n / 8); $s .= (qw(▏ ▎ ▍ ▌ ▋ ▊ ▉))[$n % 8 - 1] if $n % 8;
+  $s . '░' x (16 - length $s);
+}
+sub stop_child {
+  kill 'TERM', -$pid;
+  for (1 .. $KILL_GRACE * 10) { return if waitpid($pid, POSIX::WNOHANG()) > 0; Time::HiRes::sleep(0.1) }
+  kill 'KILL', -$pid; waitpid $pid, 0;
+}
+sub remember {
+  my $el = shift;
+  push @all, [$label, $el];
+  my (%n, @recent);
+  for (reverse @all) { push @recent, $_->[0] unless $n{$_->[0]}++ }   # 标签按最近用过排
+  my %ok = map { $_ => 1 } grep { defined } @recent[0 .. $HIST_LABELS - 1];
+  %n = ();
+  my @keep = reverse grep { $ok{$_->[0]} && ++$n{$_->[0]} <= $HIST_KEEP } reverse @all;   # 每个标签留最近几条
+  open(my $h, '>:encoding(UTF-8)', "$HIST.tmp") or return;
+  print $h "$_->[0]\t$_->[1]\n" for @keep;
+  close $h; rename "$HIST.tmp", $HIST;
+}
+sub done {
+  my ($c, $what, $detail) = @_;
+  stop_child() if $c != 3 && !($run && defined $code);
+  $ended = time; $code = $c unless $run && defined $code; $state = $c ? 'fail' : 'ok'; status();
+  my $el = int($ended - $t0);
+  remember($el) if !$c && !$park;
+  if (!$c) { say("✓ %5ds  完成\n", $el) if $shown; exit 0 }
+  say("✗ %5ds  %s%s\n", $el, pad($what, 12), $detail);
+  if (!$run) { say("          最后输出\n"); say("          │ %s\n", tidy($_)) for @tail }   # 跑到结束那种输出已经透出过
+  say("          完整日志 %s\n", $LOG) if $LOG;
+  exit $c;
+}
+# 真进度：只看最近三行非空的，[n/m]（n ≤ m）或 n%；没有 = undef，不拿往常耗时顶
+sub pct {
+  for (reverse((grep { /\S/ } @tail)[-3 .. -1])) {
+    next unless defined;
+    return int(100 * $1 / $2) if /\[(\d+)\s*\/\s*(\d+)\]/ && $2 && $1 <= $2;
+    return $1 if /\b(\d{1,3})(?:\.\d+)?\s?%/ && $1 <= 100;
+  }
+  undef;
+}
+sub eta {
+  my $el = int(time - $t0); my @s;
+  push @s, $el <= $usual ? sprintf('往常约 %ds，还差约 %ds', $usual, $usual - $el) : sprintf('比往常 %ds 慢了 %ds', $usual, $el - $usual) if $usual;
+  push @s, sprintf('离上限 %ds', $secs - $el) if $secs && $secs - $el < $secs / 5;
+  join('，', @s);
+}
+sub progress {
+  my $el = time - $t0; my $pct = pct();
+  say("⏳ %s   %s   %s\n", $title // $label, $secs ? "上限 ${secs}s" : '不设上限', $usual ? "往常 ${usual}s" : '头一回，没有往常耗时可比') unless $shown++;
+  my $mid = defined $pct ? bar($pct / 100) . sprintf(' %4d%%', $pct) : pad(eta(), 22);
+  my $q = quiet();
+  say("  %5ds  %s  %s%s\n", $el, $mid, pad($q >= $EVERY ? sprintf('静 %ds', $q) : '', 8), tidy((grep { /\S/ } reverse @tail)[0]));
+}
+sub line {
+  my $l = shift; push @tail, $l; shift @tail if @tail > 20;
+  print $logh "$l\n"; shift_wave(); $wave[-1]++;
+  print "$l\n" if $run;
+  if ($ERR && $l =~ $ERR) {
+    $errs++;
+    my $k = tidy($l) =~ s/\d+/#/gr;
+    $errSeen{$k} //= [0, time, $l] if exists $errSeen{$k} || keys %errSeen < $LOOP_KEYS;
+    if (my $e = $errSeen{$k}) {
+      $e->[0]++; $e->[2] = $l;
+      if ($e->[0] >= $LOOP_N && time - $e->[1] >= $LOOP_SPAN) {
+        say("⟳ %5ds  报错循环  ×%d  %s\n", time - $t0, $e->[0], tidy($l)) unless $loop;
+        $loop = $e;
+      }
+    }
+    if (!defined $firstErr) { $firstErr = $l; say("⚠ %5ds  报错行  %s\n", time - $t0, tidy($l)) }
+    done(1, '撞上报错行', tidy($l)) if $killErr;
+  }
+  return if $run;
+  if ($l =~ /$ok/) { print "$l\n"; done(0) }
+  done(1, '撞上失败', tidy($l)) if defined $bad && $l =~ /$bad/;
+}
+
+# 被停（wait-band 的「停止」发 TERM、Ctrl-C、终端断了）：连子进程组一起停、写终态再退，不留孤儿
+$SIG{$_} = sub { done(5, '被手动停止', '有人停掉了它，不是命令自己出错') } for qw(TERM INT HUP);
+$SIG{ALRM} = sub { done(2, '超时', $run ? "${secs}s 内没跑完" : "${secs}s 内没等到 /$ok/") };
+alarm $secs if $secs;
+my $sel = IO::Select->new($r); my $next = $t0 + $EVERY; my $nexts = $t0 + 1;
+while (1) {
+  my $wait = ($next < $nexts ? $next : $nexts) - time; $wait = 0 if $wait < 0;
+  if ($sel->can_read($wait)) {
+    my $n = sysread $r, my $chunk, 65536;
+    last unless $n;
+    $buf .= $chunk; $lastout = time;
+    while ($buf =~ s/^(.*?)\n//) { my $l = decode('UTF-8', $1); line($l) if $run || $l =~ /\S/ }
+    if (length $buf > $BUF_MAX) { my $l = decode('UTF-8', $buf); $buf = ''; line($l) if $run || $l =~ /\S/ }
+  }
+  done(4, '卡住', sprintf('静 %ds 没输出（-q %d）', quiet(), $quietMax)) if $killQuiet && $quietMax && quiet() >= $quietMax;
+  done(4, '报错循环', sprintf('同一条报错 ×%d：%s', $loop->[0], tidy($loop->[2]))) if $killQuiet && $loop;
+  if (time >= $nexts) { status(); $nexts += 1 }
+  if (time >= $next) { progress() unless $park; $next += $EVERY }
+}
+line(decode('UTF-8', $buf)) if $buf =~ /\S/;
+waitpid $pid, 0;
+if ($run) { $code = $? & 127 ? 128 + ($? & 127) : $? >> 8;   # 被信号杀掉的 = 128+信号号，不能当成 0
+  $code ? done(1, '命令失败', "退出码 $code") : done(0) }
+done(3, '对方断了', '退出码 ' . ($? & 127 ? 128 + ($? & 127) : $? >> 8) . "，没等到 /$ok/");

@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>对照版 · wait-band 转圈符号</title>
+<!--
+  干什么：wait-band 转圈符号 的多档对照（dc）。这页只放题目（第 ② 段）；台子（顶条 · 左右栏 · 舞台 · 标注 · 发送）从对照版服务的 /__lab/lab.js 取，不在页面里。
+  怎么跑：lab.sh <项目根> 起服务，浏览器开它打印的地址 + /docs/lab/spinner.html（见 SKILL.md ⑦）。直接双击文件打不开台子。
+  需要什么：下面的 <link> 是项目 token（lab.sh new 自动找的；样本吃它，台子不吃）；第 ② 段写法见 dc 的 SKILL.md ④。
+-->
+
+<link rel="stylesheet" href="/__lab/lab.css">
+<script src="/__lab/lab.js"></script>
+</head>
+<body>
+<script type="module">
+/* ================= ② 题目（只写这一段；写法见 dc SKILL.md ④） =================
+   这里故意是空的：样本、样式、档都由你按题目现写，别从别的对照页抄内容。没填就会在舞台上报错。
+   这一段是自己的模块作用域，名字随便起，不会和台子撞。台子给的全局：
+     ICON            图标表（台子自用几枚）；样本要用的从项目图标注册表抽出来补：Object.assign(ICON, { 名: "<path …/>" })，不手画
+     ic(名, 尺寸)     画一枚图标
+     pa(id, 名)       零件命名属性（可选，跨档同名 / ⌥ 抓整组用）：<button ${pa("send", "发送")}>
+     part(id, 名, html, cls?)  给一组外面套一层具名壳 */
+const TOPIC = "wait-band 转圈符号";
+const KEY = "lab.spinner.";
+
+/* 终端底：跟明暗走（token）；claude 橙是 Claude Code 主题色，终端里就是这个色 */
+const CSS = `
+.term { --claude: #d77757; --dim: var(--ink-3, #8a8a8f);
+  font: var(--p-font, 14px)/1.55 "SF Mono", Menlo, monospace; color: var(--ink);
+  background: var(--bg-content); border: 1px solid var(--sep-strong); border-radius: 10px;
+  padding: 12px 14px 10px; width: 100%; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; }
+.band { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 2ch; row-gap: 2px; }
+.cell { display: flex; align-items: baseline; min-width: 0; white-space: pre; }
+.g { color: var(--claude); }
+.g.err { color: var(--crit); } .g.quiet { color: var(--warn); }
+.g.fixed { color: var(--crit); } .g.park { color: var(--warn); } .g.ok { color: var(--ok); }
+.t { overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; padding: 0 1ch; }
+.r { flex: none; } .r .track { color: color-mix(in srgb, var(--ink) 16%, transparent); } .r .red { color: var(--crit); } .r .grn { color: var(--ok); } .r .mute { color: var(--dim); }
+.prompt { border-top: 1px solid var(--sep-strong); margin-top: auto; padding-top: 6px; color: var(--dim); }
+`;
+
+/* 每格怎么画：照插件 grid()——符号 · 标题（放不下截）· 右对齐的时间 / 进度条 / 原因。只有「在跑」的符号各档不同 */
+const BAR = 8;
+const barBlock = (pct) => { const e = Math.round(pct / 100 * BAR * 8); const d = "█".repeat(Math.floor(e / 8)) + (e % 8 ? "▏▎▍▌▋▊▉"[e % 8 - 1] : "");
+  return `<span class="grn">${d}</span><span class="mute">${"░".repeat(BAR - [...d].length)}</span><span class="grn"> ${pct}%</span>`; };
+// 细线条（R3 起）：走过的是绿色粗线 ━（半格 ╸），没走的是同形暗线——比 █░ 安静
+const barLine = (pct) => { const h = Math.round(pct / 100 * BAR * 2); const d = "━".repeat(Math.floor(h / 2)) + (h % 2 ? "╸" : "");
+  return `<span class="grn">${d}</span><span class="track">${"━".repeat(BAR - [...d].length)}</span><span class="grn"> ${pct}%</span>`; };
+const tail = (w, bar) => w.kind === "pct" ? bar(w.pct)
+  : w.kind === "stuck" ? `<span class="red">静 ${w.quiet}s，卡住</span>`
+  : w.kind === "loop" ? `<span class="red">同一报错 ×${w.n}，在循环</span>`
+  : w.kind === "err" ? `<span class="red">${w.n} 处报错</span>`
+  : w.kind === "ok" ? `<span class="grn">完成</span>`
+  : w.kind === "fail" ? `<span class="red">退出 1</span>`
+  : w.kind === "park" ? `<span class="mute">${w.time}</span>`
+  : `${w.time}<span class="mute">/∞</span>`;
+const STATIC = { stuck: ["■", "fixed"], loop: ["⟳", "fixed"], park: ["!", "park"], ok: ["✓", "ok"], fail: ["✗", "fixed"] };
+/* 档给三样：spin(w, i) 画「在跑」的符号；title(w, i) 可改标题的画法（流光那档用）；st 换整套静态符号（R2 比的就是它） */
+const band = (spec, spin, title = (w) => w.title, st = STATIC, bar = barBlock) => `
+  <div class="term"><div class="band">${spec.items.map((w, i) => {
+    const k = st[w.kind];
+    const g = k ? `<span class="g ${k[1]}">${k[0]}</span>` : spin(w, i);
+    return `<div class="cell">${g}<span class="t">${title(w, i)}</span><span class="r">${tail(w, bar)}</span></div>`;
+  }).join("")}</div><div class="prompt">&gt;&nbsp;</div></div>`;
+
+/* 帧动画：content 逐帧换（steps），时长 = 帧数 ÷ 帧率；每条错开一点相位，像各自的 elapsed */
+const frames = (name, list) => `@keyframes ${name} { ${list.map((f, i) => `${(i * 100 / list.length).toFixed(3)}% { content: "${f}"; }`).join(" ")} }
+  .${name}::before { content: "${list[0]}"; animation: ${name} calc(${list.length} / var(--fps, var(--p-fps)) * 1s) steps(1, end) infinite; animation-delay: var(--d, 0s); }`;
+/* 九格：盲文一字 2 列 × 4 行点，两字并排取前字两列 + 后字一列、上三行 = 3×3。lit(x, y) 决定哪几点亮 */
+const BIT = [[0x01, 0x02, 0x04], [0x08, 0x10, 0x20]];   // [列][行] → 盲文点位
+const nine = (lit) => { let a = 0, b = 0;
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) if (lit(x, y)) { if (x < 2) a |= BIT[x][y]; else b |= BIT[0][y]; }
+  return String.fromCodePoint(0x2800 + a) + String.fromCodePoint(0x2800 + b); };
+const RING = [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2], [1, 2], [0, 2], [0, 1]];   // 外圈顺时针 8 点
+const at = (k) => RING[(k + 8) % 8];
+const NINE_GAP = RING.map((_, k) => nine((x, y) => !(x === at(k)[0] && y === at(k)[1])));          // 九点亮、缺口绕圈
+const NINE_SNAKE = RING.map((_, k) => nine((x, y) => [0, 1, 2].some((d) => x === at(k - d)[0] && y === at(k - d)[1])));   // 三点连着绕圈
+const SEXT = (v) => v === 0 ? " " : v === 21 ? "▌" : v === 42 ? "▐" : v === 63 ? "█" : String.fromCodePoint(0x1FB00 + v - 1 - (v > 21) - (v > 42));
+const nineBig = (lit) => { let a = 0, b = 0;
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) if (lit(x, y)) { if (x < 2) a |= 1 << (y * 2 + x); else b |= 1 << (y * 2); }
+  return SEXT(a) + SEXT(b); };
+const BIG_GAP = RING.map((_, k) => nineBig((x, y) => !(x === at(k)[0] && y === at(k)[1])));
+const BIG_SNAKE = RING.map((_, k) => nineBig((x, y) => [0, 1, 2].some((d) => x === at(k - d)[0] && y === at(k - d)[1])));
+const NINE_FULL = nine(() => true), NINE_X = nine((x, y) => x !== 1 ? y !== 1 : y === 1), NINE_RING = nine((x, y) => !(x === 1 && y === 1));
+// 3×3 方块格：外圈 8 块按顺时针编号 --k，中心块常亮（缺口版）或常暗（贪吃蛇版）
+const big9 = (kind, { rev = false, phase = 0, cls = "" } = {}) => `<span class="big9 ${kind} ${cls}">${[0, 1, 2].flatMap((y) => [0, 1, 2].map((x) => {
+  const k = RING.findIndex(([a, b]) => a === x && b === y);
+  return k < 0 ? `<i style="${kind === "snake" ? "opacity:.1" : ""}"></i>` : `<i class="ring" style="--k:${((rev ? 8 - k : k) + phase) % 8}"></i>`; })).join("")}</span>`;
+/* 大九格的样式：终端（Ghostty 等）把六分块画满整格高，3×3 正好居中；浏览器没这字形，这里用 3×3 小块照样画 */
+const BIG9_CSS = `.big9 { display: inline-grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); width: 1.5ch; height: 1.1em; margin-right: .5ch; vertical-align: -0.17em; color: var(--claude); }
+  .big9 i { background: currentColor; }
+  .big9.gap i.ring { animation: hole calc(8 / var(--p-fps) * 1s) steps(1, end) infinite; animation-delay: calc((var(--k) - 8) / var(--p-fps) * 1s); }
+  .big9.snake i { opacity: .1; } .big9.snake i.ring { animation: snake calc(8 / var(--p-fps) * 1s) steps(1, end) infinite; animation-delay: calc((var(--k) - 8) / var(--p-fps) * 1s); }
+  .big9.red { color: var(--crit); } .big9.err { color: var(--crit); }
+  @keyframes hole { 0% { opacity: .1; } 12.5%, 100% { opacity: 1; } }
+  @keyframes snake { 0% { opacity: 1; } 37.5%, 100% { opacity: .1; } }`;
+/* 盲文 4×4：两字并排 = 4 列 × 4 行点，正方形、四行全用所以上下居中。外圈 12 点顺时针 */
+const B4 = [[0x01, 0x02, 0x04, 0x40], [0x08, 0x10, 0x20, 0x80]];   // [字内列][行]
+const four = (lit) => { let a = 0, b = 0;
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) if (lit(x, y)) { if (x < 2) a |= B4[x][y]; else b |= B4[x - 2][y]; }
+  return String.fromCodePoint(0x2800 + a) + String.fromCodePoint(0x2800 + b); };
+const RING4 = [[0, 0], [1, 0], [2, 0], [3, 0], [3, 1], [3, 2], [3, 3], [2, 3], [1, 3], [0, 3], [0, 2], [0, 1]];
+const at4 = (k) => RING4[(k + 12) % 12];
+const FOUR_GAP = RING4.map((_, k) => four((x, y) => !(x === at4(k)[0] && y === at4(k)[1])));
+const FOUR_SNAKE = RING4.map((_, k) => four((x, y) => [0, 1, 2, 3].some((d) => x === at4(k - d)[0] && y === at4(k - d)[1])));
+const FOUR_RING = RING4.map((_, k) => four((x, y) => RING4.some(([a, b]) => a === x && b === y) && !(x === at4(k)[0] && y === at4(k)[1])));
+/* 分隔六分块（Unicode 16，U+1CE51 起，按点位位掩码排）：一字 2 列 × 3 行带间隙的小方点，两字 = 居中的 3×3 点阵 */
+const SEP6 = (v) => v === 0 ? " " : String.fromCodePoint(0x1CE50 + v);
+const nineSep = (lit) => { let a = 0, b = 0;
+  for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) if (lit(x, y)) { if (x < 2) a |= 1 << (y * 2 + x); else b |= 1 << (y * 2); }
+  return SEP6(a) + SEP6(b); };
+const tone = (w) => w.kind === "err" ? "err" : w.kind === "quiet" ? "quiet" : "";
+const spinBy = (cls) => (w, i) => `<span class="g ${cls} ${tone(w)}" style="--d:-${(i * 0.37).toFixed(2)}s"></span>`;
+
+const PAGES = [{
+  name: "状态条转圈",
+  specs: [
+    { from: "日常三条", note: "编译报进度，跑测试一直出字，起服务不出声（-q 0）",
+      items: [{ title: "编译", kind: "pct", pct: 62 }, { title: "跑测试", kind: "run", time: "34s" }, { title: "起服务", kind: "run", time: "12s", silent: true }] },
+    { from: "出事了", note: "卡住 ■、报错循环 ⟳、带报错还在跑（红转圈），旁边还有一条正常的",
+      items: [{ title: "跑测试", kind: "run", time: "48s" }, { title: "起服务", kind: "stuck", quiet: 75 }, { title: "连库", kind: "loop", n: 5 },
+              { title: "出包", kind: "err", n: 1 }, { title: "静着的测试", kind: "quiet", time: "41s" }] },
+    { from: "挂着等你", note: "五条折两行，最后一格是 -p 等标注",
+      items: [{ title: "编译", kind: "pct", pct: 30 }, { title: "下载模型", kind: "pct", pct: 81 }, { title: "跑全部单元测试和集成测试再出覆盖率报告", kind: "run", time: "64s" },
+              { title: "起服务", kind: "run", time: "9s", silent: true }, { title: "等标注", kind: "park", time: "720s" }] },
+    { from: "刚跑完一条", note: "✓ 留 8 秒时，旁边的还在转",
+      items: [{ title: "编译", kind: "ok" }, { title: "跑测试", kind: "run", time: "64s" }, { title: "下载模型", kind: "pct", pct: 97 },
+              { title: "出包", kind: "fail" }, { title: "等标注", kind: "park", time: "180s" }] },
+  ],
+  rounds: [{
+    name: "R1 转圈形态",
+    tile: { w: 880, h: 110 },
+    params: [
+      { key: "fps", label: "帧率（帧/秒）", min: 1, max: 12, step: 1, tick: 1, def: 4, unit: "" },
+      { key: "font", label: "终端字号", min: 12, max: 18, step: 1, tick: 1, def: 14, unit: "px" },
+    ],
+    list: [
+      { name: "现状 · 星标变形", thesis: "Claude 自己的星标，换形当转圈",
+        parts: [["帧", "· ✢ ✳ ✶ ✻ ✽"], ["速度", "1 帧/秒（跟轮询）"], ["宽度", "不等宽"]],
+        cost: "✳ 按 2 格排、其余 1 格：转到它标题就右挪一格；1 帧/秒看着卡",
+        // ✳ 能显示成 emoji，Claude Code 排版按 2 格算、其余 1 格：转到它那一帧标题右挪一格——这里照这个算法画
+        css: frames("s0", ["·", "✢", "✳ ", "✶", "✻", "✽", "✻", "✶", "✳ ", "✢"]) + `.s0 { --fps: 1; }`,
+        render: (spec) => band(spec, spinBy("s0")) },
+      { name: "盲文转圈", thesis: "终端圈通用的转圈，单宽不跳",
+        parts: [["帧", "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"], ["宽度", "单宽"], ["要", "≥4 帧/秒"]],
+        cost: "小，远看是一粒点；1 帧/秒时几乎看不出在转。要插件改用界面帧时钟",
+        css: frames("s1", ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]),
+        render: (spec) => band(spec, spinBy("s1")) },
+      { name: "定格星标 · 呼吸", thesis: "形不变只变色：不位移，星标留着",
+        parts: [["形", "✻ 固定"], ["动", "橙 ↔ 暗 呼吸"], ["宽度", "恒定"]],
+        cost: "只变色：截图、色弱看不出在动；1 帧/秒时像在闪",
+        css: `.s2::before { content: "✻"; } .s2 { animation: s2 calc(2 / var(--p-fps) * 1s) steps(2, jump-none) infinite alternate; animation-delay: var(--d, 0s); }
+              @keyframes s2 { from { color: var(--claude); } to { color: color-mix(in srgb, var(--claude) 35%, transparent); } }
+              .s2.err { animation-name: s2e; } @keyframes s2e { from { color: var(--crit); } to { color: color-mix(in srgb, var(--crit) 35%, transparent); } }`,
+        render: (spec) => band(spec, spinBy("s2")) },
+      { name: "起伏柱", thesis: "像音量表——看着就在出活",
+        parts: [["帧", "▁▃▅▇▅▃"], ["宽度", "单宽"], ["读法", "跳 = 在跑"]],
+        cost: "和 /w 窗里的输出波形长得像，两处意思不同；块字在部分字体里偏宽",
+        css: frames("s3", ["▁", "▃", "▅", "▇", "▅", "▃"]),
+        render: (spec) => band(spec, spinBy("s3")) },
+      { name: "点阵攒满", thesis: "越攒越满再清空，像沙漏",
+        parts: [["帧", "⡀⡄⡆⡇⣇⣧⣷⣿"], ["宽度", "单宽"], ["读法", "一圈 = 一个周期"]],
+        cost: "满格那一下停顿像卡住；和真进度条（有 % 的）容易混",
+        css: frames("s4", ["⡀", "⡄", "⡆", "⡇", "⣇", "⣧", "⣷", "⣿"]),
+        render: (spec) => band(spec, spinBy("s4")) },
+      { name: "有输出才亮", thesis: "不按钟转：真有输出才亮一下，静着就不动",
+        parts: [["形", "● 亮 / ○ 暗"], ["节奏", "跟输出走"], ["宽度", "单宽"]],
+        cost: "不出声但正常的命令（起服务）一直是空圈，看着像死了；要插件读每秒输出行数",
+        css: `.s5::before { content: "●"; } .s5 { animation: s5 1.6s steps(8, end) infinite; }
+              @keyframes s5 { 0% { color: var(--claude); } 25% { color: color-mix(in srgb, var(--claude) 45%, transparent); } 100% { color: color-mix(in srgb, var(--claude) 18%, transparent); } }
+              .s5.err { animation-name: s5e; } @keyframes s5e { 0% { color: var(--crit); } 100% { color: color-mix(in srgb, var(--crit) 25%, transparent); } }
+              .s5.silent { animation: none; color: var(--dim); } .s5.silent::before { content: "○"; }`,
+        render: (spec) => band(spec, (w, i) => `<span class="g s5 ${tone(w)} ${w.silent ? "silent" : ""}" style="animation-delay:-${(i * 0.53).toFixed(2)}s"></span>`) },
+      { name: "标题流光", thesis: "不要转圈：标题本身扫一道光（像 Claude 的 Thinking…）",
+        parts: [["符号", "· 固定"], ["动", "标题逐字亮过去"], ["宽度", "恒定"]],
+        cost: "标题被截时扫不全；每帧要重画整格，插件得用界面帧时钟",
+        css: `.s6::before { content: "·"; } .sh { animation: sh calc(14 / var(--p-fps) * 1s) linear infinite; color: var(--ink); }
+              @keyframes sh { 0%, 18%, 100% { color: var(--ink); } 6% { color: var(--claude); } }
+              .err-t .sh { animation-name: she; } @keyframes she { 0%, 18%, 100% { color: var(--ink); } 6% { color: var(--crit); } }`,
+        render: (spec) => band(spec, spinBy("s6"), (w, i) => STATIC[w.kind] || w.kind === "pct" ? w.title
+          : `<span class="${w.kind === "err" ? "err-t" : ""}">${[...w.title].map((c, k) => `<span class="sh" style="animation-delay:${(k * 0.09 - i * 0.6).toFixed(2)}s">${c}</span>`).join("")}</span>`) },
+      { name: "单点绕圈", thesis: "一粒点绕方格走，最轻",
+        parts: [["帧", "⠁⠂⠄⡀⢀⠠⠐⠈"], ["宽度", "单宽"], ["存在感", "最低"]],
+        cost: "太轻，几条一起时不容易注意到哪条在动",
+        css: frames("s7", ["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"]),
+        render: (spec) => band(spec, spinBy("s7")) },
+    ],
+  }, {
+    name: "R2 状态符号（转圈钉成九格）",
+    tile: { w: 880, h: 110 },
+    params: [
+      { key: "fps", label: "帧率（帧/秒）", min: 1, max: 12, step: 1, tick: 1, def: 6, unit: "" },
+      { key: "font", label: "终端字号", min: 11, max: 18, step: 1, tick: 1, def: 12, unit: "px" },
+    ],
+    // 九格占 2 格宽：这一轮所有符号都按 2 格摆，整列才对得齐（插件实装时静态符号也补成 2 格）
+    css: frames("s9", NINE_GAP) + `.g { display: inline-block; min-width: 2ch; }` +
+      `.blink { animation: blink calc(2 / var(--p-fps) * 1s) steps(1, end) infinite; } @keyframes blink { 50% { opacity: .25; } }`,
+    list: [
+      { name: "九格 + 原符号", thesis: "转圈换成正方形九格（缺口绕圈），静态符号照旧",
+        parts: [["完成", "✓"], ["失败", "✗"], ["卡住", "■"], ["循环", "⟳"], ["等你", "!"]],
+        cost: "■ 太重像个块；✓ 等宽字体里没有，借别的字体画，看着残缺",
+        render: (spec) => band(spec, spinBy("s9")) },
+      { name: "盲文同族", thesis: "一个符号讲完一生：转 = 在跑，停住 = 卡住，攒满 = 完成",
+        parts: [["完成", "⣿ 绿"], ["失败", "⣿ 红"], ["卡住", "⠿ 红·停在原地"], ["循环", "⠿ 红·闪"], ["等你", "⠒ 黄·闪"]],
+        cost: "完成不像对勾，要靠颜色和右边的「完成」两个字；色弱时完成和失败只差颜色",
+        render: (spec) => band(spec, spinBy("s9"), undefined,
+          { ok: ["⣿", "ok"], fail: ["⣿", "fixed"], stuck: ["⠿", "fixed"], loop: ["⠿", "fixed blink"], park: ["⠒", "park blink"] }) },
+      { name: "圆点族", thesis: "形只分有和空，状态靠颜色说",
+        parts: [["完成", "● 绿"], ["失败", "● 红"], ["卡住", "○ 红"], ["循环", "◌ 红"], ["等你", "● 黄"]],
+        cost: "完成 / 失败 / 等你都是实心点，只差颜色；色弱不友好",
+        render: (spec) => band(spec, spinBy("s9"), undefined,
+          { ok: ["●", "ok"], fail: ["●", "fixed"], stuck: ["○", "fixed"], loop: ["◌", "fixed"], park: ["●", "park"] }) },
+      { name: "线与箭头", thesis: "每种状态一个约定俗成的记号：暂停号、回转箭头、问号",
+        parts: [["完成", "√"], ["失败", "×"], ["卡住", "‖"], ["循环", "↻"], ["等你", "?"]],
+        cost: "√ × 在中文字体里可能画宽；‖ 当「卡住」要想一下",
+        render: (spec) => band(spec, spinBy("s9"), undefined,
+          { ok: ["√", "ok"], fail: ["×", "fixed"], stuck: ["‖", "fixed"], loop: ["↻", "fixed"], park: ["?", "park"] }) },
+      { name: "一个字", thesis: "状态直接写成一个字，不用猜符号",
+        parts: [["完成", "完"], ["失败", "败"], ["卡住", "停"], ["循环", "环"], ["等你", "等"]],
+        cost: "汉字占两格，比转圈宽一格，标题跟着右挪；整条更重、更吵",
+        css: `.cjk-pad { display: inline-block; width: 2ch; }`,
+        render: (spec) => band(spec, (w, i) => `<span class="cjk-pad">${spinBy("s9")(w, i)}</span>`, undefined,
+          { ok: ["完", "ok"], fail: ["败", "fixed"], stuck: ["停", "fixed"], loop: ["环", "fixed"], park: ["等", "park"] }) },
+
+      { name: "全部类型", thesis: "所有转圈并排在动，一眼比；挑中哪个告诉我，下一轮钉它",
+        parts: [["九格", "缺口 · 贪吃蛇"], ["方形", "◰ · 象限"], ["盲文", "6 点 · 8 点 · 单点"], ["其它", "星标 · 呼吸 · 起伏 · 攒满"]],
+        cost: "这是样张不是方案：没有状态符号、不看折行",
+        css: frames("gA", NINE_GAP) + frames("gB", NINE_SNAKE) + frames("gC", ["◰", "◳", "◲", "◱"]) +
+          frames("gD", ["▖", "▘", "▝", "▗"]) + frames("gE", ["▙", "▛", "▜", "▟"]) +
+          frames("gF", ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]) + frames("gG", ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]) +
+          frames("gH", ["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"]) + frames("gI", ["·", "✢", "✳ ", "✶", "✻", "✽", "✻", "✶", "✳ ", "✢"]) +
+          frames("gJ", ["▁", "▃", "▅", "▇", "▅", "▃"]) + frames("gK", ["⡀", "⡄", "⡆", "⡇", "⣇", "⣧", "⣷", "⣿"]) +
+          `.gI { --fps: 1; } .gL::before { content: "✻"; } .gL { animation: gL calc(2 / var(--p-fps) * 1s) steps(2, jump-none) infinite alternate; }
+           @keyframes gL { from { color: var(--claude); } to { color: color-mix(in srgb, var(--claude) 35%, transparent); } }
+           .big9 { display: inline-grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); width: 1.5ch; height: 1.05em; margin-right: .5ch; vertical-align: -0.15em; color: var(--claude); }
+           .big9 i { background: currentColor; }
+           .big9.gap i.ring { animation: hole calc(8 / var(--p-fps) * 1s) steps(1, end) infinite; animation-delay: calc((var(--k) - 8) / var(--p-fps) * 1s); }
+           .big9.snake i { opacity: .1; } .big9.snake i.ring { animation: snake calc(8 / var(--p-fps) * 1s) steps(1, end) infinite; animation-delay: calc((var(--k) - 8) / var(--p-fps) * 1s); }
+           @keyframes hole { 0% { opacity: .1; } 12.5%, 100% { opacity: 1; } }
+           @keyframes snake { 0% { opacity: 1; } 37.5%, 100% { opacity: .1; } }
+           .gal { display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 2ch; row-gap: 2px; }
+           .gal .cell .t { color: var(--ink); } .gal .n { color: var(--dim); }`,
+        render: () => `<div class="term"><div class="gal">${[
+          ["gA", "九格 · 缺口"], ["gB", "九格 · 贪吃蛇"], ["gC", "方格缺角"], ["gD", "象限 · 单块"],
+          ["gE", "象限 · 缺角"], ["gF", "盲文 6 点"], ["gG", "盲文 8 点"], ["gH", "单点绕圈"],
+          ["gI", "现状 · 星标"], ["gL", "呼吸星标"], ["gJ", "起伏柱"], ["gK", "点阵攒满"],
+        ].map(([c, n], i) => `<div class="cell">${c.startsWith("big") ? big9(c.slice(4)) : `<span class="g ${c}" style="--d:-${(i * 0.21).toFixed(2)}s"></span>`}<span class="t">${n}</span></div>`).join("")}</div></div>` },
+    ],  }, {
+    name: "R3 九格同族 · 细线进度条",
+    tile: { w: 880, h: 132 },
+    params: [
+      { key: "fps", label: "帧率（帧/秒）", min: 1, max: 12, step: 1, tick: 1, def: 6, unit: "" },
+      { key: "font", label: "终端字号", min: 11, max: 20, step: 1, tick: 1, def: 15, unit: "px" },
+    ],
+    // 九格占 2 格宽：这一轮所有符号都按 2 格摆，整列才对得齐（插件实装时静态符号也补成 2 格）
+    css: frames("s9", NINE_GAP) + `.g { display: inline-block; min-width: 2ch; }` +
+      `.blink { animation: blink calc(2 / var(--p-fps) * 1s) steps(1, end) infinite; } @keyframes blink { 50% { opacity: .25; } }`,
+    list: [
+      { name: "九格 + 原符号", thesis: "转圈换成正方形九格（缺口绕圈），静态符号照旧",
+        parts: [["完成", "✓"], ["失败", "✗"], ["卡住", "■"], ["循环", "⟳"], ["等你", "!"]],
+        cost: "■ 太重像个块；✓ 等宽字体里没有，借别的字体画，看着残缺",
+        render: (spec) => band(spec, spinBy("s9"), undefined, STATIC, barLine) },
+      { name: "九格同族", thesis: "全是同一个 3×3 的变化：转 = 在跑，停住 = 卡住，反转 = 循环，满 = 完成，X = 失败",
+        parts: [["完成", "九格全亮 绿"], ["失败", "X 形 红"], ["卡住", "转圈定格 红"], ["循环", "反着转 红"], ["等你", "只亮外圈 黄"]],
+        cost: "要认一下形：完成是满格不是对勾；卡住和在跑只差动不动 + 颜色",
+        css: frames("s9r", [...NINE_GAP].reverse()) + `.s9r { color: var(--crit); }`,
+        render: (spec) => band(spec, spinBy("s9"), undefined,
+          { ok: [NINE_FULL, "ok"], fail: [NINE_X, "fixed"], stuck: [NINE_GAP[0], "fixed"], loop: ["", "fixed s9r"], park: [NINE_RING, "park"] }, barLine) },
+      { name: "圆点族", thesis: "形只分有和空，状态靠颜色说",
+        parts: [["完成", "● 绿"], ["失败", "● 红"], ["卡住", "○ 红"], ["循环", "◌ 红"], ["等你", "● 黄"]],
+        cost: "完成 / 失败 / 等你都是实心点，只差颜色；色弱不友好",
+        render: (spec) => band(spec, spinBy("s9"), undefined,
+          { ok: ["●", "ok"], fail: ["●", "fixed"], stuck: ["○", "fixed"], loop: ["◌", "fixed"], park: ["●", "park"] }, barLine) },
+      { name: "线与箭头", thesis: "每种状态一个约定俗成的记号：暂停号、回转箭头、问号",
+        parts: [["完成", "√"], ["失败", "×"], ["卡住", "‖"], ["循环", "↻"], ["等你", "?"]],
+        cost: "√ × 在中文字体里可能画宽；‖ 当「卡住」要想一下",
+        render: (spec) => band(spec, spinBy("s9"), undefined,
+          { ok: ["√", "ok"], fail: ["×", "fixed"], stuck: ["‖", "fixed"], loop: ["↻", "fixed"], park: ["?", "park"] }, barLine) },
+      { name: "一个字", thesis: "状态直接写成一个字，不用猜符号",
+        parts: [["完成", "完"], ["失败", "败"], ["卡住", "停"], ["循环", "环"], ["等你", "等"]],
+        cost: "汉字占两格，比转圈宽一格，标题跟着右挪；整条更重、更吵",
+        css: `.cjk-pad { display: inline-block; width: 2ch; }`,
+        render: (spec) => band(spec, (w, i) => `<span class="cjk-pad">${spinBy("s9")(w, i)}</span>`, undefined,
+          { ok: ["完", "ok"], fail: ["败", "fixed"], stuck: ["停", "fixed"], loop: ["环", "fixed"], park: ["等", "park"] }, barLine) },
+
+      { name: "全部类型", thesis: "所有转圈并排在动，一眼比；挑中哪个告诉我，下一轮钉它",
+        parts: [["九格", "盲文 / 大块 × 缺口 / 贪吃蛇"], ["方形", "◰ · 象限"], ["盲文", "6 点 · 8 点 · 单点"], ["其它", "星标 · 呼吸 · 起伏 · 攒满"]],
+        cost: "这是样张不是方案：没有状态符号、不看折行",
+        css: frames("gA", NINE_GAP) + frames("gB", NINE_SNAKE) + frames("gC", ["◰", "◳", "◲", "◱"]) +
+          frames("gD", ["▖", "▘", "▝", "▗"]) + frames("gE", ["▙", "▛", "▜", "▟"]) +
+          frames("gF", ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]) + frames("gG", ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]) +
+          frames("gH", ["⠁", "⠂", "⠄", "⡀", "⢀", "⠠", "⠐", "⠈"]) + frames("gI", ["·", "✢", "✳ ", "✶", "✻", "✽", "✻", "✶", "✳ ", "✢"]) +
+          frames("gJ", ["▁", "▃", "▅", "▇", "▅", "▃"]) + frames("gK", ["⡀", "⡄", "⡆", "⡇", "⣇", "⣧", "⣷", "⣿"]) +
+          `.gI { --fps: 1; } .gL::before { content: "✻"; } .gL { animation: gL calc(2 / var(--p-fps) * 1s) steps(2, jump-none) infinite alternate; }
+           @keyframes gL { from { color: var(--claude); } to { color: color-mix(in srgb, var(--claude) 35%, transparent); } }
+           .big9 { display: inline-grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); width: 1.5ch; height: 1.05em; margin-right: .5ch; vertical-align: -0.15em; color: var(--claude); }
+           .big9 i { background: currentColor; }
+           .big9.gap i.ring { animation: hole calc(8 / var(--p-fps) * 1s) steps(1, end) infinite; animation-delay: calc((var(--k) - 8) / var(--p-fps) * 1s); }
+           .big9.snake i { opacity: .1; } .big9.snake i.ring { animation: snake calc(8 / var(--p-fps) * 1s) steps(1, end) infinite; animation-delay: calc((var(--k) - 8) / var(--p-fps) * 1s); }
+           @keyframes hole { 0% { opacity: .1; } 12.5%, 100% { opacity: 1; } }
+           @keyframes snake { 0% { opacity: 1; } 37.5%, 100% { opacity: .1; } }
+           .gal { display: grid; grid-template-columns: repeat(4, 1fr); column-gap: 2ch; row-gap: 2px; }
+           .gal .cell .t { color: var(--ink); } .gal .n { color: var(--dim); }`,
+        render: () => `<div class="term"><div class="gal">${[
+          ["gA", "九格 · 缺口"], ["gB", "九格 · 贪吃蛇"], ["big-gap", "大九格 · 缺口"], ["big-snake", "大九格 · 贪吃蛇"],
+          ["gC", "方格缺角"], ["gD", "象限 · 单块"],
+          ["gE", "象限 · 缺角"], ["gF", "盲文 6 点"], ["gG", "盲文 8 点"], ["gH", "单点绕圈"],
+          ["gI", "现状 · 星标"], ["gL", "呼吸星标"], ["gJ", "起伏柱"], ["gK", "点阵攒满"],
+        ].map(([c, n], i) => `<div class="cell">${c.startsWith("big") ? big9(c.slice(4)) : `<span class="g ${c}" style="--d:-${(i * 0.21).toFixed(2)}s"></span>`}<span class="t">${n}</span></div>`).join("")}</div></div>` },
+    ],
+  }, {
+    name: "R4 大九格 · 卡住红叹号 · 循环怎么画",
+    tile: { w: 880, h: 132 },
+    params: [
+      { key: "fps", label: "帧率（帧/秒）", min: 1, max: 12, step: 1, tick: 1, def: 6, unit: "" },
+      { key: "font", label: "终端字号", min: 11, max: 20, step: 1, tick: 1, def: 15, unit: "px" },
+    ],
+    // 大九格占 2 格：所有符号按 2 格摆，整列对齐
+    css: BIG9_CSS + `.g { display: inline-block; min-width: 2ch; } .g.big { min-width: 0; }`,
+    list: (() => {
+      const spin = (w, i) => big9("gap", { phase: i * 3, cls: tone(w) });
+      const base = { ok: ["✓", "ok"], fail: ["✗", "fixed"], stuck: ["!", "fixed"], park: ["!", "park"] };
+      const loopBig = (kind, rev) => ["", `fixed big loop-${kind}-${rev ? "rev" : "fwd"}`];
+      const mk = (name, thesis, loopPart, cost, loop) => ({ name, thesis,
+        parts: [["转圈", "大九格 缺口"], ["卡住", "! 红"], ["等你", "! 黄"], ["循环", loopPart]], cost,
+        render: (spec) => band(spec, spin, undefined, { ...base, loop }, barLine).replace(/<span class="g fixed big loop-(\w+)-(\w+)"><\/span>/g,
+          (_, kind, dir) => `<span class="g big">${big9(kind, { rev: dir === "rev", cls: "red" })}</span>`) });
+      return [
+        mk("原循环符号", "循环照旧用 ⟳，其余按标注改", "⟳", "⟳ 偏下、和九格 / 叹号的中线对不齐", ["⟳", "fixed"]),
+        mk("循环 = 九格反着转", "循环就是转圈倒着走、变红：和在跑同一个形，中线天然对齐", "大九格 反转 红", "和「在跑」只差方向和颜色，扫一眼要认", loopBig("gap", true)),
+        mk("循环 = ↻", "换成居中的回转箭头", "↻", "↻ 在部分字体里也偏小；和九格的块面感不一致", ["↻", "fixed"]),
+        mk("循环 = 九格贪吃蛇", "循环用另一种动法：三块连着绕圈、变红，一看就和在跑不同", "大九格 贪吃蛇 红", "动得比在跑更显眼，出事时有点吵", loopBig("snake", false)),
+      ];
+    })(),
+  }, {
+    name: "R5 盲文点阵做成方格",
+    tile: { w: 880, h: 132 },
+    params: [
+      { key: "fps", label: "帧率（帧/秒）", min: 1, max: 14, step: 1, tick: 1, def: 8, unit: "" },
+      { key: "font", label: "终端字号", min: 11, max: 20, step: 1, tick: 1, def: 15, unit: "px" },
+    ],
+    css: BIG9_CSS + `.g { display: inline-block; min-width: 2ch; }
+      /* 分隔六分块在浏览器里没字形：照终端的样子画成 3×3 带间隙小方点 */
+      .big9.sepd { gap: .16em; width: 1.3ch; height: .95em; margin-right: .7ch; vertical-align: -0.12em; } .big9.sepd i { border-radius: 1px; }` +
+      frames("f0", NINE_GAP) + frames("f1", FOUR_GAP) + frames("f2", FOUR_SNAKE) + frames("f3", FOUR_RING) +
+      frames("f1r", [...FOUR_GAP].reverse()) + frames("f2r", [...FOUR_SNAKE].reverse()) + frames("f3r", [...FOUR_RING].reverse()) + frames("f0r", [...NINE_GAP].reverse()) +
+      `.f0r, .f1r, .f2r, .f3r { color: var(--crit); }`,
+    list: (() => {
+      const st = (loop) => ({ ok: ["✓", "ok"], fail: ["✗", "fixed"], stuck: ["!", "fixed"], park: ["!", "park"], loop: ["", "fixed " + loop] });
+      const glyph = (name, thesis, parts, cost, cls) => ({ name, thesis, parts, cost,
+        render: (spec) => band(spec, spinBy(cls), undefined, st(cls + "r"), barLine) });
+      const sep = (kind) => (spec) => band(spec, (w, i) => `<span class="g">${big9(kind, { phase: i * 3, cls: "sepd " + tone(w) })}</span>`, undefined,
+        { ...st(""), loop: ["", "fixed sep-loop"] }, barLine).replace(/<span class="g fixed sep-loop"><\/span>/g, () => `<span class="g">${big9(kind, { rev: true, cls: "sepd red" })}</span>`);
+      return [
+        glyph("盲文 3×3（R2 那个）", "盲文取上三行拼 3×3", [["点阵", "3×3"], ["位置", "靠上，最下一行空着"]],
+          "你说的毛病：看着是 3×4，偏上", "f0"),
+        glyph("盲文 4×4 · 缺口绕圈", "两个盲文字拼成 4×4 正方形，四行全用所以居中；缺口沿外圈 12 点走", [["点阵", "4×4"], ["位置", "居中"], ["一圈", "12 帧"]],
+          "是 4×4 不是 3×3；中间 4 点常亮，整块偏实", "f1"),
+        glyph("盲文 4×4 · 空心方框", "只用外圈 12 点画个空心方框，缺口绕着走；最像一个方格在转", [["点阵", "4×4 外圈"], ["位置", "居中"], ["中间", "空"]],
+          "点少，字号小时偏淡", "f3"),
+        glyph("盲文 4×4 · 贪吃蛇", "四点连着沿外圈跑", [["点阵", "4×4"], ["动", "四点一条蛇"]],
+          "动势最强，几条一起转时有点吵", "f2"),
+        { name: "分隔六分块 3×3 · 缺口", thesis: "真 3×3：每点是带间隙的小方点，两字铺满行高、居中",
+          parts: [["点阵", "3×3"], ["位置", "居中"], ["字符", "Unicode 16 U+1CE51 起"]],
+          cost: "字符很新：Ghostty 要能画才行（下面有一行命令让你在终端里看）；不像盲文是圆点而是小方点",
+          render: sep("gap") },
+        { name: "分隔六分块 3×3 · 贪吃蛇", thesis: "同上，三点连着绕圈", parts: [["点阵", "3×3"], ["动", "三点一条蛇"]],
+          cost: "同上，要终端支持", render: sep("snake") },
+      ];
+    })(),
+  }, {
+    name: "R6 呼吸小花 · 三种叹号",
+    tile: { w: 880, h: 110 },
+    params: [
+      { key: "breath", label: "呼吸一次（秒）", min: 0.8, max: 4, step: 0.2, tick: 0.8, def: 2, unit: "" },
+      { key: "font", label: "终端字号", min: 11, max: 20, step: 1, tick: 1, def: 15, unit: "px" },
+    ],
+    // 符号槽回到 1 格、居中：叹号、对勾都正好在格中间
+    css: `.g { display: inline-block; width: 1ch; text-align: center; }
+      .br { animation: br calc(var(--p-breath) * 1s) steps(8, jump-none) infinite alternate; animation-delay: var(--d, 0s); }
+      @keyframes br { from { color: var(--claude); } to { color: color-mix(in srgb, var(--claude) 28%, transparent); } }
+      .br.err { animation-name: bre; } @keyframes bre { from { color: var(--crit); } to { color: color-mix(in srgb, var(--crit) 28%, transparent); } }
+      .br.quiet { animation-name: brq; } @keyframes brq { from { color: var(--warn); } to { color: color-mix(in srgb, var(--warn) 28%, transparent); } }`,
+    list: (() => {
+      const st = { ok: ["✓", "ok"], fail: ["✗", "fixed"], stuck: ["!", "fixed"], loop: ["!", "fixed"], park: ["!", "park"] };
+      const flower = (ch, name, thesis, cost) => ({ name, thesis, cost,
+        parts: [["花", ch], ["动", "橙 ↔ 暗 呼吸"], ["卡住 / 循环", "! 红"], ["等你", "! 黄"]],
+        render: (spec) => band(spec, (w, i) => `<span class="g br ${tone(w)}" style="--d:-${(i * 0.7).toFixed(1)}s">${ch}</span>`, undefined, st, barLine) });
+      return [
+        flower("✻", "✻ 六瓣星花（R1 选的那朵）", "R1 那朵：六瓣、笔画实", "笔画细的字体里偏小"),
+        flower("✽", "✽ 重瓣星花", "瓣更多更满，远看是一团", "小字号时糊成一点"),
+        flower("✿", "✿ 实心小花", "五瓣圆花，最像「花」", "偏可爱，和终端里别的符号气质不一样"),
+        flower("❀", "❀ 空心小花", "五瓣空心花，比实心轻", "空心在小字号下发虚"),
+        flower("✢", "✢ 四瓣十字花", "最简，十字形", "像个加号，和「花」关系弱"),
+      ];
+    })(),
+  }, {
+    name: "R7 ✻ 怎么呼吸",
+    tile: { w: 880, h: 110 },
+    params: [
+      { key: "speed", label: "快慢（倍）", min: 0.5, max: 2, step: 0.25, tick: 0.5, def: 1, unit: "" },
+      { key: "font", label: "终端字号", min: 11, max: 20, step: 1, tick: 1, def: 15, unit: "px" },
+    ],
+    css: `.g { display: inline-block; width: 1ch; text-align: center; }
+      .m { --c: var(--claude); animation-duration: calc(var(--dur) / var(--p-speed) * 1s); animation-iteration-count: infinite; animation-delay: var(--d, 0s); }
+      .m.err { --c: var(--crit); } .m.quiet { --c: var(--warn); }
+      @keyframes two { from { color: var(--c); } to { color: color-mix(in srgb, var(--c) 35%, transparent); } }
+      @keyframes fade { from { color: var(--c); } to { color: color-mix(in srgb, var(--c) 28%, transparent); } }
+      @keyframes four { 0% { color: var(--c); } 25% { color: color-mix(in srgb, var(--c) 72%, transparent); } 50% { color: color-mix(in srgb, var(--c) 48%, transparent); } 75%, 100% { color: color-mix(in srgb, var(--c) 30%, transparent); } }
+      @keyframes beat { 0%, 12% { color: var(--c); } 13%, 24% { color: color-mix(in srgb, var(--c) 35%, transparent); } 25%, 37% { color: var(--c); } 38%, 100% { color: color-mix(in srgb, var(--c) 35%, transparent); } }
+      .m-r1 { --dur: .5; animation-name: two; animation-timing-function: steps(2, jump-none); animation-direction: alternate; }
+      .m-slow { --dur: 1; animation-name: two; animation-timing-function: steps(2, jump-none); animation-direction: alternate; }
+      .m-four { --dur: 1; animation-name: four; animation-timing-function: steps(1, end); animation-direction: alternate; }
+      .m-fade { --dur: 2; animation-name: fade; animation-timing-function: steps(8, jump-none); animation-direction: alternate; }
+      .m-beat { --dur: 1.4; animation-name: beat; animation-timing-function: steps(1, end); }`,
+    list: (() => {
+      const st = { ok: ["✓", "ok"], fail: ["✗", "fixed"], stuck: ["!", "fixed"], loop: ["!", "fixed"], park: ["!", "park"] };
+      const m = (cls, name, thesis, parts, cost) => ({ name, thesis, parts, cost,
+        render: (spec) => band(spec, (w, i) => `<span class="g m ${cls} ${tone(w)}" style="--d:-${(i * 0.37).toFixed(2)}s">✻</span>`, undefined, st, barLine) });
+      return [
+        m("m-r1", "照 R1：两态快闪", "R1 那朵原样：亮 ↔ 35% 两态，0.5 秒一个来回", [["态", "2"], ["周期", "0.5s"], ["暗到", "35%"]],
+          "终端里要每秒画 4 次；几条一起闪时有点躁"),
+        m("m-slow", "两态 · 慢一倍", "同样两态，1 秒一个来回，更沉稳", [["态", "2"], ["周期", "1s"], ["暗到", "35%"]],
+          "没那么「活」；终端每秒画 2 次就够"),
+        m("m-four", "四级台阶", "亮 → 72 → 48 → 30 再回来，一级一级退，比两态柔", [["态", "4"], ["周期", "1s 往返"], ["暗到", "30%"]],
+          "每秒要画 8 次左右；台阶在小字号下看不出差别"),
+        m("m-beat", "心跳", "快闪两下、停一会儿，像心跳——「还活着」", [["节奏", "闪闪 · 停"], ["周期", "1.4s"]],
+          "节奏感强，多条一起时显得乱"),
+        m("m-fade", "R6 的慢渐变", "对照：2 秒八级慢渐变（你说不如 R1 的那版）", [["态", "8"], ["周期", "2s"], ["暗到", "28%"]],
+          "拖、发虚——你已经否了，留着对照"),
+      ];
+    })(),
+  }],
+}];
+
+labStart({ TOPIC, KEY, CSS, PAGES });
+</script>
+</body>
+</html>

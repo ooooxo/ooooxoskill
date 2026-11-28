@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>对照版 · 等待条显示</title>
+<!--
+  干什么：wait-band（waitfor 的等待条）显示方案对照：条里写什么（界面 1）、挂在哪（界面 2）。判据是一眼分清 在跑 / 闷算 / 卡死 / 报错 / 已退出。
+  怎么跑：~/.claude/skills/dc/lab.sh ~/.claude/mods/wait-band，浏览器开它打印的地址 + /docs/lab/wait-band.html。
+  需要什么：dc 对照版服务；无项目 token，样本用台子 Token.css。终端配色照 Claude Code（claude 橙 / success / warning / error / dim）。
+-->
+<link rel="stylesheet" href="/__lab/lab.css">
+<script src="/__lab/lab.js"></script>
+</head>
+<body>
+<script type="module">
+const TOPIC = "等待条显示";
+const KEY = "lab.wait-band.";
+
+/* ---------- 活的数字与转圈符：自己会走，卡住的不走（这正是要判的信号） ---------- */
+const fmt = (s) => (s < 1000 ? `${s}s` : `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}`);
+if (!customElements.get("w-t")) customElements.define("w-t", class extends HTMLElement {
+  connectedCallback() {
+    let v = +this.getAttribute("v");
+    const draw = () => (this.textContent = fmt(v));
+    draw();
+    if (this.hasAttribute("live")) this.iv = setInterval(() => { v++; draw(); }, 1000);
+  }
+  disconnectedCallback() { clearInterval(this.iv); }
+});
+const FR = ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢"];
+if (!customElements.get("w-sp")) customElements.define("w-sp", class extends HTMLElement {
+  connectedCallback() {
+    let i = 0;
+    this.textContent = FR[0];
+    this.iv = setInterval(() => (this.textContent = FR[++i % FR.length]), this.hasAttribute("slow") ? 420 : 120);
+  }
+  disconnectedCallback() { clearInterval(this.iv); }
+});
+
+/* ---------- 样本：waitfor 状态文件的字段（label elapsed limit usual pct quiet last）+ 打算新增的 cpu / st / errs / alerted ---------- */
+const W = {
+  tc: { label: "web-typecheck", cmd: "waitfor -l web-typecheck 600 -- pnpm typecheck", el: 20, usual: 34, limit: 600, pct: null, quiet: 1, cpu: 160, st: "run", cpuOk: true,
+        last: "src/views/Order.vue · checking 214 files", tail: ["> vue-tsc --noEmit", "src/api/order.ts · ok", "src/views/Order.vue · checking 214 files"] },
+  build: { label: "docker build api", cmd: "waitfor -l 'docker build api' 900 -- docker compose build api", el: 120, usual: null, limit: 900, pct: null, quiet: 48, cpu: 210, st: "busy",
+        last: "#12 [build 4/7] RUN dotnet publish -c Release -o /app", tail: ["#11 [build 3/7] COPY . .", "#11 DONE 0.4s", "#12 [build 4/7] RUN dotnet publish -c Release -o /app"] },
+  api: { label: "起api", cmd: "waitfor -l 起api 120 'Healthy|Now listening' 'Exception' -- docker compose logs -f api", el: 95, usual: 12, limit: 120, pct: null, quiet: 78, cpu: 0, st: "stuck", alerted: true,
+        want: "Healthy|Now listening", last: "api-1 | waiting for postgres:5432 …", tail: ["api-1 | Starting Kero.Api 2.4.1", "api-1 | Applying migrations", "api-1 | waiting for postgres:5432 …"] },
+  test: { label: "dotnet test", cmd: "waitfor -l 'dotnet test' 900 -- ./dotnet-docker.sh test", el: 210, usual: 260, limit: 900, pct: 30, prog: "37/120", quiet: 2, cpu: 340, st: "err", errs: 3,
+        err: "Failed OrderServiceTests.Refund_WhenExpired [42 ms]", last: "Passed InvoiceTests.Totals [3 ms]",
+        tail: ["Failed OrderServiceTests.Refund_WhenExpired [42 ms]", "  Expected: Refunded  Actual: Pending", "Passed InvoiceTests.Totals [3 ms]"] },
+  ssh: { label: "deploy demo", cmd: "waitfor -l 'deploy demo' 600 -- ssh bzserver ./deploy.sh", el: 61, usual: 300, limit: 600, pct: null, quiet: 0, cpu: 0, st: "dead", code: 255, ago: 3,
+        last: "Connection to bzserver closed by remote host.", tail: ["pulling api … done", "restarting api", "Connection to bzserver closed by remote host."] },
+  near: { label: "deploy demo", cmd: "waitfor -l 'deploy demo' 600 -- ./deploy.sh", el: 548, usual: 300, limit: 600, pct: null, quiet: 3, cpu: 40, st: "run",
+        last: "pushing layer 7/9 sha256:4f1c…", tail: ["pushing layer 6/9 … done", "pushing layer 7/9 sha256:4f1c…"] },
+};
+const SPECS = [
+  { from: "日常一条", note: "有往常耗时，输出不断", waits: [W.tc] },
+  { from: "头一回·闷算", note: "没有往常耗时；静了 48s 但 CPU 210%", waits: [W.build] },
+  { from: "卡死了", note: "等的那行没来：静 78s 且 CPU 0，过了往常 12s", waits: [W.api] },
+  { from: "报错还在跑", note: "测试有 3 处 Failed，命令还没退", waits: [W.test] },
+  { from: "四条并行", note: "跑着 / 闷算 / 卡死 / 刚断线", waits: [W.tc, W.build, W.api, W.ssh] },
+  { from: "快超时", note: "离上限 52s，已比往常慢", waits: [W.near] },
+];
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const live = (w) => w.st !== "dead";
+const T = (v, w) => `<w-t v="${v}"${live(w) ? " live" : ""}></w-t>`;
+const left = (w) => w.limit - w.el;
+const near = (w) => live(w) && left(w) < w.limit / 5;
+const over = (w) => w.usual != null && w.el > w.usual;
+const bar = (pct, n) => {
+  const k = Math.round((Math.min(pct, 100) / 100) * n * 8), p = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"][k % 8];
+  const s = "█".repeat(Math.floor(k / 8)) + p;
+  return s + "░".repeat(n - [...s].length);
+};
+const glyph = (w) => ({ run: `<w-sp class="cl"></w-sp>`, busy: `<w-sp slow class="wa"></w-sp>`, stuck: `<b class="cr">■</b>`, err: `<w-sp class="cr"></w-sp>`, dead: `<b class="cr">✗</b>` })[w.st];
+const frac = (w, inf = "♾️") => `<span class="${over(w) ? "wa" : ""}">${T(w.el, w)}</span><span class="dim">/${w.usual == null ? inf : w.usual + "s"}</span>`;
+const why = (w) => ({
+  run: "",
+  busy: `<span class="wa">静 ${T(w.quiet, w)} · CPU ${w.cpu}%</span>`,
+  stuck: `<span class="cr">卡住 静 ${T(w.quiet, w)} · CPU 0</span>${w.alerted ? `<span class="dim"> → 已叫 agent</span>` : ""}`,
+  err: `<span class="cr">${w.errs} 处报错</span>`,
+  dead: `<span class="cr">已退出 ${w.code}</span><span class="dim"> · ${w.ago}s 前</span>`,
+})[w.st];
+const lastOf = (w) => (w.st === "err" ? `<span class="cr">${esc(w.err)}</span>` : esc(w.last));
+const lim = (w) => (near(w) ? `<span class="cr">离上限 ${T(left(w), { st: "dead" })}</span>` : "");
+const gap = (...xs) => xs.filter(Boolean).join("  ");
+const more = (w) => `<div class="more"><div>${w.tail.map((l) => `<div class="ln dim">   │ ${esc(l)}</div>`).join("")}<div class="ln dim">   └ /tmp/waitfor/…/${4400 + w.el}.log</div></div></div>`;
+
+/* ---------- 终端骨架：对话尾巴 · 等待条 · 输入框 · 脚注 ---------- */
+const term = (spec, band, { corner = "", beside = "", foot = "", pane = "", toast = "" } = {}) => `
+<div class="term">
+  <div class="tx">
+    ${spec.waits.slice(-1).map((w) => `<div class="ln"><span class="cl">⏺</span><span> Bash(${esc(w.cmd)})</span></div><div class="ln dim"><span>  ⎿  Running in the background</span></div>`).join("")}
+    <div class="ln"><span>⏺</span><span> 后台跑着，等它出结果再接着改。</span></div>
+  </div>
+  ${corner}${toast}
+  <div class="grow"></div>
+  ${pane}
+  <div class="band">${band}</div>
+  <div class="prompt"><span class="dim">&gt;</span> <i class="caret"></i><span class="beside">${beside}</span></div>
+  <div class="foot dim">  ⏵⏵ auto mode on · ${spec.waits.length} background ${spec.waits.length > 1 ? "tasks" : "task"}${foot}</div>
+</div>`;
+
+const CSS = `
+.term { position: relative; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; padding: 10px 12px 6px;
+  background: var(--bg-content); color: var(--ink); border-radius: var(--r-md); box-shadow: var(--shadow-sm); border: 1px solid var(--sep);
+  font: calc(var(--p-fs) * 1px)/1.5 var(--font-mono), ui-monospace, Menlo, monospace; overflow: hidden; }
+.ln { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
+.tx .ln > * { background: var(--bg-content); position: relative; z-index: 2; }
+.tx { position: relative; z-index: 2; }
+.grow { flex: 1; }
+.dim { color: var(--ink-3); } .cl { color: #d77757; } .ok { color: var(--ok); } .wa { color: var(--warn); } .cr { color: var(--crit); }
+b { font-weight: inherit; }
+w-sp { display: inline-block; width: 1ch; text-align: center; }
+.band { margin: 2px 0 4px; }
+.band:empty { display: none; }
+.prompt { border: 1px solid var(--sep-strong); border-radius: 6px; padding: 3px 8px; display: flex; align-items: center; white-space: pre; }
+.caret { display: inline-block; width: .6em; height: 1.1em; background: var(--ink-3); animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.beside { margin-left: auto; }
+.foot { white-space: pre; padding-top: 3px; }
+.row { cursor: pointer; border-radius: 4px; }
+.row:hover { background: var(--hover); }
+.row > .ln:first-child::after { content: "  ▸"; color: var(--ink-4); } .row.open > .ln:first-child::after { content: "  ▾"; color: var(--ink-2); }
+.more { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--t-med) var(--ease-out); }
+.more > div { overflow: hidden; }
+.row.open .more { grid-template-rows: 1fr; }
+.in { animation: rowin var(--t-med) var(--ease-out) both; }
+@keyframes rowin { from { opacity: 0; transform: translateY(4px); } }
+`;
+
+const ON = (act, { btn }) => { if (act === "tog") btn.closest(".row").classList.toggle("open"); };
+const row = (inner, w, extra = "") => `<div class="row in" data-act="tog"${extra}>${inner}${more(w)}</div>`;
+const PARAMS = [
+  { key: "fs", label: "字号", min: 11, max: 15, step: 0.5, tick: 1, def: 12.5, unit: "px" },
+  { key: "tw", label: "终端宽", min: 560, max: 1100, step: 10, tick: 100, def: 860, unit: "px" },
+];
+
+const curBand = (spec) => spec.waits.filter(live).map((w) => {
+      const sl = w.pct == null && w.usual != null && w.el > w.usual;
+      let s = `<span class="cl">⏳ ${esc(w.label)}  </span>`;
+      if (w.pct != null) s += `<span class="ok">${bar(w.pct, 12)} ${w.pct}%  </span>`;
+      s += `<span>${w.el}s</span>`;
+      if (w.pct == null && w.usual != null) s += sl ? `<span class="wa">  比往常 ${w.usual}s 慢了 ${w.el - w.usual}s</span>` : `<span class="dim">  往常约 ${w.usual}s，还差约 ${w.usual - w.el}s</span>`;
+      if (w.pct == null && w.usual == null) s += `<span class="dim">  头一回</span>`;
+      s += left(w) < w.limit / 5 ? `<span class="cr">  离上限 ${left(w)}s</span>` : `<span class="dim">  上限 ${w.limit}s</span>`;
+      if (w.quiet >= 10) s += `<span class="wa">  静 ${w.quiet}s</span>`;
+      return `<div class="ln">${s}</div><div class="ln dim">   ${esc(w.last)}</div>`;
+}).join("");
+
+/* ======================= 界面 1：条里写什么（AbovePrompt） ======================= */
+const P1 = [
+  { name: "现状", thesis: "每条两行：⏳ 标签 + 已等秒数 + 往常 / 头一回 + 上限 + 静 N 秒，第二行最后一行输出",
+    parts: [["时间", "已等 + 一句往常"], ["状态", "无"], ["上限", "常驻"], ["结束", "当场消失"]],
+    cost: "分不出闷算和卡死；报错行被新输出冲掉；进程断了那条直接没了，看不出是成功还是挂了",
+    render: (spec) => term(spec, curBand(spec)) },
+
+  { name: "分数 + 活符号", thesis: "转圈符在动 = 进程在干活；时间只写一个分数 已等/往常，头一回写 ♾️",
+    parts: [["时间", "20s/34s · 120s/♾️"], ["状态", "符号：转=活 ■=卡 ✗=挂"], ["上限", "只在剩两成时出现"], ["结束", "✗ 留 8 秒"]],
+    cost: "符号要靠「动不动」读，截图里看不出；状态没写成字，新人要认一下 ■",
+    render: (spec) => term(spec, spec.waits.map((w) => row(
+      `<div class="ln">${gap(`${glyph(w)} ${esc(w.label)}`, frac(w), why(w), lim(w), w.pct != null ? `<span class="ok">${w.prog} ${w.pct}%</span>` : "")}</div><div class="ln dim">  ${lastOf(w)}</div>`, w)).join("")) },
+
+  { name: "状态词打头", thesis: "先回答「还活着吗」：行首一枚反色词 跑着 / 闷算 / 卡住 / 报错 / 退了，再说别的",
+    parts: [["时间", "已等/往常"], ["状态", "反色词章"], ["原因", "紧跟词章一句"], ["输出", "同一行尾"]],
+    cost: "五个词色块在终端里很重；一行塞满，窄终端时尾部输出先被截",
+    css: `.tag { padding: 0 .5ch; border-radius: 3px; color: var(--bg-content); font-weight: 600; }
+      .t-run { background: var(--ok); } .t-busy { background: var(--warn); } .t-stuck, .t-err { background: var(--crit); } .t-dead { background: var(--ink-3); }`,
+    render: (spec) => term(spec, spec.waits.map((w) => {
+      const word = { run: "跑着", busy: "闷算", stuck: "卡住", err: "报错", dead: "退了" }[w.st];
+      const r = { run: "", busy: `<span class="wa">没输出 ${T(w.quiet, w)}，CPU ${w.cpu}% 还在算</span>`,
+        stuck: `<span class="cr">没输出 ${T(w.quiet, w)} 也没 CPU，/${esc(w.want)}/ 没来</span>${w.alerted ? `<span class="dim"> · 已叫 agent</span>` : ""}`,
+        err: `<span class="cr">${w.errs} 处 Failed</span><span class="dim"> · 还在跑 ${w.prog}</span>`, dead: `<span class="cr">exit ${w.code}</span><span class="dim"> · ${w.ago}s 前</span>` }[w.st];
+      return row(`<div class="ln">${gap(`<span class="tag t-${w.st}">${word}</span> ${esc(w.label)}`, frac(w, "∞"), r, lim(w), `<span class="dim">${w.st === "err" ? "" : esc(w.last)}</span>`)}</div>`, w);
+    }).join("")) },
+
+  { name: "心电图", thesis: "最近 30 秒的活动画成一条波：有输出是绿柱、只有 CPU 是琥珀点、什么都没有是一条红平线",
+    parts: [["时间", "已等/往常"], ["状态", "30s 活动波"], ["原因", "波平了自带"], ["输出", "第二行"]],
+    cost: "状态文件得多存 30 秒的历史；要扫两三秒才读懂；色弱读红绿要靠形状（柱 / 点 / 平线）",
+    render: (spec) => term(spec, spec.waits.map((w) => {
+      const n = 30, out = [];
+      for (let i = 0; i < n; i++) {
+        const t = n - i, h = (i * 7 + w.el) % 9;
+        if (w.st === "dead") out.push(i > n - 4 ? `<span class="dim"> </span>` : `<span class="dim">${"▁▂▃▅"[h % 4]}</span>`);
+        else if (t <= w.quiet && w.cpu > 5) out.push(`<span class="wa">⣀</span>`);
+        else if (t <= w.quiet) out.push(`<span class="cr">▁</span>`);
+        else out.push(`<span class="${w.st === "err" && i % 9 === 4 ? "cr" : "ok"}">${"▂▃▄▅▆▇▅▃"[h % 8]}</span>`);
+      }
+      return row(`<div class="ln">${gap(`<span>${esc(w.label).padEnd(16)}</span>`, out.join(""), frac(w, "∞"), why(w), lim(w))}</div><div class="ln dim">  ${lastOf(w)}</div>`, w);
+    }).join("")) },
+
+  { name: "一把尺", thesis: "一条尺子同时读出 已等 · 往常 · 上限：实线是已等、┃ 是往常、┤ 是上限，静的那段尾巴换色",
+    parts: [["时间", "尺子长度"], ["往常", "┃ 刻痕，头一回没有"], ["静", "尾段 琥珀 / 红"], ["上限", "┤ 进了视野才画"]],
+    cost: "比例尺随条变（上限远时只画到 往常×1.6）；数字退到尺子后面，精确秒数要多看一眼",
+    render: (spec) => term(spec, spec.waits.map((w) => {
+      const N = 32, S = Math.min(w.limit, Math.max(w.usual ?? 0, w.el) * 1.6), at = (s) => Math.min(N, Math.round((s / S) * N));
+      const e = at(w.el), q = w.quiet >= 10 ? at(Math.min(w.quiet, w.el)) : 0, u = w.usual == null ? -1 : at(w.usual);
+      let s = "";
+      for (let i = 0; i < N; i++) {
+        const ch = i === u ? "┃" : i < e ? "━" : "┄";
+        const c = i === u ? "" : i < e - q ? (w.st === "dead" ? "dim" : "ok") : i < e ? (w.st === "busy" ? "wa" : "cr") : "dim";
+        s += `<span class="${c}">${ch}</span>`;
+      }
+      s += S >= w.limit ? `<span class="cr">┤</span>` : `<span class="dim">›</span>`;
+      return row(`<div class="ln">${gap(`${glyph(w)} ${esc(w.label).padEnd(16)}`, s, `${T(w.el, w)}`, why(w), lim(w))}</div><div class="ln dim">  ${lastOf(w)}</div>`, w);
+    }).join("")) },
+
+  { name: "平时一行·出事展开", thesis: "正常的全挤进一行总述；卡住 / 报错 / 退出的单独拉出来，带最后几行证据和日志路径",
+    parts: [["正常", "一行总述"], ["异常", "左竖线块 + 3 行尾巴"], ["agent", "写明已叫"], ["日志", "给路径"]],
+    cost: "正常时细节少（没有最后一行输出）；一出事条会变高，挤压上方对话",
+    css: `.alarm { border-left: 2px solid var(--crit); padding-left: 8px; margin: 2px 0 2px 1ch; }`,
+    render: (spec) => {
+      const ok = spec.waits.filter((w) => w.st === "run" || w.st === "busy"), bad = spec.waits.filter((w) => !ok.includes(w));
+      const sum = ok.length ? `<div class="ln"><w-sp class="cl"></w-sp> ${ok.map((w) => `${esc(w.label)} ${frac(w, "∞")}${w.st === "busy" ? `<span class="wa"> 闷算</span>` : ""}${near(w) ? ` ${lim(w)}` : ""}`).join(`<span class="dim">  ·  </span>`)}</div>` : "";
+      const head = { stuck: (w) => `■ ${esc(w.label)} 卡住了 — 静 ${T(w.quiet, w)}，CPU 0，等的 /${esc(w.want)}/ 没来`, err: (w) => `✗ ${esc(w.label)} ${w.errs} 处报错，还在跑 ${w.prog}`, dead: (w) => `✗ ${esc(w.label)} 已退出 ${w.code} · ${w.ago}s 前` };
+      const blk = bad.map((w) => `<div class="alarm in"><div class="ln cr">${head[w.st](w)}</div>${w.tail.map((l) => `<div class="ln dim">│ ${esc(l)}</div>`).join("")}<div class="ln dim">└ ${w.alerted ? "已叫 agent 看 · " : ""}/tmp/waitfor/…/${4400 + w.el}.log</div></div>`).join("");
+      return term(spec, sum + blk);
+    } },
+
+  { name: "对齐表", thesis: "一条一行、列对齐：状态 · 标签 · 已等/往常 · 静 · CPU · 最后输出，几条并行时竖着比",
+    parts: [["布局", "固定列宽"], ["状态", "符号 + 字"], ["CPU", "常驻一列"], ["输出", "末列截断"]],
+    cost: "只有一条时显得空；列宽吃掉输出的地方，窄终端最后一列先没",
+    render: (spec) => term(spec, spec.waits.map((w) => {
+      const word = { run: "跑着", busy: "闷算", stuck: "卡住", err: "报错", dead: "退了" }[w.st];
+      const c = { run: "ok", busy: "wa", stuck: "cr", err: "cr", dead: "cr" }[w.st];
+      return row(`<div class="ln">${glyph(w)} <span class="${c}">${word}</span>  ${esc(w.label).padEnd(17)}${frac(w, "∞")}${" ".repeat(4)}<span class="${w.quiet >= 10 ? "wa" : "dim"}">静 ${String(w.quiet).padStart(3)}s</span>  <span class="${w.cpu < 2 && live(w) ? "cr" : "dim"}">CPU ${String(w.cpu).padStart(3)}%</span>  ${near(w) ? lim(w) + "  " : ""}<span class="dim">${lastOf(w)}</span></div>`, w);
+    }).join("")) },
+];
+
+/* ======================= 界面 2：挂在哪 ======================= */
+const line1 = (w) => gap(`${glyph(w)} ${esc(w.label)}`, frac(w), why(w), lim(w));
+const SPECS2 = [SPECS[0], SPECS[2], SPECS[4]];
+const PAD = `<div class="ln dim">  …</div><div class="ln"><span>⏺ 我先把 OrderService 的退款分支补上测试，再跑一遍 dotnet test 看 Refund_WhenExpired 还红不红，顺手把 deploy 脚本的超时也调一下。</span></div><div class="ln"><span>⏺ 好。</span></div>`;
+const termL = (spec, band, o) => term({ ...spec }, band, o).replace(`<div class="tx">`, `<div class="tx">${PAD}`);
+const P2 = [
+  { name: "现状：输入框上方", thesis: "AbovePrompt：贴在输入框正上方，打字时就在眼皮底下",
+    parts: [["位置", "AbovePrompt"], ["模式", "所有布局"]], cost: "多条并行时把对话往上顶；和别的插件的上方条抢位置",
+    render: (spec) => termL(spec, curBand(spec)) },
+
+  { name: "右上角浮签", thesis: "Underlay 层 absolute 到右上角：对话右侧那片空白本来没人用",
+    parts: [["位置", "Underlay 右上"], ["模式", "仅全屏布局"]], cost: "只画在空白格上，长行会盖住它；开对话框 / 选择器时整层隐藏；非全屏布局没有",
+    css: `.corner { position: absolute; top: 10px; right: 12px; z-index: 1; text-align: right; } .corner .ln { overflow: visible; }`,
+    render: (spec) => termL(spec, "", { corner: `<div class="corner">${spec.waits.map((w) => `<div class="ln in">${line1(w)}</div>`).join("")}</div>` }) },
+
+  { name: "输入框右侧计数", thesis: "BesidePrompt 只放计数：✻2 ■1，眼睛扫输入框就知道有没有出事",
+    parts: [["位置", "BesidePrompt"], ["内容", "按状态计数"]], cost: "只有数，细节要另看（悬停 / 展开）；全屏布局才有",
+    render: (spec) => {
+      const n = (st) => spec.waits.filter((w) => w.st === st).length;
+      const b = [["run", `<w-sp class="cl"></w-sp>`], ["busy", `<w-sp slow class="wa"></w-sp>`], ["stuck", `<b class="cr">■</b>`], ["err", `<b class="cr">✗</b>`], ["dead", `<b class="cr">✗</b>`]].filter(([s]) => n(s)).map(([s, g]) => `${g}${n(s)}`).join(" ");
+      return termL(spec, "", { beside: b });
+    } },
+
+  { name: "状态栏尾巴", thesis: "StatusLine 末尾续一段：最不占地方，和模型 / 上下文用量排在一起",
+    parts: [["位置", "StatusLine"], ["内容", "每条一段 ┊ 隔开"]], cost: "和 claude-hud 抢同一行，一挤就截断；在最底下，最不显眼",
+    render: (spec) => termL(spec, "", { foot: `<span class="dim">  ┊  </span>` + spec.waits.map((w) => `${glyph(w)} ${esc(w.label)} ${frac(w)}`).join(`<span class="dim"> ┊ </span>`) }) },
+
+  { name: "角落计数 + 出事弹提示", thesis: "平时右上角只有小计数；一卡住 / 报错就弹 toast（再加系统通知），叫人",
+    parts: [["平时", "右上角计数"], ["出事", "toast + 系统通知"]], cost: "toast 4 秒就走，走开的人回来只剩计数；系统通知会打扰",
+    css: `.corner { position: absolute; top: 10px; right: 12px; z-index: 1; }
+      .toast { position: absolute; top: 34px; right: 12px; z-index: 3; border: 1px solid var(--crit); border-radius: 6px; padding: 4px 10px; background: var(--bg-content);
+        box-shadow: var(--shadow-md); animation: toast 5s var(--ease-out) both; }
+      @keyframes toast { 0% { opacity: 0; transform: translateX(16px); } 8%, 86% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateX(16px); } }`,
+    render: (spec) => {
+      const bad = spec.waits.filter((w) => ["stuck", "err", "dead"].includes(w.st));
+      return termL(spec, "", {
+        corner: `<div class="corner ln"><w-sp class="cl"></w-sp> ${spec.waits.length}${bad.length ? ` <b class="cr">■ ${bad.length}</b>` : ""}</div>`,
+        toast: bad.length ? `<div class="toast">${bad.map((w) => `<div class="ln"><span class="dim">wait-band</span>  ${line1(w)}</div>`).join("")}</div>` : "",
+      });
+    } },
+
+  { name: "上方一行 + 右上异常牌", thesis: "正常的在输入框上方压成一行；异常的挂右上角红牌，不消失直到它结束",
+    parts: [["正常", "AbovePrompt 一行"], ["异常", "Underlay 右上红牌"]], cost: "两处要看；红牌同样受 Underlay 限制（长行盖住、非全屏没有）",
+    css: `.corner { position: absolute; top: 10px; right: 12px; z-index: 1; text-align: right; }
+      .corner .ln { border-right: 2px solid var(--crit); padding-right: 6px; overflow: visible; }`,
+    render: (spec) => {
+      const ok = spec.waits.filter((w) => w.st === "run" || w.st === "busy"), bad = spec.waits.filter((w) => !ok.includes(w));
+      return termL(spec, ok.length ? `<div class="ln">${ok.map(line1).join(`<span class="dim">  ·  </span>`)}</div>` : "",
+        { corner: bad.length ? `<div class="corner">${bad.map((w) => `<div class="ln in">${line1(w)}</div>`).join("")}</div>` : "" });
+    } },
+
+  { name: "停靠日志窗", thesis: "Pane 停在输入框上：不只看状态，直接看那条命令最后十行输出",
+    parts: [["位置", "Pane 停靠"], ["内容", "状态头 + 实时尾巴"]], cost: "最占地方；全屏布局才停靠，否则落在输入框上方",
+    css: `.pane { border: 1px solid var(--sep-strong); border-radius: 6px; padding: 2px 8px; margin-bottom: 4px; }`,
+    render: (spec) => termL(spec, "", { pane: spec.waits.map((w) => `<div class="pane in"><div class="ln">${line1(w)}</div>${w.tail.map((l) => `<div class="ln dim">│ ${esc(l)}</div>`).join("")}</div>`).join("") }) },
+];
+
+
+/* ======================= R2：不靠 CPU（docker / ssh 的活在别处跑，本机测不到），只认「多久没输出」 ======================= */
+const QA = 60;  // 静这么久算卡住、叫 agent
+const s2 = (w) => (w.st === "err" || w.st === "dead" ? w.st : w.quiet >= QA ? "stuck" : w.quiet >= 10 ? "quiet" : "run");
+const g2 = (w) => ({ run: `<w-sp class="cl"></w-sp>`, quiet: `<w-sp slow class="dim"></w-sp>`, stuck: `<b class="cr">■</b>`, err: `<w-sp class="cr"></w-sp>`, dead: `<b class="cr">✗</b>` })[s2(w)];
+const c2 = (w) => ({ run: "ok", quiet: "wa", stuck: "cr", err: "cr", dead: "dim" })[s2(w)];
+const why2 = (w) => ({
+  run: w.cpuOk ? `<span class="dim">CPU ${w.cpu}%</span>` : "",
+  quiet: `<span class="wa">静 ${T(w.quiet, w)}</span>`,
+  stuck: `<span class="cr">静 ${T(w.quiet, w)}，卡住</span><span class="dim"> → 已叫 agent</span>`,
+  err: `<span class="cr">${w.errs} 处报错</span>${w.alerted !== false ? `<span class="dim"> → 已叫 agent</span>` : ""}`,
+  dead: `<span class="cr">退出 ${w.code}</span><span class="dim"> · ${w.ago}s 前</span>`,
+})[s2(w)];
+/* 一格 = 一秒的输出量：绿柱 有输出 · 灰点 静（未到阈值）· 红底线 静过阈值 · 红柱 报错行 */
+const wave2 = (w, n = 24, span = n) => {
+  const per = span / n, out = [];
+  for (let i = 0; i < n; i++) {
+    const ago = (n - i) * per, h = (i * 7 + w.el) % 8;
+    if (w.st === "dead" && i >= n - 2) out.push(`<span class="dim"> </span>`);
+    else if (ago <= w.quiet) out.push(w.quiet >= QA && ago <= w.quiet - (QA - 10) ? `<span class="cr">▁</span>` : `<span class="dim">·</span>`);
+    else out.push(`<span class="${w.st === "err" && i % 7 === 3 ? "cr" : w.st === "dead" ? "dim" : "ok"}">${"▂▃▄▅▆▇▅▃"[h]}</span>`);
+  }
+  return out.join("");
+};
+const lab = (w, n = 16) => esc(w.label) + " ".repeat(Math.max(1, n - [...w.label].reduce((a, c) => a + (c.charCodeAt(0) > 255 ? 2 : 1), 0)));
+const out2 = (w) => (w.st === "err" ? `<span class="cr">${esc(w.err)}</span>` : `<span class="dim">${esc(w.last)}</span>`);
+const CSS2 = `.w { margin-top: 6px; } .w:first-child { margin-top: 0; } .sub { padding-left: 2ch; }`;
+
+const R2P1 = [
+  { ...P1[3], name: "R1·3 心电图原样", thesis: "上一轮选的那档，原样留着对照", parts: [["来源", "R1 · 3"]], cost: "依赖 CPU（docker / ssh 测不到）；条与条之间没有间隔" },
+
+  { name: "短波 + 分数，块间留空", thesis: "每条两行一块、块与块之间空半行：第一行 符号 · 标签 · 16 格波 · 已等/往常 · 原因，第二行最后输出",
+    parts: [["分组", "块间 6px"], ["波", "16 格 = 16 秒"], ["CPU", "只本机命令显示"]], cost: "四条就是八行，条会高",
+    css: CSS2,
+    render: (spec) => term(spec, spec.waits.map((w) => row(`<div class="ln">${gap(`${g2(w)} ${lab(w)}`, wave2(w, 16), frac(w), why2(w), lim(w))}</div><div class="ln sub">${out2(w)}</div>`, w, ` class="w"`).replace('class="row in" data-act="tog" class="w"', 'class="row in w" data-act="tog"')).join("")) },
+
+  { name: "左侧色条分组", thesis: "每条左边一根状态色竖条，竖条就是分组线：绿 跑 · 琥珀 静 · 红 卡 / 报错 · 灰 退了",
+    parts: [["分组", "左色条"], ["波", "20 格"], ["状态", "色条 + 波"]], cost: "终端里竖条是 ▎ 字符，颜色多了显花",
+    css: CSS2 + ` .bar { margin-right: 1ch; }`,
+    render: (spec) => term(spec, spec.waits.map((w) => `<div class="row in w" data-act="tog"><div class="ln"><span class="bar ${c2(w)}">▎</span>${gap(lab(w), wave2(w, 20), frac(w), why2(w), lim(w))}</div><div class="ln"><span class="bar ${c2(w)}">▎</span>${out2(w)}</div>${more(w)}</div>`).join("")) },
+
+  { name: "一条一行，波就是状态", thesis: "每条只占一行、虚线隔开；不看输出，波平没平一眼就是答案，点开才看尾巴",
+    parts: [["分组", "一行 + 虚线"], ["波", "24 格"], ["输出", "点开看"]], cost: "最后一行输出默认看不到，判断「卡在哪」要多点一下",
+    css: `.row + .row { border-top: 1px dashed var(--sep); }`,
+    render: (spec) => term(spec, spec.waits.map((w) => row(`<div class="ln">${gap(`${g2(w)} ${lab(w)}`, wave2(w, 24), frac(w), why2(w), lim(w))}</div>`, w)).join("")) },
+
+  { name: "波贴在输出前", thesis: "第一行文字（标签 · 时间 · 原因），第二行 波 + 最后输出：波说明这行输出是什么时候来的",
+    parts: [["分组", "块间 6px"], ["波", "12 格，贴输出"], ["输出", "常驻"]], cost: "波短（12 秒），看不出更早的停顿",
+    css: CSS2,
+    render: (spec) => term(spec, spec.waits.map((w) => `<div class="row in w" data-act="tog"><div class="ln">${gap(`${g2(w)} ${esc(w.label)}`, frac(w), why2(w), lim(w))}</div><div class="ln sub">${wave2(w, 12)}  ${out2(w)}</div>${more(w)}</div>`).join("")) },
+
+  { name: "整段时间线", thesis: "波铺满整段运行（每格 = 已等/24 秒），┃ 标往常：中途哪儿停过、现在过没过往常，一条全看到",
+    parts: [["分组", "块间 6px"], ["波", "全程 24 格"], ["往常", "┃ 刻痕"]], cost: "每格秒数随时间变，最近几秒的动静被压扁",
+    css: CSS2,
+    render: (spec) => term(spec, spec.waits.map((w) => {
+      let wv = wave2(w, 24, Math.max(w.el, 24));
+      if (w.usual != null && w.usual < w.el) { const k = Math.round((w.usual / w.el) * 24); const a = wv.split("</span>"); a[k] = `<span class="dim">┃`; wv = a.join("</span>"); }
+      return `<div class="row in w" data-act="tog"><div class="ln">${gap(`${g2(w)} ${lab(w)}`, wv, frac(w), why2(w), lim(w))}</div><div class="ln sub">${out2(w)}</div>${more(w)}</div>`;
+    }).join("")) },
+];
+
+/* 挂在哪 R2：右上角常驻（含已跑时长）+ 出事真弹 toast（插件 API $.ui.toast，timeoutMs 可调；另可 $.ui.notify 发系统通知） */
+const TOASTCSS = `.corner { position: absolute; top: 10px; right: 12px; z-index: 1; text-align: right; } .corner .ln { overflow: visible; }
+  .toast { position: absolute; top: calc(10px + var(--tt, 1.5em)); right: 12px; z-index: 3; border: 1px solid var(--crit); border-radius: 6px; padding: 4px 10px; background: var(--bg-content);
+    box-shadow: var(--shadow-md); animation: toast 6s var(--ease-out) both; }
+  @keyframes toast { 0% { opacity: 0; transform: translateX(16px); } 8%, 88% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateX(16px); } }`;
+const bad2 = (spec) => spec.waits.filter((w) => ["stuck", "err", "dead"].includes(s2(w)));
+const toast2 = (spec) => bad2(spec).length ? `<div class="toast">${bad2(spec).map((w) => `<div class="ln"><span class="dim">wait-band</span>  ${g2(w)} ${esc(w.label)}  ${why2(w)}</div>`).join("")}</div>` : "";
+const R2P2 = [
+  { ...P2[4], name: "R1·4 原样", thesis: "上一轮选的那档：角落只有计数", parts: [["来源", "R1 · 4"]], cost: "看不到已跑多久" },
+
+  { name: "角落竖排：符号 · 标签 · 时长", thesis: "右上角每条一行，常驻已跑时长；出事弹 toast",
+    parts: [["角落", "每条一行"], ["时长", "已等/往常"], ["出事", "toast 6s"]], cost: "四条就占四行，碰上长对话行会被盖",
+    css: TOASTCSS + ` .toast { --tt: 5.5em; }`,
+    render: (spec) => termL(spec, "", { corner: `<div class="corner">${spec.waits.map((w) => `<div class="ln in">${g2(w)} ${esc(w.label)}  ${frac(w)}</div>`).join("")}</div>`, toast: toast2(spec) }) },
+
+  { name: "角落一行：每条一枚", thesis: "右上角一行，每条只是 符号 + 已等秒数，最省地方",
+    parts: [["角落", "一行"], ["时长", "只已等"], ["出事", "toast 6s"]], cost: "没有标签，几条并行时要靠顺序对上是谁",
+    css: TOASTCSS,
+    render: (spec) => termL(spec, "", { corner: `<div class="corner ln">${spec.waits.map((w) => `${g2(w)}${T(w.el, w)}`).join("  ")}</div>`, toast: toast2(spec) }) },
+
+  { name: "角落迷你波 + 时长", thesis: "右上角每条 8 格小波 + 已等：活没活、跑多久同一眼",
+    parts: [["角落", "每条一行"], ["波", "8 格"], ["出事", "toast 6s"]], cost: "小波 8 秒，太短；占的列比纯数字多",
+    css: TOASTCSS + ` .toast { --tt: 5.5em; }`,
+    render: (spec) => termL(spec, "", { corner: `<div class="corner">${spec.waits.map((w) => `<div class="ln in">${esc(w.label)} ${wave2(w, 8)} ${T(w.el, w)}</div>`).join("")}</div>`, toast: toast2(spec) }) },
+
+  { name: "计数 + 最长时长，出事 toast 不走", thesis: "角落一句 ⏳4 · 最长 124s；出事的 toast 一直挂着，直到那条结束或 agent 接手",
+    parts: [["角落", "计数 + 最长"], ["出事", "toast 常驻"]], cost: "常驻 toast 盖住对话右上；要插件自己管什么时候撤",
+    css: TOASTCSS + ` .toast { animation: toastin var(--t-med) var(--ease-out) both; } @keyframes toastin { from { opacity: 0; transform: translateX(16px); } }`,
+    render: (spec) => { const m = Math.max(...spec.waits.map((w) => w.el)); const b = bad2(spec).length;
+      return termL(spec, "", { corner: `<div class="corner ln"><w-sp class="cl"></w-sp> ${spec.waits.length} <span class="dim">·</span> 最长 ${T(m, spec.waits[0])}${b ? `  <b class="cr">■ ${b}</b>` : ""}</div>`, toast: toast2(spec) }); } },
+];
+
+/* 挂在哪 R3：底子 = R2·2 角落一行；补信息量；异常改成常驻、自带框和标题（不混进系统 toast 堆） */
+const short = (w, n = 10) => { const a = [...w.label]; return esc(a.length > n ? a.slice(0, n - 1).join("") + "…" : w.label); };
+const chip = (w, body) => `<span class="ch">${g2(w)} ${body}</span>`;
+const LINECSS = `.corner { position: absolute; top: 10px; right: 12px; z-index: 1; text-align: right; } .corner .ln { overflow: visible; }
+  .ch + .ch::before { content: "  │  "; color: var(--sep-strong); }
+  .card { position: absolute; right: 12px; top: 32px; z-index: 3; min-width: 46%; border: 1px solid var(--crit); border-radius: 6px; background: var(--bg-content); box-shadow: var(--shadow-md);
+    animation: cardin var(--t-med) var(--ease-out) both; }
+  .card .hd { padding: 1px 8px; background: color-mix(in srgb, var(--crit) 14%, transparent); color: var(--crit); }
+  .card .bd { padding: 3px 8px; }
+  .card .ln + .ln.t { margin-top: 4px; }
+  @keyframes cardin { from { opacity: 0; transform: translateY(-6px); } }
+  .alarm { border: 1px solid var(--crit); border-radius: 6px; margin-bottom: 4px; animation: cardin var(--t-med) var(--ease-out) both; }
+  .alarm .hd { padding: 0 8px; background: color-mix(in srgb, var(--crit) 14%, transparent); color: var(--crit); }
+  .alarm .bd { padding: 2px 8px; }
+  .btn { color: var(--ink-2); }`;
+const oneLine = (spec, f) => `<div class="corner ln">${spec.waits.map((w) => chip(w, f(w))).join("")}</div>`;
+const cardBody = (spec) => bad2(spec).map((w) => `<div class="ln t">${g2(w)} ${esc(w.label)}  ${why2(w)}</div><div class="ln dim">  └ ${out2(w)}</div>`).join("");
+const R3P2 = [
+  { ...R2P2[2], name: "R2·2 原样", thesis: "上一轮喜欢的那档：一行、每条一枚 符号 + 已等", parts: [["来源", "R2 · 2"]], cost: "没标签、没往常、异常靠 6 秒 toast" },
+
+  { name: "一行 + 短标签 + 分数", thesis: "还是一行，每枚加 10 字以内的标签和 已等/往常；│ 隔开，谁是谁一眼对上",
+    parts: [["角落", "一行"], ["每枚", "符号 · 短标签 · 分数"], ["异常", "枚里写原因"]], cost: "四条时一行很长，窄终端会和对话撞",
+    css: LINECSS,
+    render: (spec) => termL(spec, "", { corner: oneLine(spec, (w) => `${short(w)} ${s2(w) === "run" || s2(w) === "quiet" ? frac(w, "∞") : why2(w).replace(/<span class="dim"> → 已叫 agent<\/span>/, "")}`) }) },
+
+  { name: "一行 + 常驻异常卡（右上）", thesis: "一行放全部；出事的在下面挂一张带框带标题的卡，一直在，直到那条结束",
+    parts: [["角落", "一行 短标签 + 时长"], ["异常", "Underlay 卡，常驻"], ["交互", "不能点（Underlay 不收指针）"]], cost: "卡在对话上方会被长行盖；不能点掉，只能等结束或 agent 处理",
+    css: LINECSS,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, "", { corner: oneLine(spec, (w) => `${short(w)} ${T(w.el, w)}`) + (b.length ? `<div class="card"><div class="ln hd">waitfor · ${b.length} 条要看</div><div class="bd">${cardBody(spec)}</div></div>` : "") }); } },
+
+  { name: "一行 + 异常卡落到输入框上", thesis: "角落一行常驻；异常卡放输入框正上方（AbovePrompt），能点：展开尾巴 / 打开日志 / 叫 agent",
+    parts: [["角落", "一行"], ["异常", "AbovePrompt 卡"], ["交互", "Button：展开 · 日志 · 叫 agent"]], cost: "异常时输入框上方变高；正常和异常分在两处",
+    css: LINECSS,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, b.length ? `<div class="alarm"><div class="ln hd">waitfor · ${b.length} 条要看</div><div class="bd">${cardBody(spec)}<div class="ln btn">[ 展开 ]  [ 打开日志 ]  [ 叫 agent ]</div></div></div>` : "",
+        { corner: oneLine(spec, (w) => `${short(w)} ${T(w.el, w)}`) }); } },
+
+  { name: "一行 + 4 格波", thesis: "每枚 短标签 · 4 格小波 · 已等：波平了就是静了，不用读字",
+    parts: [["角落", "一行"], ["每枚", "标签 · 波 · 时长"], ["异常", "常驻卡"]], cost: "4 格波只看 4 秒，判断偏急；字符最多",
+    css: LINECSS,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, "", { corner: oneLine(spec, (w) => `${short(w, 8)} ${wave2(w, 4)} ${T(w.el, w)}`) + (b.length ? `<div class="card"><div class="ln hd">waitfor · ${b.length} 条要看</div><div class="bd">${cardBody(spec)}</div></div>` : "") }); } },
+
+  { name: "一行变两行：异常行贴在下面", thesis: "第一行全部的枚；第二行只列异常的原因（红），不另起卡、不加框",
+    parts: [["角落", "两行"], ["异常", "第二行文字"]], cost: "没框，和对话的边界弱；异常多了第二行很长",
+    css: LINECSS,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, "", { corner: `<div class="corner">${`<div class="ln">${spec.waits.map((w) => chip(w, `${short(w)} ${T(w.el, w)}`)).join("")}</div>`}${b.length ? `<div class="ln">${b.map((w) => `${short(w)} ${why2(w)}`).join(`<span class="dim">  ·  </span>`)}</div>` : ""}</div>` }); } },
+];
+
+/* 挂在哪 R4：底子 = R3·1 角落一行（Underlay，只画不收点击）；展开靠能收键 / 点击的地方：/w 命令开的 Pane、或 AbovePrompt 的 Button */
+const list23 = (spec, ws = spec.waits) => ws.map((w) => row(`<div class="ln">${gap(`${g2(w)} ${lab(w)}`, wave2(w, 24), frac(w), why2(w), lim(w))}</div>`, w)).join("");
+const corner31 = (spec) => oneLine(spec, (w) => `${short(w)} ${s2(w) === "run" || s2(w) === "quiet" ? frac(w, "∞") : why2(w).replace(/<span class="dim"> → 已叫 agent<\/span>/, "")}`);
+const DOCK = LINECSS + `
+  .dock { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--t-med) var(--ease-out); }
+  .dock > div { overflow: hidden; }
+  .term.pop .dock { grid-template-rows: 1fr; }
+  .dock .frame { border: 1px solid var(--sep-strong); border-radius: 6px; margin-bottom: 4px; }
+  .dock .hd { padding: 0 8px; color: var(--ink-2); display: flex; } .dock .hd .k { margin-left: auto; color: var(--ink-3); }
+  .dock .bd { padding: 2px 8px; }
+  .row + .row { border-top: 1px dashed var(--sep); }
+  .mini { color: var(--ink-3); cursor: pointer; } .mini:hover { color: var(--ink); }`;
+const ON4 = (act, ctx) => { if (act === "pane") ctx.root.querySelector(".term").classList.toggle("pop"); else ON(act, ctx); };
+const dock = (spec, title, ws) => `<div class="dock"><div><div class="frame"><div class="ln hd"><span>${title}</span><span class="k">↑↓ 选 · Enter 展开 · Esc 收</span></div><div class="bd">${list23(spec, ws)}</div></div></div></div>`;
+const R4P2 = [
+  { ...R3P2[1], name: "R3·1 原样", thesis: "上一轮选的：角落一行 短标签 + 分数", parts: [["来源", "R3 · 1"]], cost: "右上角那层不收点击，展不开" },
+
+  { name: "角落一行 + /w 开停靠窗", thesis: "角落只管扫一眼；要细看敲 /w，输入框上方升起一个窗：每条一行、点 / Enter 展开尾巴，Esc 原路收回",
+    parts: [["扫一眼", "角落一行"], ["细看", "/w → Pane"], ["展开", "Button / ↑↓ Enter"]], cost: "多一步敲命令；Pane 停靠只在全屏布局，否则落在输入框上方",
+    css: DOCK,
+    render: (spec) => term(spec, dock(spec, "waitfor · 全部 " + spec.waits.length + " 条", spec.waits) + `<button data-act="pane" data-ext="敲 /w" hidden></button>`, { corner: corner31(spec) }).replace('<div class="tx">', `<div class="tx">${PAD}`) },
+
+  { name: "角落一行 + 出事的自己长到输入框上", thesis: "正常时只有角落；有一条卡住 / 报错 / 退出，它就从输入框上方长出来（能点开），恢复或结束后缩回去",
+    parts: [["扫一眼", "角落一行"], ["出事", "AbovePrompt 自动出现"], ["展开", "点 / Enter"]], cost: "正常的那些要细看还是没地方点",
+    css: DOCK + ` .term .dock { grid-template-rows: 1fr; } .term.pop .dock { grid-template-rows: 0fr; }`,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, b.length ? dock(spec, `waitfor · ${b.length} 条要看`, b) + `<button data-act="pane" data-ext="恢复 / 出事" hidden></button>` : "", { corner: corner31(spec) }); } },
+
+  { name: "角落一行 + 输入框上一颗小钮", thesis: "输入框上方常驻一行极小的 [ ⏳4 · ■1 ] 钮（也是 ctrl+x w 热键），按下原地展开成全部列表，再按收回",
+    parts: [["扫一眼", "角落一行"], ["入口", "AbovePrompt Button + 热键"], ["展开", "原地展开"]], cost: "输入框上方常驻占一行；和角落信息有一份重复",
+    css: DOCK,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, `<div class="ln"><span class="mini" data-act="pane">[ ⏳${spec.waits.length}${b.length ? ` · <b class="cr">■${b.length}</b>` : ""} ]</span><span class="dim">  ctrl+x w</span></div>` + dock(spec, "waitfor · 全部 " + spec.waits.length + " 条", spec.waits), { corner: corner31(spec) }); } },
+
+  { name: "出事的自己长出来 + /w 看全部", thesis: "上面两档合起来：出事的自动长到输入框上，其余的要看就 /w",
+    parts: [["扫一眼", "角落一行"], ["出事", "自动出现"], ["全部", "/w"]], cost: "两套入口，要记住 /w",
+    css: DOCK + ` .auto .dock { grid-template-rows: 1fr; }`,
+    render: (spec) => { const b = bad2(spec);
+      return termL(spec, (b.length ? `<div class="auto">${dock(spec, `waitfor · ${b.length} 条要看`, b)}</div>` : "") + dock(spec, "waitfor · 全部 " + spec.waits.length + " 条", spec.waits) + `<button data-act="pane" data-ext="敲 /w" hidden></button>`, { corner: corner31(spec) }); } },
+];
+
+const PAGES = [
+  { name: "条里写什么", specs: SPECS, rounds: [{ name: "R1 发散", tile: { w: "tw", h: 340 }, params: PARAMS, on: ON, list: P1 }, { name: "R2 心电图·不靠 CPU", tile: { w: "tw", h: 340 }, params: PARAMS, on: ON, uses: [s2, g2, why2, wave2, lab, out2, row, more], list: R2P1 }] },
+  { name: "挂在哪", specs: SPECS2, rounds: [{ name: "R1 位置", tile: { w: "tw", h: 400 }, params: PARAMS, list: P2 }, { name: "R2 角落常驻时长", tile: { w: "tw", h: 400 }, params: PARAMS, uses: [s2, g2, why2, wave2, toast2], list: R2P2 }, { name: "R3 一行 + 常驻异常", tile: { w: "tw", h: 400 }, params: PARAMS, uses: [s2, g2, why2, wave2, short, chip, oneLine, cardBody], list: R3P2 }, { name: "R4 角落 + 怎么展开", tile: { w: "tw", h: 420 }, params: PARAMS, on: ON4, uses: [list23, corner31, dock, s2, g2, why2, wave2, short, oneLine, row, more], list: R4P2 }] },
+];
+
+labStart({ TOPIC, KEY, CSS, PAGES });
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# 报错行判定样本：「+ 」开头 = 应判报错，「- 」开头 = 不应判。tests/err-regex.sh 逐条喂给真的 waitfor 算准确率
++ error[E0432]: unresolved imports `self::encode::Encode`
++ error: could not compile `sqlx` (lib) due to 2 previous errors
++ src/api/order.ts(12,5): error TS2322: Type 'string' is not assignable to type 'number'.
++ /src/Foo/Bar.cs(218,72): error CS1002: ; expected
++ thread 'main' panicked at src/main.rs:12:5:
++ Traceback (most recent call last):
++ npm ERR! code ELIFECYCLE
++ Failed OrderTests.Refund_WhenExpired [42 ms]
++   Failed InvoiceTests.Totals [7 ms]
++ FAIL  src/order.test.ts > refund > expired
++  ✗ refund when expired (12 ms)
++  × refund when expired 12ms
++ api-1 | Unhandled exception. System.InvalidOperationException: Sequence contains no elements
++ api-1  | 2026-11-27 03:30:00 ERROR Failed to connect to postgres
++ [2026-11-27T03:30:00Z ERROR morii] db open failed
++ fatal: not a git repository (or any of the parent directories): .git
++ sh: foo: command not found
++ cp: /a/b: No such file or directory
++ bash: ./deploy.sh: Permission denied
++ Killed
++ api-1 exited with code 139
++ Segmentation fault (core dumped)
++ java.lang.NullPointerException: Cannot invoke "String.length()"
++ Error: Cannot find module 'vite'
++ ERROR: failed to solve: process "/bin/sh -c npm ci" did not complete successfully: exit code: 1
+- /src/Foo/Bar.cs(218,72): warning CS8604: Possible null reference argument for parameter 'errors'
+- warning: unused variable: `error`
+-    Compiling error-code v2.3.1
+-    Compiling thiserror-impl v2.0.18
+- Tests: 120 passed, 0 failed
+- 0 errors, 3 warnings
+- Build succeeded. 0 Warning(s) 0 Error(s)
+- found 0 vulnerabilities
+- api-1 | GET /api/errors 200 12ms
+- src/components/ErrorBoundary.tsx
+- General panic behavior:
+- For more information about this error, try `rustc --explain E0432`.
+- Passed InvoiceTests.Totals [3 ms]
+- retrying after error in 5s (attempt 2/5)
+- {"label":"测2测试","err":"Failed InvoiceTests.Totals [7 ms]"}
